@@ -253,9 +253,9 @@ async function sendAccessTokenEmail(email, name, token) {
   const text = `Welcome to KURO OS\n\nYour access token: ${token}\n\nOpen KURO OS at https://kuroglass.net/app\nClick "Sign In -> Have an access token?" and enter the token above.\n\nKURO OS · kuroglass.net`;
 
   if (!host || !user || !pass) {
-    // Dev fallback
-    console.log(`[ACCESS TOKEN:DEV] Token for ${email}: ${token}`);
-    return { success: true, devToken: process.env.NODE_ENV === 'development' ? token : undefined };
+    // No SMTP configured — return token directly so UI can display it
+    console.log(`[ACCESS TOKEN:NO-SMTP] Token for ${email}: ${token}`);
+    return { success: true, noSmtp: true, devToken: token };
   }
 
   try {

@@ -36,6 +36,7 @@ export default function AuthGate() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
   const inputRef = useRef(null);
   const submittingRef = useRef(false);
   const { signup, login, verifyEmail, forgotPassword, resetPassword, tokenLogin, authError, clearAuthError } = useAuthStore();
@@ -73,6 +74,7 @@ export default function AuthGate() {
       } else if (mode === 'signup') {
         const r = await signup(form.email, form.password, form.name);
         if (r.success) {
+          if (r.devToken) setAccessToken(r.devToken);
           setMode('email-sent');
           setMessage('');
         } else {
@@ -156,12 +158,29 @@ export default function AuthGate() {
 
         {mode === 'email-sent' && (
           <div className="ag-email-sent">
-            <div className="ag-sent-icon">&#x2709;</div>
-            <h3 className="ag-sent-title">Check your email</h3>
-            <p className="ag-sent-sub">We sent your KURO access token to<br /><strong>{form.email}</strong></p>
-            <button className="ag-btn ag-submit" onClick={() => switchMode('token')}>
-              Enter access token &#x2192;
-            </button>
+            {accessToken ? (
+              <>
+                <div className="ag-sent-icon">&#x26A1;</div>
+                <h3 className="ag-sent-title">Your access token</h3>
+                <p className="ag-sent-sub" style={{marginBottom:4}}>Email delivery unavailable — copy your token now:</p>
+                <div className="ag-token-display">
+                  <span className="ag-token-value">{accessToken}</span>
+                  <button className="ag-token-copy" onClick={() => { navigator.clipboard?.writeText(accessToken); }} title="Copy">&#x2398;</button>
+                </div>
+                <button className="ag-btn ag-submit" onClick={() => { upd('token', accessToken); switchMode('token'); }}>
+                  Sign in with this token &#x2192;
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="ag-sent-icon">&#x2709;</div>
+                <h3 className="ag-sent-title">Check your email</h3>
+                <p className="ag-sent-sub">We sent your KURO access token to<br /><strong>{form.email}</strong></p>
+                <button className="ag-btn ag-submit" onClick={() => switchMode('token')}>
+                  Enter access token &#x2192;
+                </button>
+              </>
+            )}
             <button onClick={() => switchMode('login')} className="ag-nav-link">&#x2190; Back to sign in</button>
           </div>
         )}
@@ -343,6 +362,10 @@ function AuthGateStyles() {
 .ag-sent-sub strong { color:rgba(255,255,255,0.7); }
 .ag-nav-link { background:none; border:none; color:rgba(255,255,255,0.3); font-size:12px; cursor:pointer; font-family:inherit; transition:color 0.15s; margin-top:4px; }
 .ag-nav-link:hover { color:rgba(255,255,255,0.5); }
+.ag-token-display { display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.35); border:1px solid rgba(168,85,247,0.25); border-radius:10px; padding:10px 14px; width:100%; box-sizing:border-box; }
+.ag-token-value { flex:1; font-family:'SF Mono',ui-monospace,monospace; font-size:13px; font-weight:700; color:#fff; letter-spacing:2px; word-break:break-all; text-align:left; }
+.ag-token-copy { background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.2); border-radius:6px; color:#a855f7; cursor:pointer; font-size:16px; padding:4px 8px; flex-shrink:0; transition:background 0.15s; }
+.ag-token-copy:hover { background:rgba(168,85,247,0.2); }
     `}</style>
   );
 }

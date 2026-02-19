@@ -852,7 +852,7 @@ export default function KuroChat() {
   });
   const [conversations, setConversations] = useState(() => {
     // Initialize with one empty conversation
-    const id = Date.now();
+    const id = String(Date.now());
     return [{ id, title: '', messages: [], projectId: null }];
   });
   const [activeId, setActiveId] = useState(() => conversations[0]?.id);
@@ -957,7 +957,7 @@ export default function KuroChat() {
   }, []);
 
   const createConv = useCallback(() => {
-    const n = { id: Date.now(), title: '', messages: [], projectId: activeProject };
+    const n = { id: String(Date.now()), title: '', messages: [], projectId: activeProject };
     setConversations(prev => [n, ...prev]);
     setActiveId(n.id);
     setSidebarOpen(false);
@@ -967,7 +967,7 @@ export default function KuroChat() {
     setConversations(prev => {
       const f = prev.filter(c => c.id !== id);
       if (!f.length) {
-        const n = { id: Date.now(), title: '', messages: [], projectId: activeProject };
+        const n = { id: String(Date.now()), title: '', messages: [], projectId: activeProject };
         setActiveId(n.id);
         return [n];
       }
