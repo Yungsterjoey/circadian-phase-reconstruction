@@ -1110,6 +1110,19 @@ export default function KuroChat() {
                 }
                 return u;
               });
+            } else if (d.type === 'gate') {
+              // Quota or tier gate — surface to user as message content
+              updateMessages(cid, prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === 'assistant' && !last.content) {
+                  u[u.length - 1] = { ...last, content: d.message || 'Chat limit reached. Upgrade to continue.' };
+                }
+                return u;
+              });
+              setIsLoading(false);
+              clearTimeout(staleTimer);
+              return;
             } else if (d.type === 'error') {
               setConnectionError(d.message || 'Stream error');
             } else if (d.type === 'done') {
@@ -1215,10 +1228,9 @@ export default function KuroChat() {
               maxTier={profileDef?.maxAgentTier || 3}
             />
             <div className="header-center">
-              {activeSkill !== 'chat' && (
-                <Pill icon={SKILLS[activeSkill]?.icon} label={SKILLS[activeSkill]?.name}
-                  color={SKILLS[activeSkill]?.color} active onClick={() => setActiveSkill('chat')} compact />
-              )}
+              <Pill icon={SKILLS[activeSkill]?.icon} label={SKILLS[activeSkill]?.name}
+                color={SKILLS[activeSkill]?.color} active
+                onClick={activeSkill !== 'chat' ? () => setActiveSkill('chat') : undefined} compact />
               {activeProject && (
                 <Pill icon={Folder} label={projects.find(p => p.id === activeProject)?.name}
                   color={projects.find(p => p.id === activeProject)?.color} compact />
@@ -1373,32 +1385,39 @@ export default function KuroChat() {
 .island.floating { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5); }
 .island.glow { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px -20px var(--accent-glow); }
 .island.dismissable { touch-action: none; }
-.island-enter { animation: islandSlideIn 0.4s cubic-bezier(.2,.9,.3,1) both; }
-@keyframes islandSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.island-enter { animation: islandSlideIn 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+@keyframes islandSlideIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Dismiss hint — subtle directional chevron */
+/* Dismiss hint — directional chevron with directional nudge */
 .island-hint {
   position: absolute; left: 50%; transform: translateX(-50%);
-  color: rgba(255,255,255,0.12); pointer-events: none;
-  animation: hintPulse 3s ease-in-out infinite;
+  color: rgba(255,255,255,0.16); pointer-events: none;
 }
-.island-hint.hint-up { top: -14px; }
+.island-hint.hint-up { top: -16px; animation: hintPulseUp 3.5s ease-in-out infinite; }
 .island-hint.hint-up svg { transform: rotate(180deg); }
-.island-hint.hint-down { bottom: -14px; }
-@keyframes hintPulse { 0%,100% { opacity: 0; transform: translateX(-50%) translateY(0); } 50% { opacity: 1; transform: translateX(-50%) translateY(-2px); } }
+.island-hint.hint-down { bottom: -16px; animation: hintPulseDown 3.5s ease-in-out infinite; }
+@keyframes hintPulseUp {
+  0%,35%,100% { opacity: 0; transform: translateX(-50%) translateY(3px); }
+  60%,75%     { opacity: 1; transform: translateX(-50%) translateY(-1px); }
+}
+@keyframes hintPulseDown {
+  0%,35%,100% { opacity: 0; transform: translateX(-50%) translateY(-3px); }
+  60%,75%     { opacity: 1; transform: translateX(-50%) translateY(1px); }
+}
 
 /* Restore pill */
 .island-restore {
   position: absolute; z-index: 50; left: 50%; transform: translateX(-50%);
   background: rgba(30,30,34,0.7); border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px; padding: 6px 16px; cursor: pointer; color: rgba(255,255,255,0.4);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: all 0.2s;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: background 0.2s, color 0.2s, transform 0.18s cubic-bezier(0.34,1.4,0.64,1);
 }
-.island-restore:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+.island-restore:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); transform: translateX(-50%) scale(1.04); }
+.island-restore:active { transform: translateX(-50%) scale(0.97); }
 .restore-top { top: 8px; }
 .restore-bottom { bottom: 8px; }
-.island-restore-enter { animation: restoreSlideIn 0.35s cubic-bezier(.2,.9,.3,1) both; }
-@keyframes restoreSlideIn { from { opacity: 0; transform: translateX(-50%) scale(0.85); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+.island-restore-enter { animation: restoreSlideIn 0.32s cubic-bezier(0.34,1.4,0.64,1) both; }
+@keyframes restoreSlideIn { from { opacity: 0; transform: translateX(-50%) scale(0.8) translateY(4px); } to { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); } }
 
 /* ═══ PILL ═══ */
 .pill {
@@ -1410,10 +1429,11 @@ export default function KuroChat() {
   color: var(--text-2);
   font-size: 13px; font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.14s cubic-bezier(0.34,1.5,0.64,1);
   white-space: nowrap;
 }
-.pill:hover { background: var(--surface-2); color: var(--text); }
+.pill:hover { background: var(--surface-2); color: var(--text); transform: scale(1.03); }
+.pill:active { transform: scale(0.96); transition-duration: 0.08s; }
 .pill.active {
   background: color-mix(in srgb, var(--pill-color, var(--accent)) 18%, transparent);
   border-color: color-mix(in srgb, var(--pill-color, var(--accent)) 40%, transparent);
@@ -1662,8 +1682,8 @@ export default function KuroChat() {
 /* ═══ MESSAGES ═══ */
 .messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 200px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .messages { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
-.message { display: flex; gap: 12px; animation: msgIn 0.3s ease; }
-@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.message { display: flex; gap: 12px; animation: msgIn 0.28s cubic-bezier(0.22,1,0.36,1); }
+@keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { justify-content: flex-end; }
 .message-avatar {
   width: 32px; height: 32px;

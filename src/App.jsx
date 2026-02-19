@@ -179,6 +179,7 @@ function StartCube({ active }) {
 // GLASS DOCK — Always visible. Locked-state aware.
 // ═══════════════════════════════════════════════════════════════════════════
 function GlassDock({ isLocked, onLockedAppClick }) {
+  const [dockHidden, setDockHidden] = useState(false);
   const { pinnedApps, apps, windows, openApp, focusWindow, restoreApp, toggleGlassPanel, glassPanelOpen } = useOSStore();
   const { user } = useAuthStore();
   const userTier = user?.tier || 'free';
@@ -204,43 +205,56 @@ function GlassDock({ isLocked, onLockedAppClick }) {
   const authWin = windows[AUTH_WINDOW_ID];
   const showAuthInDock = isLocked && authWin?.isOpen && authWin?.isMinimized;
 
-  return (
-    <div className="glass-dock">
-      <button className="dock-cube" onClick={toggleGlassPanel}>
-        <StartCube active={glassPanelOpen} />
+  if (dockHidden) {
+    return (
+      <button className="dock-reveal-tab" onClick={() => setDockHidden(false)} aria-label="Show Dock">
+        <span className="dock-reveal-chevron">▴</span>
       </button>
-      <div className="dock-sep" />
-      {pinnedAppData.map(app => {
-        const locked = isLocked || ((TIER_LEVEL[userTier] || 0) < (TIER_LEVEL[app.minTier] || 0));
-        return (
-          <button key={app.id} className={`dock-item ${windows[app.id]?.isOpen ? 'open' : ''} ${locked ? 'locked' : ''}`}
-            onClick={() => handleClick(app)} title={app.name}>
-            <span className="dock-icon"><KuroIcon name={app.id} size={22} color="rgba(255,255,255,0.85)" /></span>
-            {locked && !isLocked && <LockBadge minTier={app.minTier} />}
-            {locked && isLocked && <span className="lock-badge" style={{background:'rgba(255,255,255,0.15)'}}>🔒</span>}
-            {windows[app.id]?.isOpen && !locked && <div className="dock-indicator" />}
-          </button>
-        );
-      })}
-      {showAuthInDock && (
-        <>
-          <div className="dock-sep" />
-          <button className="dock-item" onClick={() => { focusWindow(AUTH_WINDOW_ID); restoreApp(AUTH_WINDOW_ID); }} title="Sign In">
-            <span className="dock-icon"><KuroIcon name="kuro.auth" size={22} color="rgba(255,255,255,0.85)" /></span>
-            <div className="dock-indicator" />
-          </button>
-        </>
-      )}
-      <div className="dock-sep" />
-      {user ? (
-        <button className="dock-user" onClick={() => useAuthStore.getState().logout()} title={`${user.name || user.email} · ${user.tier}`}>
-          <span className="dock-user-tier" data-tier={user.tier}>{user.tier[0].toUpperCase()}</span>
+    );
+  }
+
+  return (
+    <div className="dock-outer">
+      <button className="dock-hide-btn" onClick={() => setDockHidden(true)} aria-label="Hide Dock">
+        <span className="dock-hide-chevron">▾</span>
+      </button>
+      <div className="glass-dock">
+        <button className="dock-cube" onClick={toggleGlassPanel}>
+          <StartCube active={glassPanelOpen} />
         </button>
-      ) : (
-        <button className="dock-user" onClick={onLockedAppClick} title="Sign in">
-          <span className="dock-user-anon">→</span>
-        </button>
-      )}
+        <div className="dock-sep" />
+        {pinnedAppData.map(app => {
+          const locked = isLocked || ((TIER_LEVEL[userTier] || 0) < (TIER_LEVEL[app.minTier] || 0));
+          return (
+            <button key={app.id} className={`dock-item ${windows[app.id]?.isOpen ? 'open' : ''} ${locked ? 'locked' : ''}`}
+              onClick={() => handleClick(app)} title={app.name}>
+              <span className="dock-icon"><KuroIcon name={app.id} size={22} color="rgba(255,255,255,0.85)" /></span>
+              {locked && !isLocked && <LockBadge minTier={app.minTier} />}
+              {locked && isLocked && <span className="lock-badge" style={{background:'rgba(255,255,255,0.15)'}}>🔒</span>}
+              {windows[app.id]?.isOpen && !locked && <div className="dock-indicator" />}
+            </button>
+          );
+        })}
+        {showAuthInDock && (
+          <>
+            <div className="dock-sep" />
+            <button className="dock-item" onClick={() => { focusWindow(AUTH_WINDOW_ID); restoreApp(AUTH_WINDOW_ID); }} title="Sign In">
+              <span className="dock-icon"><KuroIcon name="kuro.auth" size={22} color="rgba(255,255,255,0.85)" /></span>
+              <div className="dock-indicator" />
+            </button>
+          </>
+        )}
+        <div className="dock-sep" />
+        {user ? (
+          <button className="dock-user" onClick={() => useAuthStore.getState().logout()} title={`${user.name || user.email} · ${user.tier}`}>
+            <span className="dock-user-tier" data-tier={user.tier}>{user.tier[0].toUpperCase()}</span>
+          </button>
+        ) : (
+          <button className="dock-user" onClick={onLockedAppClick} title="Sign in">
+            <span className="dock-user-anon">→</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -388,13 +402,34 @@ export default function App() {
   background: var(--lg-surface-0, #000); color: var(--lg-text-primary, #fff);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 }
+/* macOS-style enter/exit animations */
+@keyframes winOpen {
+  from { opacity: 0; transform: scale(0.88) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes winMinimize {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.72) translateY(52px); }
+}
+@keyframes dockBounce {
+  0%   { transform: translateY(0); }
+  22%  { transform: translateY(-12px); }
+  44%  { transform: translateY(0); }
+  60%  { transform: translateY(-6px); }
+  76%  { transform: translateY(0); }
+  88%  { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
 .app-window {
-  border-radius: var(--lg-radius-lg, 14px); overflow: hidden; display: flex; flex-direction: column;
+  border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
   background: var(--lg-surface-1, rgba(18,18,22,0.85));
   backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
   -webkit-backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
   border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.08));
   box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.1);
+  animation: winOpen 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  will-change: transform, opacity;
 }
 .window-titlebar {
   height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 12px;
@@ -428,22 +463,66 @@ export default function App() {
 .resize-handle::after {
   content: ''; position: absolute; bottom: 3px; right: 3px;
   width: 14px; height: 14px;
-  border-right: 1.5px solid rgba(255,255,255,0.15);
-  border-bottom: 1.5px solid rgba(255,255,255,0.15);
+  border-right: 2.5px solid rgba(255,255,255,0.2);
+  border-bottom: 2.5px solid rgba(255,255,255,0.2);
   border-radius: 0 0 10px 0;
   transition: border-color 0.15s, opacity 0.15s;
 }
-.resize-handle:hover::after { border-color: rgba(168,85,247,0.4); border-width: 2px; }
-.resize-handle:active::after { border-color: rgba(168,85,247,0.7); border-width: 2px; }
+.resize-handle:hover::after { border-color: rgba(168,85,247,0.55); border-width: 2.5px; }
+.resize-handle:active::after { border-color: rgba(168,85,247,0.8); border-width: 2.5px; }
 
 /* ═══ DOCK ═══ */
+.dock-outer {
+  position: fixed;
+  bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; z-index: 9999;
+}
+.dock-hide-btn {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-bottom: none; border-radius: 8px 8px 0 0;
+  padding: 4px 40px 3px; cursor: pointer; color: rgba(255,255,255,0.2);
+  line-height: 1; transition: color 0.2s, background 0.2s;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.dock-hide-btn:hover { color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.07); }
+.dock-hide-btn:active { color: rgba(255,255,255,0.85); }
+.dock-hide-chevron, .dock-reveal-chevron {
+  display: inline-block; width: 7px; height: 7px;
+  border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  border-radius: 0.5px; font-size: 0; vertical-align: middle;
+}
+.dock-hide-chevron { transform: rotate(-45deg); margin-top: -2px; }
+.dock-reveal-chevron { transform: rotate(135deg); margin-top: 1px; }
+.dock-reveal-tab {
+  position: fixed; bottom: env(safe-area-inset-bottom, 0px); left: 50%; transform: translateX(-50%);
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+  border-bottom: none; border-radius: 10px 10px 0 0;
+  padding: 6px 44px 4px; cursor: pointer; color: rgba(255,255,255,0.3);
+  z-index: 9999; transition: color 0.2s, background 0.2s;
+  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+  animation: dockReveal 0.3s cubic-bezier(0.34,1.4,0.64,1) both;
+}
+.dock-reveal-tab:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.65); }
+.dock-reveal-tab:active { color: rgba(255,255,255,0.9); }
+@keyframes dockReveal {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 .glass-dock {
-  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 4px; padding: 6px 12px;
-  touch-action: manipulation;
-  background: rgba(30,30,34,0.7);
-  backdrop-filter: blur(var(--lg-blur-standard, 40px)); -webkit-backdrop-filter: blur(var(--lg-blur-standard, 40px));
-  border-radius: var(--lg-radius-lg, 18px); border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.1)); z-index: 9999;
+  display: flex; align-items: center; gap: 2px; padding: 6px 10px;
+  touch-action: manipulation; position: relative;
+  background: rgba(28,28,32,0.55);
+  backdrop-filter: blur(40px) saturate(1.6); -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border-radius: 22px; border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 0.5px 0 rgba(255,255,255,0.06);
+}
+.glass-dock::before {
+  content: ''; position: absolute; inset: -0.5px; border-radius: 23px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 50%);
+  pointer-events: none; z-index: -1;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude; -webkit-mask-composite: xor; padding: 0.5px;
 }
 .dock-cube {
   width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
@@ -484,13 +563,15 @@ export default function App() {
 .about-cf.rt { transform: rotateY(90deg) translateZ(28px); } .about-cf.lt { transform: rotateY(-90deg) translateZ(28px); }
 .about-cf.tp { transform: rotateX(90deg) translateZ(28px); } .about-cf.bt { transform: rotateX(-90deg) translateZ(28px); }
 
-.dock-sep { width: 1px; height: 28px; background: rgba(255,255,255,0.12); margin: 0 4px; }
+.dock-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.08); margin: 0 4px; }
 .dock-item {
   width: 44px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer; border-radius: var(--lg-radius-sm, 12px); position: relative;
-  transition: transform 0.15s, background 0.15s;
+  transition: transform 0.22s cubic-bezier(0.34,1.5,0.64,1), background 0.15s;
 }
-.dock-item:hover { transform: translateY(-4px); background: rgba(255,255,255,0.05); }
+.dock-item:hover { transform: translateY(-7px) scale(1.12); background: rgba(255,255,255,0.06); }
+.dock-item:active { transform: translateY(-2px) scale(1.03); transition-duration: 0.08s; }
+.dock-item.open .dock-icon { animation: dockBounce 0.55s cubic-bezier(0.34,1.5,0.64,1); }
 .dock-item.locked { opacity: 0.45; cursor: default; }
 .dock-item.locked:hover { opacity: 0.55; transform: translateY(-2px); }
 .dock-icon { font-size: 24px; }
@@ -514,7 +595,7 @@ export default function App() {
 
 /* ═══ PANEL ═══ */
 .glass-panel {
-  position: fixed; bottom: 74px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
   width: 380px; padding: 20px;
   background: rgba(20,20,24,0.85);
   backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);
@@ -537,28 +618,30 @@ export default function App() {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 /* ═══ TABLET (iPad portrait & landscape) ═══ */
 @media (max-width: 1024px) {
-  .app-window { border-radius: 12px; }
+  .app-window { border-radius: 14px; }
   .window-titlebar { height: 40px; padding: 0 10px; }
   .tl { width: 12px; height: 12px; }
   .window-title { font-size: 12px; }
-  .glass-dock { bottom: 10px; padding: 5px 10px; gap: 3px; }
+  .dock-outer { bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px)); }
+  .glass-dock { padding: 5px 10px; gap: 3px; }
   .dock-cube, .dock-item { width: 42px; height: 42px; }
   .dock-icon { font-size: 22px; }
-  .glass-panel { width: 360px; bottom: 72px; padding: 18px; }
+  .glass-panel { width: 360px; bottom: 86px; padding: 18px; }
   .panel-icon { font-size: 26px; }
   .panel-label { font-size: 10px; }
 }
 
 /* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
-  .app-window { border-radius: 12px; }
+  .app-window { border-radius: 16px; }
   .window-titlebar { height: 38px; padding: 0 8px; }
   .tl { width: 11px; height: 11px; }
   .tl-close-disabled { width: 11px; height: 11px; }
   .traffic-lights { gap: 6px; }
   .window-title { font-size: 12px; }
   .titlebar-spacer { min-width: 42px; }
-  .glass-dock { bottom: 8px; padding: 4px 8px; gap: 2px; border-radius: 16px; }
+  .dock-outer { bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px)); }
+  .glass-dock { padding: 4px 8px; gap: 2px; border-radius: 16px; }
   .dock-cube, .dock-item { width: 38px; height: 38px; }
   .dock-icon { font-size: 20px; }
   .dock-sep { height: 22px; margin: 0 2px; }
@@ -573,7 +656,7 @@ export default function App() {
   .cube-face.right  { transform: rotateY(90deg) translateZ(9px); }
   .cube-face.top    { transform: rotateX(90deg) translateZ(9px); }
   .cube-face.bottom { transform: rotateX(-90deg) translateZ(9px); }
-  .glass-panel { width: calc(100vw - 24px); bottom: 62px; padding: 16px; }
+  .glass-panel { width: calc(100vw - 24px); bottom: 76px; padding: 16px; }
   .panel-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .panel-app { padding: 10px 4px; gap: 5px; }
   .panel-icon { font-size: 24px; }
@@ -583,6 +666,8 @@ export default function App() {
 
 /* ═══ SMALL PHONE (iPhone SE / Mini) ═══ */
 @media (max-width: 430px) {
+  .app-window { border-radius: 14px; }
+  .dock-outer { bottom: max(14px, calc(env(safe-area-inset-bottom) + 6px)); }
   .glass-dock { padding: 3px 6px; gap: 1px; border-radius: 14px; }
   .dock-cube, .dock-item { width: 34px; height: 34px; }
   .dock-icon { font-size: 18px; }
@@ -598,7 +683,7 @@ export default function App() {
   .cube-face.right  { transform: rotateY(90deg) translateZ(8px); }
   .cube-face.top    { transform: rotateX(90deg) translateZ(8px); }
   .cube-face.bottom { transform: rotateX(-90deg) translateZ(8px); }
-  .glass-panel { width: calc(100vw - 16px); bottom: 56px; padding: 14px; }
+  .glass-panel { width: calc(100vw - 16px); bottom: 70px; padding: 14px; }
   .panel-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
   .panel-app { padding: 8px 2px; }
   .panel-icon { font-size: 22px; }
