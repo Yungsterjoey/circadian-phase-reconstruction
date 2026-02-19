@@ -38,7 +38,7 @@ export default function AuthGate() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const inputRef = useRef(null);
   const submittingRef = useRef(false);
-  const { signup, login, verifyEmail, forgotPassword, resetPassword, tokenLogin } = useAuthStore();
+  const { signup, login, verifyEmail, forgotPassword, resetPassword, tokenLogin, authError, clearAuthError } = useAuthStore();
 
   useEffect(() => { if (stage === 2) setTimeout(() => inputRef.current?.focus(), 150); }, [mode, stage]);
 
@@ -72,7 +72,12 @@ export default function AuthGate() {
         r.success ? window.location.reload() : setError(r.error);
       } else if (mode === 'signup') {
         const r = await signup(form.email, form.password, form.name);
-        r.success ? setMode('otp') : setError(r.error);
+        if (r.success) {
+          setMode('email-sent');
+          setMessage('');
+        } else {
+          setError(r.error);
+        }
       } else {
         const r = await login(form.email, form.password);
         r.success ? window.location.reload() : setError(r.error);
@@ -97,6 +102,14 @@ export default function AuthGate() {
           <p className="ag-sub">SOVEREIGN INTELLIGENCE PLATFORM</p>
         </div>
         <div className="ag-body">
+          {authError && (
+            <div className="ag-oauth-error">
+              {authError === 'oauth_not_configured'
+                ? 'Social login is not enabled. Please use email.'
+                : `Sign in failed: ${authError.replace(/_/g, ' ')}`}
+              <button onClick={clearAuthError}>&#x2715;</button>
+            </div>
+          )}
           <button className="ag-btn ag-submit" onClick={() => { setMode('signup'); setStage(2); }}>
             Create Account
           </button>
@@ -138,10 +151,22 @@ export default function AuthGate() {
         )}
 
         {mode === 'token' && (
-          <p className="ag-hint">Enter the access token from your subscription email.</p>
+          <p className="ag-hint">Enter the KURO access token from your email or subscription.</p>
         )}
 
-        <div className="ag-form">
+        {mode === 'email-sent' && (
+          <div className="ag-email-sent">
+            <div className="ag-sent-icon">&#x2709;</div>
+            <h3 className="ag-sent-title">Check your email</h3>
+            <p className="ag-sent-sub">We sent your KURO access token to<br /><strong>{form.email}</strong></p>
+            <button className="ag-btn ag-submit" onClick={() => switchMode('token')}>
+              Enter access token &#x2192;
+            </button>
+            <button onClick={() => switchMode('login')} className="ag-nav-link">&#x2190; Back to sign in</button>
+          </div>
+        )}
+
+        {mode !== 'email-sent' && <div className="ag-form">
           {mode === 'signup' && (
             <input type="text" placeholder="Full name" value={form.name} ref={inputRef}
               onChange={e => upd('name', e.target.value)} className="ag-input" autoComplete="name" onKeyDown={onKey} />
@@ -220,7 +245,7 @@ export default function AuthGate() {
             )}
             <button onClick={() => { setStage(1); reset(); }} className="ag-back-welcome">{'\u2190'} Back</button>
           </div>
-        </div>
+        </div>}
       </div>
       <AuthGateStyles />
     </div>
@@ -305,6 +330,19 @@ function AuthGateStyles() {
 .ag-footer-inline a:hover { color: rgba(255,255,255,.5); text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) { .ag-gcube-inner { animation: none; transform: rotateX(-20deg) rotateY(-30deg); } }
+
+/* ═══ OAuth error banner ═══ */
+.ag-oauth-error { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 14px; background:rgba(255,165,0,0.08); border:1px solid rgba(255,165,0,0.15); border-radius:10px; color:rgba(255,165,0,0.9); font-size:12px; }
+.ag-oauth-error button { background:none; border:none; color:rgba(255,165,0,0.6); cursor:pointer; font-size:14px; padding:0 2px; }
+
+/* ═══ Email sent screen ═══ */
+.ag-email-sent { display:flex; flex-direction:column; align-items:center; gap:12px; padding:8px 0; text-align:center; }
+.ag-sent-icon { font-size:36px; margin-bottom:4px; }
+.ag-sent-title { font-size:18px; font-weight:500; color:#fff; margin:0; }
+.ag-sent-sub { font-size:13px; color:rgba(255,255,255,0.45); margin:0; line-height:1.6; }
+.ag-sent-sub strong { color:rgba(255,255,255,0.7); }
+.ag-nav-link { background:none; border:none; color:rgba(255,255,255,0.3); font-size:12px; cursor:pointer; font-family:inherit; transition:color 0.15s; margin-top:4px; }
+.ag-nav-link:hover { color:rgba(255,255,255,0.5); }
     `}</style>
   );
 }

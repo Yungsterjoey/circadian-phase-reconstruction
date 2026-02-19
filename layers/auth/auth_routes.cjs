@@ -159,6 +159,124 @@ function findOrCreateOAuthUser(provider, providerId, email, name, avatarUrl) {
   return { user, isNew: true, linked: true };
 }
 
+// ═══ ACCESS TOKEN GENERATION ═══
+const fs = require('fs');
+const path = require('path');
+
+function generateAccessToken() {
+  // KURO-XXXX-XXXX-XXXX-XXXX format (4 groups of 4 uppercase alphanumeric)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars (0/O, 1/I)
+  const groups = Array.from({ length: 4 }, () =>
+    Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  );
+  return `KURO-${groups.join('-')}`;
+}
+
+async function storeAccessToken(userId, tier = 'free') {
+  const token = generateAccessToken();
+  // Store in kuro_tokens
+  try {
+    stmts.createKuroToken.run(token, userId, tier);
+  } catch(e) {
+    // If table not ready, try raw
+    db.prepare('INSERT OR IGNORE INTO kuro_tokens (token, user_id, tier) VALUES (?, ?, ?)').run(token, userId, tier);
+  }
+  return token;
+}
+
+async function sendAccessTokenEmail(email, name, token) {
+  const nodemailer = require('nodemailer');
+
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || '587');
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || '"KURO OS" <noreply@kuroglass.net>';
+
+  const displayName = name || email.split('@')[0];
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#050508;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:480px;margin:40px auto;padding:0 16px">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="display:inline-flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;background:linear-gradient(135deg,#9333ea,#6366f1);border-radius:8px;display:flex;align-items:center;justify-content:center">
+          <span style="color:#fff;font-weight:800;font-size:14px">K</span>
+        </div>
+        <span style="color:#fff;font-size:18px;font-weight:300;letter-spacing:6px">KURO</span>
+        <span style="color:#a855f7;font-size:14px;font-weight:500;letter-spacing:3px">.OS</span>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div style="background:rgba(18,18,22,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:32px;box-shadow:0 24px 80px rgba(0,0,0,0.6)">
+      <p style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 20px">Sovereign Intelligence Platform</p>
+
+      <h1 style="color:#fff;font-size:22px;font-weight:300;margin:0 0 8px;letter-spacing:-0.3px">Welcome, ${displayName}</h1>
+      <p style="color:rgba(255,255,255,0.45);font-size:14px;margin:0 0 28px;line-height:1.6">Your KURO account is ready. Use the access token below to activate it.</p>
+
+      <!-- Token display -->
+      <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(168,85,247,0.2);border-radius:14px;padding:20px 16px;text-align:center;margin-bottom:24px">
+        <p style="color:rgba(255,255,255,0.3);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px">Access Token</p>
+        <div style="font-family:'SF Mono','Courier New',monospace;font-size:22px;font-weight:700;letter-spacing:4px;color:#fff;word-break:break-all">
+          ${token}
+        </div>
+        <p style="color:rgba(255,255,255,0.2);font-size:11px;margin:12px 0 0">Copy this exactly — it is case sensitive</p>
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="https://kuroglass.net/app" style="display:inline-block;background:linear-gradient(135deg,rgba(147,51,234,0.9),rgba(91,33,182,0.9));color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:14px;font-weight:600;letter-spacing:0.3px">
+          Launch KURO &#x2192;
+        </a>
+      </div>
+
+      <div style="border-top:1px solid rgba(255,255,255,0.05);padding-top:20px">
+        <p style="color:rgba(255,255,255,0.25);font-size:12px;line-height:1.6;margin:0">
+          In KURO OS, click <strong style="color:rgba(255,255,255,0.4)">Sign In &#x2192; Have an access token?</strong> and enter the token above. If you did not create this account, you can ignore this email.
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p style="text-align:center;color:rgba(255,255,255,0.15);font-size:11px;margin-top:24px">
+      KURO OS &middot; kuroglass.net
+    </p>
+  </div>
+</body>
+</html>`;
+
+  const text = `Welcome to KURO OS\n\nYour access token: ${token}\n\nOpen KURO OS at https://kuroglass.net/app\nClick "Sign In -> Have an access token?" and enter the token above.\n\nKURO OS · kuroglass.net`;
+
+  if (!host || !user || !pass) {
+    // Dev fallback
+    console.log(`[ACCESS TOKEN:DEV] Token for ${email}: ${token}`);
+    return { success: true, devToken: process.env.NODE_ENV === 'development' ? token : undefined };
+  }
+
+  try {
+    const transport = nodemailer.createTransport({
+      host, port, secure: port === 465, auth: { user, pass }
+    });
+    await transport.sendMail({
+      from,
+      to: email,
+      subject: `Your KURO access token`,
+      text,
+      html
+    });
+    console.log(`[ACCESS TOKEN] Sent to ${email.replace(/(.{2}).*(@.*)/, '$1***$2')}`);
+    return { success: true };
+  } catch(e) {
+    console.error('[ACCESS TOKEN] Send failed:', e.message);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 // ROUTER
 // ═══════════════════════════════════════════════════════
@@ -187,17 +305,16 @@ function createAuthRoutes(authMiddleware) {
 
       const userId = genId();
       const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-      const user = stmts.createUser.get(userId, email.toLowerCase().trim(), name || null, hash);
-      const otpResult = await sendOTP(userId, email.toLowerCase().trim(), ip);
-      const sid = createSession(userId, req);
-      setSessionCookie(res, sid);
+      stmts.createUser.get(userId, email.toLowerCase().trim(), name || null, hash);
+      const accessToken = await storeAccessToken(userId, 'free');
+      const tokenResult = await sendAccessTokenEmail(email.toLowerCase().trim(), name, accessToken);
+      // Don't create session yet — user must activate with token
 
       res.status(201).json({
         success: true,
-        user: { id: userId, email: user.email, name: user.name, tier: 'free', emailVerified: false },
-        otpSent: otpResult.success,
-        devCode: otpResult.devCode,
-        message: 'Account created. Check your email for a verification code.'
+        tokenSent: tokenResult.success,
+        devToken: tokenResult.devToken, // only in dev
+        message: 'Account created. Check your email for your access token.'
       });
     } catch (e) {
       console.error('[AUTH] Signup error:', e.message);
@@ -314,7 +431,7 @@ function createAuthRoutes(authMiddleware) {
   router.get('/google', (req, res) => {
     const ip = getIP(req);
     if (!checkAuthRate(ip)) return res.status(429).json({ error: 'Too many requests' });
-    if (!GOOGLE_CLIENT_ID) return res.status(503).json({ error: 'Google OAuth not configured' });
+    if (!GOOGLE_CLIENT_ID) return res.redirect('/app?auth=error&reason=oauth_not_configured&provider=google');
 
     const state = generateState('google');
     const params = new URLSearchParams({
@@ -392,7 +509,7 @@ function createAuthRoutes(authMiddleware) {
   router.get('/github', (req, res) => {
     const ip = getIP(req);
     if (!checkAuthRate(ip)) return res.status(429).json({ error: 'Too many requests' });
-    if (!GITHUB_CLIENT_ID) return res.status(503).json({ error: 'GitHub OAuth not configured' });
+    if (!GITHUB_CLIENT_ID) return res.redirect('/app?auth=error&reason=oauth_not_configured&provider=github');
 
     const state = generateState('github');
     const params = new URLSearchParams({
@@ -502,6 +619,26 @@ function createAuthRoutes(authMiddleware) {
       if (!checkAuthRate(ip)) return res.status(429).json({ error: 'Too many requests. Slow down.' });
       const { token } = req.body;
       if (!token || typeof token !== 'string') return res.status(400).json({ error: 'Token required' });
+
+      // First check kuro_tokens DB table (new system)
+      const dbToken = stmts.getKuroToken.get(token);
+      if (dbToken) {
+        let user = stmts.getUserById.get(dbToken.user_id);
+        if (!user) return res.status(401).json({ error: 'Token user not found' });
+
+        // Mark email verified if not already (they clicked a token = they own the email)
+        if (!user.email_verified) {
+          stmts.verifyEmail.run(user.id);
+        }
+
+        const sid = createSession(user.id, req);
+        setSessionCookie(res, sid);
+        return res.json({
+          success: true,
+          user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: true },
+          authMethod: 'token'
+        });
+      }
 
       // Load tokens.json
       const fs = require('fs');

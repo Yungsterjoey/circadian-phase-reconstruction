@@ -243,6 +243,10 @@ const stmts = {
   upsertUsage: db.prepare(`INSERT INTO usage (user_id, action, week_num, count)
     VALUES (?, ?, ?, ?) ON CONFLICT(user_id, action, week_num)
     DO UPDATE SET count = count + excluded.count`),
+
+  // Kuro Tokens
+  createKuroToken: db.prepare('INSERT OR IGNORE INTO kuro_tokens (token, user_id, tier) VALUES (?, ?, ?)'),
+  getKuroToken: db.prepare('SELECT * FROM kuro_tokens WHERE token = ? AND revoked = 0'),
 };
 
 // ═══════════════════════════════════════════════════════

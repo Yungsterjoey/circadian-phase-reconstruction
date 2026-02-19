@@ -71,8 +71,7 @@ export const useAuthStore = create((set, get) => ({
       });
       const d = await r.json();
       if (d.success) {
-        set({ user: d.user, authenticated: true });
-        return { success: true, otpSent: d.otpSent, devCode: d.devCode };
+        return { success: true, tokenSent: d.tokenSent, devToken: d.devToken };
       }
       return { success: false, error: d.error || 'Signup failed' };
     } catch(e) { return { success: false, error: 'Network error' }; }
@@ -172,4 +171,5 @@ export const useAuthStore = create((set, get) => ({
   // Reactive helpers
   pendingLink: null,
   authError: null,
+  clearAuthError: () => set({ authError: null }),
 }));
