@@ -51,18 +51,19 @@ export const useOSStore = create((set, get) => ({
       return;
     }
 
-    const isMobile = window.innerWidth < 768;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const w = isMobile ? vw : Math.min(app.defaultWidth || 800, vw - 40);
-    const h = isMobile ? vh : Math.min(app.defaultHeight || 600, vh - 80);
-    const x = isMobile ? 0 : Math.max(20, (vw - w) / 2 + (Object.keys(state.windows).length * 20));
-    const y = isMobile ? 0 : Math.max(20, (vh - h) / 2 + (Object.keys(state.windows).length * 20));
+    const isMobile = vw < 768;
+    const cascade = Object.keys(state.windows).length * 16;
+    const w = isMobile ? Math.min(app.defaultWidth || 800, vw - 24) : Math.min(app.defaultWidth || 800, vw - 40);
+    const h = isMobile ? Math.min(app.defaultHeight || 600, vh - 80) : Math.min(app.defaultHeight || 600, vh - 80);
+    const x = isMobile ? Math.max(12, (vw - w) / 2) : Math.max(20, (vw - w) / 2 + cascade);
+    const y = isMobile ? Math.max(12, (vh - h) / 2) : Math.max(20, (vh - h) / 2 + cascade);
 
     set(s => ({
       windows: {
         ...s.windows,
-        [appId]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex }
+        [appId]: { isOpen: true, isMinimized: false, isMaximized: false, x, y, width: w, height: h, zIndex: s.nextZIndex }
       },
       windowOrder: [...s.windowOrder.filter(id => id !== appId), appId],
       nextZIndex: s.nextZIndex + 1,

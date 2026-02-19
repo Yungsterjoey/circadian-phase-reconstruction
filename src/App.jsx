@@ -55,19 +55,25 @@ function AppWindow({ appId, children, noClose, title, icon }) {
   const { closeApp, minimizeApp, maximizeApp, focusWindow, updateWindowPosition, updateWindowSize } = useOSStore();
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
+  const windowRef = useRef(null);
 
   const onDragStart = useCallback((e) => {
     if (win?.isMaximized) return;
     e.preventDefault();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    dragRef.current = { startX: clientX - (win?.x || 0), startY: clientY - (win?.y || 0) };
+    dragRef.current = { startX: clientX - (win?.x || 0), startY: clientY - (win?.y || 0), lastX: win?.x || 0, lastY: win?.y || 0 };
     focusWindow(appId);
+    const el = windowRef.current;
     const onMove = (ev) => {
       ev.preventDefault();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      updateWindowPosition(appId, cx - dragRef.current.startX, cy - dragRef.current.startY);
+      const nx = cx - dragRef.current.startX;
+      const ny = cy - dragRef.current.startY;
+      dragRef.current.lastX = nx;
+      dragRef.current.lastY = ny;
+      if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
     };
     const onEnd = () => {
       document.removeEventListener('mousemove', onMove);
@@ -75,6 +81,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
       document.documentElement.classList.remove('is-dragging');
+      updateWindowPosition(appId, dragRef.current.lastX, dragRef.current.lastY);
     };
     document.documentElement.classList.add('is-dragging');
     document.addEventListener('mousemove', onMove);
@@ -88,13 +95,18 @@ function AppWindow({ appId, children, noClose, title, icon }) {
     e.preventDefault(); e.stopPropagation();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    resizeRef.current = { startX: clientX, startY: clientY, startW: win?.width || 800, startH: win?.height || 600 };
+    resizeRef.current = { startX: clientX, startY: clientY, startW: win?.width || 800, startH: win?.height || 600, lastW: win?.width || 800, lastH: win?.height || 600 };
     focusWindow(appId);
+    const el = windowRef.current;
     const onMove = (ev) => {
       ev.preventDefault();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      updateWindowSize(appId, Math.max(400, resizeRef.current.startW + (cx - resizeRef.current.startX)), Math.max(300, resizeRef.current.startH + (cy - resizeRef.current.startY)));
+      const nw = Math.max(280, resizeRef.current.startW + (cx - resizeRef.current.startX));
+      const nh = Math.max(200, resizeRef.current.startH + (cy - resizeRef.current.startY));
+      resizeRef.current.lastW = nw;
+      resizeRef.current.lastH = nh;
+      if (el) { el.style.width = nw + 'px'; el.style.height = nh + 'px'; }
     };
     const onEnd = () => {
       document.removeEventListener('mousemove', onMove);
@@ -102,6 +114,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
       document.documentElement.classList.remove('is-dragging');
+      updateWindowSize(appId, resizeRef.current.lastW, resizeRef.current.lastH);
     };
     document.documentElement.classList.add('is-dragging');
     document.addEventListener('mousemove', onMove);
@@ -120,7 +133,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
   const displayTitle = title || app?.name || appId;
 
   return (
-    <div className="app-window" style={style} onMouseDown={() => focusWindow(appId)} onTouchStart={() => focusWindow(appId)}>
+    <div ref={windowRef} className="app-window" style={style} onMouseDown={() => focusWindow(appId)} onTouchStart={() => focusWindow(appId)}>
       <div className="window-titlebar" onMouseDown={onDragStart} onTouchStart={onDragStart}>
         <div className="traffic-lights">
           {!noClose && <button className="tl tl-close" onClick={(e) => { e.stopPropagation(); closeApp(appId); }} aria-label="Close" />}
@@ -213,7 +226,7 @@ function GlassDock({ isLocked, onLockedAppClick }) {
         <>
           <div className="dock-sep" />
           <button className="dock-item" onClick={() => { focusWindow(AUTH_WINDOW_ID); restoreApp(AUTH_WINDOW_ID); }} title="Sign In">
-            <span className="dock-icon">🔐</span>
+            <span className="dock-icon"><KuroIcon name="kuro.auth" size={22} color="rgba(255,255,255,0.85)" /></span>
             <div className="dock-indicator" />
           </button>
         </>
@@ -283,16 +296,17 @@ export default function App() {
   // Auto-open AuthGate window when locked
   useEffect(() => {
     if (isLocked && !windows[AUTH_WINDOW_ID]?.isOpen) {
-      // Open auth window centered
-      const isMobile = window.innerWidth < 768;
-      const w = isMobile ? window.innerWidth : 420;
-      const h = isMobile ? window.innerHeight : 580;
-      const x = isMobile ? 0 : Math.max(20, (window.innerWidth - w) / 2);
-      const y = isMobile ? 0 : Math.max(20, (window.innerHeight - h) / 2);
+      // Open auth window centered — always windowed, never maximized
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w = Math.min(420, vw - 32);
+      const h = Math.min(580, vh - 80);
+      const x = Math.max(16, (vw - w) / 2);
+      const y = Math.max(16, (vh - h) / 2);
       useOSStore.setState(s => ({
         windows: {
           ...s.windows,
-          [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex }
+          [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: false, x, y, width: w, height: h, zIndex: s.nextZIndex }
         },
         windowOrder: [...s.windowOrder.filter(id => id !== AUTH_WINDOW_ID), AUTH_WINDOW_ID],
         nextZIndex: s.nextZIndex + 1,
@@ -537,7 +551,7 @@ export default function App() {
 
 /* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
-  .app-window { border-radius: 0; }
+  .app-window { border-radius: 12px; }
   .window-titlebar { height: 38px; padding: 0 8px; }
   .tl { width: 11px; height: 11px; }
   .tl-close-disabled { width: 11px; height: 11px; }
