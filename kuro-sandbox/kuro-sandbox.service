@@ -1,0 +1,19 @@
+[Unit]
+Description=KURO Sandbox Runner
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kuro/kuro-sandbox
+ExecStart=/usr/bin/node /opt/kuro/kuro-sandbox/index.js
+Restart=on-failure
+RestartSec=5
+Environment=SANDBOX_PORT=3101
+Environment=SANDBOX_IMAGE=kuro-sandbox-runner:latest
+Environment=SANDBOX_MAX_CONCURRENT=4
+# Bind to loopback only — hardcoded in index.js
+
+[Install]
+WantedBy=multi-user.target

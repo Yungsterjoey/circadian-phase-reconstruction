@@ -1,0 +1,38 @@
+# KURO Sandbox — Docker Compose
+# Usage:
+#   docker compose -f kuro-sandbox/docker-compose.yml up -d
+#   docker compose -f kuro-sandbox/docker-compose.yml build runner
+
+version: "3.9"
+
+services:
+  # Build the runner image (one-time)
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    image: kuro-sandbox-runner:latest
+    profiles: ["build"]  # only built, never run via compose
+
+  # The sidecar itself runs on the HOST (needs Docker socket).
+  # If you prefer to containerize the sidecar too, mount /var/run/docker.sock.
+  sandbox:
+    image: node:20-slim
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./index.js:/app/index.js:ro
+      - /var/lib/kuro/sandboxes:/var/lib/kuro/sandboxes:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    ports:
+      - "127.0.0.1:3101:3101"
+    environment:
+      SANDBOX_PORT: "3101"
+      SANDBOX_IMAGE: "kuro-sandbox-runner:latest"
+      SANDBOX_MAX_CONCURRENT: "4"
+    command: ["node", "/app/index.js"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1"

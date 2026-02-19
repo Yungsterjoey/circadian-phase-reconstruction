@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>KURO OS — Sovereign Intelligence Platform</title>
+<meta name="description" content="AI that runs on your hardware. A sovereign operating system with a 12-layer cognitive pipeline, running on dedicated GPU infrastructure. Your data never leaves the server.">
+<meta property="og:title" content="KURO OS — Sovereign Intelligence Platform">
+<meta property="og:description" content="A full desktop AI environment running on dedicated GPUs. No model-sharing. No data harvesting. Sovereign AI infrastructure.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kuroglass.net">
+<meta property="og:site_name" content="KURO OS">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="KURO OS — Sovereign Intelligence Platform">
+<meta name="twitter:description" content="AI that runs on dedicated GPUs. No model-sharing. No data harvesting. Sovereign AI infrastructure.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%239333ea'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='system-ui' font-size='18' font-weight='600'>K</text></svg>">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',system-ui,sans-serif;background:#000;color:#fff;line-height:1.6;overflow-x:clip;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body.scroll-locked{overflow:hidden!important;position:fixed;inset:0;width:100%}
+a,button,input,select,textarea,[role="button"]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* ═══ VOID-KILL BACKGROUND ═══ */
+.void-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;contain:strict}
+.void-black{position:absolute;inset:0;background:#000}
+.void-depth{position:absolute;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 120%,rgba(15,5,25,0.5) 0%,rgba(5,2,10,0.2) 50%,transparent 80%)}
+.lava-layer{position:absolute;inset:-15%;filter:blur(70px);opacity:0.5;mix-blend-mode:screen;will-change:transform}
+.orb{position:absolute;border-radius:50%;will-change:transform}
+.o1{width:55vmax;height:55vmax;left:-10%;top:-20%;background:radial-gradient(circle at 35% 35%,rgba(147,51,234,0.9) 0%,rgba(126,34,206,0.5) 40%,transparent 70%);animation:f1 14s ease-in-out infinite}
+.o2{width:45vmax;height:45vmax;right:-15%;top:5%;background:radial-gradient(circle,rgba(192,132,252,0.8) 0%,rgba(139,92,246,0.4) 40%,transparent 70%);animation:f2 18s ease-in-out infinite}
+.o3{width:40vmax;height:40vmax;left:15%;bottom:-15%;background:radial-gradient(circle,rgba(236,130,250,0.7) 0%,rgba(168,85,247,0.35) 40%,transparent 70%);animation:f3 12s ease-in-out infinite}
+.o4{width:50vmax;height:50vmax;right:5%;bottom:-25%;background:radial-gradient(circle,rgba(99,102,241,0.6) 0%,rgba(79,70,229,0.3) 40%,transparent 70%);animation:f4 20s ease-in-out infinite}
+@keyframes f1{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(18vw,22vh,0) scale(1.15)}}
+@keyframes f2{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-22vw,18vh,0) scale(1.1)}}
+@keyframes f3{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(15vw,-20vh,0) scale(1.08)}}
+@keyframes f4{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-15vw,-25vh,0) scale(1.18)}}
+.vignette{position:absolute;inset:0;background:radial-gradient(ellipse 65% 65% at 50% 50%,transparent 0%,rgba(0,0,0,0.4) 70%,rgba(0,0,0,0.7) 100%)}
+.touch-glow{position:absolute;left:50%;top:50%;width:30vmax;height:30vmax;background:radial-gradient(circle,rgba(168,85,247,0.25) 0%,rgba(139,92,246,0.12) 30%,transparent 60%);filter:blur(25px);pointer-events:none;will-change:transform;animation:breathe 4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:0.8;filter:blur(25px)}50%{opacity:1;filter:blur(30px)}}
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* ═══ 3D GLASSCUBE ═══ */
+.gcube{perspective:600px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.gcube-inner{position:relative;transform-style:preserve-3d;animation:gcr 20s linear infinite}
+.gcube-inner.paused{animation-play-state:paused}
+@keyframes gcr{from{transform:rotateX(-20deg) rotateY(-30deg)}to{transform:rotateX(-20deg) rotateY(330deg)}}
+.gcf{position:absolute;background:linear-gradient(135deg,rgba(91,33,182,0.35) 0%,rgba(76,29,149,0.25) 50%,rgba(49,10,101,0.45) 100%);border:1px solid rgba(139,92,246,0.25);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.gcf.ft{transform:translateZ(var(--gh))}.gcf.bk{transform:rotateY(180deg) translateZ(var(--gh))}
+.gcf.rt{transform:rotateY(90deg) translateZ(var(--gh))}.gcf.lt{transform:rotateY(-90deg) translateZ(var(--gh))}
+.gcf.tp{transform:rotateX(90deg) translateZ(var(--gh))}.gcf.bt{transform:rotateX(-90deg) translateZ(var(--gh))}
+
+/* Hero glasscube */
+.hero-cube{width:160px;height:160px;margin:0 auto 28px}
+.hero-cube .gcube-inner{width:120px;height:120px;margin:20px auto;transform:rotateX(-20deg) rotateY(-30deg)}
+.hero-cube .gcf{width:120px;height:120px;--gh:60px}
+
+/* Nav glasscube */
+.nav-gcube{width:26px;height:26px}
+.nav-gcube .gcube-inner{width:18px;height:18px;transform:rotateX(-15deg) rotateY(-25deg)}
+.nav-gcube .gcf{width:18px;height:18px;--gh:9px}
+
+/* Dock glasscube */
+.dock-gcube{width:28px;height:28px}
+.dock-gcube .gcube-inner{width:20px;height:20px;transform:rotateX(-15deg) rotateY(-25deg)}
+.dock-gcube .gcf{width:20px;height:20px;--gh:10px}
+
+/* ═══ GLASS DOCK — Floating Island ═══ */
+.glass-dock{position:fixed;bottom:max(12px,env(safe-area-inset-bottom,12px));left:50%;transform:translateX(-50%);z-index:500;display:flex;align-items:center;gap:2px;padding:6px 10px;border-radius:22px;background:rgba(28,28,32,0.55);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px) saturate(1.6);-webkit-backdrop-filter:blur(40px) saturate(1.6);box-shadow:0 8px 32px rgba(0,0,0,0.5),inset 0 0.5px 0 rgba(255,255,255,0.06);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s}
+.glass-dock::before{content:'';position:absolute;inset:-0.5px;border-radius:23px;background:linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:-1;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;-webkit-mask-composite:xor;padding:0.5px}
+.dock-sep{width:1px;height:20px;background:rgba(255,255,255,0.08);margin:0 4px;flex-shrink:0}
+.dock-btn{width:38px;height:38px;border-radius:12px;border:none;background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;font-family:inherit;padding:0}
+.dock-btn:hover{background:rgba(255,255,255,0.1);color:#fff;transform:translateY(-2px)}
+.dock-btn:active{transform:translateY(0) scale(0.95)}
+.dock-btn.active{background:rgba(147,51,234,0.15);color:#c084fc}
+.dock-btn.standby{animation:standby-pulse 2s ease-in-out infinite}
+.dock-btn.standby::after{content:'';position:absolute;inset:-2px;border-radius:14px;border:1.5px solid rgba(245,158,11,0.5);animation:standby-glow 2s ease-in-out infinite;pointer-events:none}
+@keyframes standby-pulse{0%,100%{box-shadow:0 0 0 rgba(245,158,11,0)}50%{box-shadow:0 0 14px rgba(245,158,11,0.3)}}
+@keyframes standby-glow{0%,100%{border-color:rgba(245,158,11,0.3);opacity:0.6}50%{border-color:rgba(245,158,11,0.6);opacity:1}}
+.dock-btn svg{width:18px;height:18px;stroke-width:1.8}
+.dock-brand{width:38px;height:38px;border-radius:12px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;padding:0}
+.dock-brand:hover{transform:translateY(-2px)}
+
+/* ═══ HERO OVERLAY ═══ */
+.hero-overlay{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:#000;transition:opacity .5s,visibility .5s}
+.hero-overlay.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.hero-title{font-size:clamp(48px,8vw,72px);font-weight:200;letter-spacing:20px;color:rgba(255,255,255,0.95);margin:0 0 2px 20px}
+.hero-dot{font-size:clamp(28px,5vw,40px);font-weight:300;letter-spacing:10px;color:#a855f7;margin:0 0 14px 10px}
+.hero-tag{font-size:11px;font-weight:500;letter-spacing:4px;color:rgba(255,255,255,0.3);margin-bottom:36px}
+.hero-sub{font-size:clamp(16px,2.5vw,19px);color:rgba(255,255,255,0.5);max-width:520px;margin:0 auto 44px;font-weight:300;line-height:1.6}
+.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ═══ BUTTONS ═══ */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 26px;border-radius:12px;font-size:14px;font-weight:600;text-decoration:none;transition:all 0.25s;border:none;cursor:pointer;font-family:inherit;letter-spacing:0.01em}
+.btn-primary{background:linear-gradient(135deg,rgba(147,51,234,0.9),rgba(91,33,182,0.9));color:#fff;box-shadow:0 0 30px rgba(147,51,234,0.15),0 4px 20px rgba(0,0,0,0.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 40px rgba(147,51,234,0.25),0 8px 30px rgba(0,0,0,0.3)}
+.btn-glass{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.btn-glass:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.14);color:#fff}
+.btn svg{width:16px;height:16px}
+.btn-sm{padding:10px 20px;font-size:13px;border-radius:10px}
+
+/* ═══ APP WINDOW — Liquid Glass (matches React OS AppWindow) ═══ */
+.app-window{position:fixed;z-index:300;border-radius:16px;overflow:hidden;background:rgba(8,8,12,.92);border:1px solid rgba(139,92,246,.08);backdrop-filter:blur(60px) saturate(1.6);-webkit-backdrop-filter:blur(60px) saturate(1.6);box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 1px rgba(255,255,255,.08),0 0 60px -20px rgba(147,51,234,.08);display:flex;flex-direction:column;transition:opacity .3s,border-radius .3s;transform-origin:bottom center}
+.app-window::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08) 20%,rgba(255,255,255,.06) 80%,transparent);pointer-events:none;z-index:10}
+.app-window.minimized{transform:translateY(calc(100vh)) scale(.4);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.app-window.closed{display:none}
+.app-window.maximized{top:0!important;left:0!important;right:0!important;bottom:max(60px,calc(52px + env(safe-area-inset-bottom,0px)))!important;width:100%!important;height:auto!important;max-width:none!important;border-radius:0;border:none}
+.app-window.maximized::before{display:none}
+
+/* Resize handles (desktop) */
+.win-resize{position:absolute;z-index:20}
+.win-resize.r-e{right:-3px;top:10px;bottom:10px;width:6px;cursor:ew-resize}
+.win-resize.r-w{left:-3px;top:10px;bottom:10px;width:6px;cursor:ew-resize}
+.win-resize.r-s{bottom:-3px;left:10px;right:10px;height:6px;cursor:ns-resize}
+.win-resize.r-se{right:-4px;bottom:-4px;width:16px;height:16px;cursor:nwse-resize}
+.win-resize.r-sw{left:-4px;bottom:-4px;width:16px;height:16px;cursor:nesw-resize}
+
+/* Window — Title Bar — Glass effect matching React OS */
+.win-titlebar{display:flex;align-items:center;padding:11px 14px;gap:10px;background:rgba(16,16,20,.55);backdrop-filter:blur(40px) saturate(1.4);-webkit-backdrop-filter:blur(40px) saturate(1.4);border-bottom:1px solid rgba(255,255,255,.04);cursor:grab;user-select:none;-webkit-user-select:none;flex-shrink:0;position:relative;z-index:5}
+.win-titlebar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.03) 30%,rgba(255,255,255,.03) 70%,transparent)}
+.win-titlebar:active{cursor:grabbing}
+.win-traffic{display:flex;gap:7px;flex-shrink:0}
+.win-dot{width:12px;height:12px;border-radius:50%;border:none;cursor:pointer;transition:all .15s;padding:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.win-dot:hover{opacity:.8;transform:scale(1.15)}
+.win-dot.red{background:#ff5f57}.win-dot.yellow{background:#febc2e}.win-dot.green{background:#28c840}
+.win-title{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.win-title svg{width:16px;height:16px;color:rgba(255,255,255,.35);flex-shrink:0}
+.win-title-text{font-size:13px;font-weight:600;color:rgba(255,255,255,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px}
+.win-badge{font-size:9px;font-weight:700;letter-spacing:.08em;padding:3px 10px;border-radius:6px;background:rgba(94,92,230,.12);color:#818cf8;border:1px solid rgba(94,92,230,.15);white-space:nowrap;margin-left:auto}
+.win-counter{font-size:11px;color:rgba(255,255,255,.2);font-variant-numeric:tabular-nums;flex-shrink:0;font-family:'SF Mono',Monaco,Consolas,monospace}
+
+/* Window — Subheader */
+.win-subheader{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.03);flex-shrink:0;position:relative;z-index:2}
+.win-agent{display:flex;align-items:center;gap:8px}
+.win-agent-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 6px rgba(34,197,94,.4)}
+.win-agent-name{font-size:12px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.5)}
+.win-model{font-size:11px;color:rgba(255,255,255,.15);font-family:'SF Mono',Monaco,Consolas,monospace}
+
+/* Window — Messages */
+.win-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px;min-height:0;position:relative;z-index:2}
+.win-messages::-webkit-scrollbar{width:4px}
+.win-messages::-webkit-scrollbar-track{background:transparent}
+.win-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
+
+/* Welcome state */
+.win-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:10px;padding:40px 20px;text-align:center}
+.win-welcome-title{font-size:16px;font-weight:600;color:rgba(255,255,255,.75)}
+.win-welcome-sub{font-size:13px;color:rgba(255,255,255,.3);max-width:300px;line-height:1.5}
+.win-welcome-subtle{font-size:11px;color:rgba(255,255,255,.15);margin-top:4px}
+
+/* ═══ MESSAGES — Unified UX (matches OS KuroChatApp) ═══ */
+/* User: right-aligned glass bubble */
+.msg{max-width:85%;animation:msg-in .25s ease-out;word-wrap:break-word}
+.msg.user{align-self:flex-end;background:rgba(147,51,234,.12);border:1px solid rgba(147,51,234,.1);color:rgba(255,255,255,.9);border-radius:18px 18px 6px 18px;padding:12px 16px;font-size:14px;line-height:1.55;white-space:pre-wrap}
+/* AI: no bubble — text on background */
+.msg.ai{align-self:flex-start;background:none;border:none;color:rgba(255,255,255,.82);padding:4px 0 4px 4px;font-size:14.5px;line-height:1.7;max-width:95%}
+.msg.ai .stream-cursor{color:#a855f7;font-weight:300;animation:cursor-blink 1s infinite}
+@keyframes msg-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cursor-blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* Thinking engine */
+.thinking-box{align-self:stretch;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.04);display:none;flex-direction:column;gap:4px;animation:msg-in 0.2s ease-out}
+.thinking-box.active{display:flex}
+.lyr-row{display:flex;align-items:center;gap:8px;font-size:11px;height:18px}
+.lyr-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.lyr-name{color:rgba(255,255,255,0.4);flex:1;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:10px}
+.lyr-status{font-size:9px;font-weight:700;letter-spacing:0.08em;font-family:'SF Mono',Monaco,Consolas,monospace}
+.lyr-status.proc{color:rgba(168,85,247,0.7);animation:lyr-pulse 1s ease-in-out infinite}
+.lyr-status.ok{color:rgba(34,197,94,0.6)}
+@keyframes lyr-pulse{0%,100%{opacity:0.7}50%{opacity:1}}
+
+/* Typing indicator */
+.typing-ind{align-self:flex-start;padding:10px 16px;border-radius:14px 14px 14px 4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);display:none;gap:5px}
+.typing-ind.active{display:flex}
+.typing-ind span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.25);animation:blink 1.4s ease-in-out infinite}
+.typing-ind span:nth-child(2){animation-delay:0.2s}
+.typing-ind span:nth-child(3){animation-delay:0.4s}
+@keyframes blink{0%,60%,100%{opacity:0.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+/* Upgrade wall */
+.upgrade-wall{display:none;flex-direction:column;align-items:center;gap:10px;padding:28px 18px;text-align:center}
+.upgrade-wall.show{display:flex}
+.upgrade-wall h3{font-size:16px;color:#fff;font-weight:600}
+.upgrade-wall p{font-size:13px;color:rgba(255,255,255,0.35);max-width:280px;line-height:1.5;margin:0}
+
+/* Window — Input Area */
+.win-input{display:flex;align-items:center;gap:8px;padding:10px 12px;margin:8px 10px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);position:relative;z-index:2;transition:border-color .15s}
+.win-input:focus-within{border-color:rgba(147,51,234,.2)}
+.win-input input{flex:1;background:none;border:none;outline:none;color:rgba(255,255,255,.85);font-size:14px;font-family:inherit;min-width:0;touch-action:manipulation}
+.win-input input::placeholder{color:rgba(255,255,255,.18)}
+.win-input input:disabled{opacity:.4;cursor:not-allowed}
+.win-send{width:34px;height:34px;border-radius:10px;border:none;background:linear-gradient(135deg,rgba(147,51,234,.4),rgba(91,33,182,.4));color:#c084fc;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;padding:0;touch-action:manipulation}
+.win-send:hover:not(:disabled){background:linear-gradient(135deg,rgba(147,51,234,.6),rgba(91,33,182,.6));transform:scale(1.05)}
+.win-send:disabled{opacity:.25;cursor:not-allowed}
+.win-send svg{width:16px;height:16px}
+
+/* ═══ SCROLL SECTIONS (below viewport) ═══ */
+.scroll-content{position:relative;z-index:1;background:rgba(0,0,0,0.8)}
+.container{max-width:1080px;margin:0 auto;padding:0 24px}
+section{padding:100px 0;position:relative}
+section::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.3);pointer-events:none;z-index:-1}
+.hero::before{background:none}
+@media(max-width:768px){section{padding:64px 0}.container{padding:0 16px}}
+.glass-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:16px;transition:all 0.3s}
+.glass-card:hover{border-color:rgba(255,255,255,0.1);background:rgba(255,255,255,0.05)}
+.sh-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:rgba(147,51,234,0.6);margin-bottom:14px;text-align:center}
+.sh-title{text-align:center;font-size:clamp(26px,4vw,38px);font-weight:300;margin-bottom:10px;letter-spacing:-0.02em;color:rgba(255,255,255,0.9)}
+.sh-title strong{font-weight:600}
+.sh-lead{text-align:center;color:rgba(255,255,255,0.35);margin-bottom:44px;font-size:15px}
+
+/* Compare */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;text-align:left}
+@media(max-width:768px){.compare-grid{grid-template-columns:1fr}}
+.compare-card{padding:28px 24px}
+.compare-tag{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.them .compare-tag{color:rgba(255,255,255,0.3)}.us .compare-tag{color:#a855f7}
+.compare-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+.compare-list li{font-size:13px;color:rgba(255,255,255,0.5);padding-left:20px;position:relative}
+.them .compare-list li::before{content:'\00D7';position:absolute;left:0;color:rgba(239,68,68,0.5);font-weight:700}
+.us .compare-list li::before{content:'\2713';position:absolute;left:0;color:rgba(34,197,94,0.6);font-weight:700}
+
+/* Features */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:768px){.features-grid{grid-template-columns:1fr}}
+.feature-card{padding:24px}
+.feature-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.feature-card h3{font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:6px}
+.feature-card p{font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5}
+
+/* Architecture */
+.pipeline-track{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.pipe-node{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(255,255,255,0.5)}
+.pipe-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* Pricing */
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+@media(max-width:768px){.price-grid{grid-template-columns:1fr;max-width:400px;margin:0 auto}}
+.price-card{padding:28px 24px;text-align:center;position:relative}
+.price-card.featured{border-color:rgba(147,51,234,0.25);box-shadow:0 0 40px rgba(147,51,234,0.08)}
+.price-card.featured::before{content:'POPULAR';position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:700;letter-spacing:0.12em;color:#a855f7;background:#000;padding:2px 10px;border-radius:4px;border:1px solid rgba(147,51,234,0.25)}
+.price-tier{font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:8px}
+.price-amount{font-size:36px;font-weight:200;color:#fff;margin-bottom:2px}
+.price-amount span{font-size:14px;color:rgba(255,255,255,0.3)}
+.price-period{font-size:12px;color:rgba(255,255,255,0.25);margin-bottom:20px}
+.price-list{list-style:none;text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.price-list li{font-size:12px;color:rgba(255,255,255,0.5);padding-left:18px;position:relative}
+.price-list li::before{content:'\2713';position:absolute;left:0;color:rgba(147,51,234,0.6);font-weight:700;font-size:11px}
+
+/* Access */
+.access-section{padding:80px 0}
+.access-box{max-width:420px;margin:0 auto;padding:32px;border-radius:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.access-box h3{font-size:18px;font-weight:600;margin-bottom:6px;text-align:center}
+.access-box .desc{font-size:13px;color:rgba(255,255,255,0.35);text-align:center;margin-bottom:20px}
+.token-form{display:flex;flex-direction:column;gap:10px}
+.token-input-wrap{position:relative}
+.token-input{width:100%;padding:12px 40px 12px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#fff;font-size:14px;font-family:inherit;outline:none;transition:border-color 0.2s}
+.token-input:focus{border-color:rgba(147,51,234,0.4)}
+.toggle-vis{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:16px;padding:4px}
+.token-error{color:#ef4444;font-size:12px;text-align:left;display:none}
+.token-error.show{display:block}
+.divider{text-align:center;font-size:12px;color:rgba(255,255,255,0.2);margin:14px 0;position:relative}
+.waitlist-info{font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6}
+.waitlist-info a{color:rgba(147,51,234,0.7);text-decoration:none}
+.access-legal{font-size:10px;color:rgba(255,255,255,0.2);text-align:center;margin-top:14px;line-height:1.5}
+.access-legal a{color:rgba(147,51,234,0.5);text-decoration:none}
+
+/* Footer */
+footer{border-top:1px solid rgba(255,255,255,0.05);padding:40px 0 32px;position:relative;z-index:1;background:rgba(0,0,0,0.8)}
+.footer-inner{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:32px;margin-bottom:24px}
+@media(max-width:768px){.footer-inner{grid-template-columns:1fr 1fr;gap:20px}}
+.footer-brand .fb-name{font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:4px}
+.footer-brand .fb-entity{font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:2px}
+.footer-brand .fb-desc{font-size:11px;color:rgba(255,255,255,0.4);margin-top:8px;line-height:1.5}
+.footer-col h4{font-size:11px;font-weight:600;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:10px;text-transform:uppercase}
+.footer-col a{display:block;font-size:12px;color:rgba(255,255,255,0.5);text-decoration:none;margin-bottom:6px;transition:color 0.2s}
+.footer-col a:hover{color:rgba(255,255,255,0.8)}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center;padding-top:16px;border-top:1px solid rgba(255,255,255,0.04);font-size:11px;color:rgba(255,255,255,0.3)}
+@media(max-width:600px){.footer-bottom{flex-direction:column;gap:4px;text-align:center}}
+
+/* ═══ ANIMATIONS ═══ */
+.fade-up{opacity:0;transform:translateY(16px);transition:opacity 0.5s,transform 0.5s}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+.s1{transition-delay:0.04s}.s2{transition-delay:0.08s}.s3{transition-delay:0.12s}.s4{transition-delay:0.16s}.s5{transition-delay:0.2s}.s6{transition-delay:0.24s}
+@media(prefers-reduced-motion:reduce){.orb,.gcube-inner,.touch-glow{animation:none!important}.fade-up{transition:none!important;opacity:1;transform:none}}
+
+/* ═══ COOKIE BANNER ═══ */
+.cookie-banner{position:fixed;bottom:0;left:0;right:0;z-index:10001;padding:16px 24px;background:rgba(10,10,14,0.97);border-top:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.cookie-banner p{font-size:12px;color:rgba(255,255,255,0.55);max-width:500px;line-height:1.5}
+.cookie-banner a{color:rgba(168,85,247,0.7);text-decoration:none}
+.cookie-btns{display:flex;gap:8px;flex-wrap:wrap}
+.cookie-btns button{padding:7px 16px;border-radius:8px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;transition:all 0.2s}
+.cookie-btns .cb-accept{background:rgba(147,51,234,0.3);color:#c084fc}
+.cookie-btns .cb-accept:hover{background:rgba(147,51,234,0.4)}
+.cookie-btns .cb-essential{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.08)}
+.cookie-btns .cb-essential:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)}
+.cookie-btns .cb-manage{background:none;color:rgba(255,255,255,0.35);text-decoration:underline;padding:7px 8px}
+.cookie-btns .cb-manage:hover{color:rgba(255,255,255,0.6)}
+
+/* ═══ MOBILE ═══ */
+@media(max-width:768px){
+  .app-window{top:0!important;left:0!important;right:0!important;bottom:max(60px,calc(52px + env(safe-area-inset-bottom,0px)))!important;width:100%!important;height:auto!important;max-width:none!important;border-radius:0;border:none}
+  .app-window::before{display:none}
+  .win-resize{display:none!important}
+  .hero-title{letter-spacing:12px;margin-left:12px}
+}
+</style>
+</head>
+
+<body>
+
+<!-- ═══ VOID-KILL BACKGROUND ═══ -->
+<div class="void-bg"><div class="void-black"></div><div class="void-depth"></div><div class="lava-layer"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orb o4"></div></div><div class="touch-glow" id="touch-glow"></div><div class="vignette"></div></div>
+
+<!-- ═══ HERO OVERLAY ═══ -->
+<div class="hero-overlay" id="hero-overlay">
+<div class="gcube hero-cube"><div class="gcube-inner"><div class="gcf ft"></div><div class="gcf bk"></div><div class="gcf rt"></div><div class="gcf lt"></div><div class="gcf tp"></div><div class="gcf bt"></div></div></div>
+<h1 class="hero-title">KURO</h1>
+<h2 class="hero-dot">.OS</h2>
+<p class="hero-tag">SOVEREIGN INTELLIGENCE PLATFORM</p>
+<p class="hero-sub">AI that runs on dedicated GPU hardware. Your conversations stay on the inference server. No model-sharing. No data harvesting. Complete sovereignty.</p>
+<div class="hero-actions">
+<button onclick="launchOS()" class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Launch KURO</button>
+<a href="/app" class="btn btn-glass">Get Started</a>
+</div>
+</div>
+
+<!-- ═══ KURO CHAT WINDOW ═══ -->
+<div class="app-window closed" id="chat-window" style="top:5%;left:5%;width:90%;height:calc(90% - 60px);max-width:600px">
+<!-- Resize handles (desktop) -->
+<div class="win-resize r-e" data-dir="e"></div>
+<div class="win-resize r-w" data-dir="w"></div>
+<div class="win-resize r-s" data-dir="s"></div>
+<div class="win-resize r-se" data-dir="se"></div>
+<div class="win-resize r-sw" data-dir="sw"></div>
+<!-- Title Bar -->
+<div class="win-titlebar" id="win-titlebar">
+<div class="win-traffic">
+<button class="win-dot red" onclick="closeChat()" title="Close"></button>
+<button class="win-dot yellow" onclick="minimizeChat()" title="Minimize"></button>
+<button class="win-dot green" onclick="maximizeChat()" title="Maximize"></button>
+</div>
+<div class="win-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+<span class="win-title-text">KURO Chat</span>
+</div>
+<span class="win-badge">INSIGHTS</span>
+<span class="win-counter" id="win-counter">—/—</span>
+</div>
+<!-- Subheader -->
+<div class="win-subheader">
+<div class="win-agent"><div class="win-agent-dot"></div><span class="win-agent-name">KURO :: INSIGHTS</span></div>
+<span class="win-model">kuro-core</span>
+</div>
+<!-- Messages -->
+<div class="win-messages" id="win-messages">
+<div class="win-welcome" id="win-welcome">
+<div class="gcube dock-gcube"><div class="gcube-inner"><div class="gcf ft"></div><div class="gcf bk"></div><div class="gcf rt"></div><div class="gcf lt"></div><div class="gcf tp"></div><div class="gcf bt"></div></div></div>
+<div class="win-welcome-title">Welcome to KURO OS</div>
+<div class="win-welcome-sub">Free demo — ask me anything.</div>
+<div class="win-welcome-subtle">Dedicated GPUs. No model-sharing. Your data stays on the inference server.</div>
+</div>
+<!-- Thinking engine (reused for each message) -->
+<div class="thinking-box" id="thinking-box"></div>
+<!-- Typing indicator -->
+<div class="typing-ind" id="typing-ind"><span></span><span></span><span></span></div>
+<!-- Upgrade wall -->
+<div class="upgrade-wall" id="upgrade-wall">
+<h3>Free messages used</h3>
+<p>You've used all your free demo messages. Create an account or upgrade to keep chatting.</p>
+<a href="/app" class="btn btn-primary btn-sm" style="min-width:160px;justify-content:center">Create Account</a>
+<a href="#pricing" class="btn btn-glass btn-sm" style="min-width:160px;justify-content:center" onclick="document.getElementById('chat-window').classList.add('minimized');document.getElementById('dock-chat').classList.add('standby')">View Plans</a>
+<p style="font-size:11px;color:rgba(255,255,255,0.15);margin-top:4px">Messages reset weekly</p>
+</div>
+</div>
+<!-- Input -->
+<div class="win-input" id="win-input-area">
+<input type="text" placeholder="Ask KURO anything..." id="win-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+<button class="win-send" id="win-send" title="Send">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+</button>
+</div>
+</div>
+
+<!-- ═══ GLASS DOCK — Floating Island ═══ -->
+<div class="glass-dock" id="glass-dock">
+<button class="dock-brand" onclick="toggleHero()" title="KURO OS">
+<div class="gcube dock-gcube"><div class="gcube-inner"><div class="gcf ft"></div><div class="gcf bk"></div><div class="gcf rt"></div><div class="gcf lt"></div><div class="gcf tp"></div><div class="gcf bt"></div></div></div>
+</button>
+<div class="dock-sep"></div>
+<button class="dock-btn" id="dock-chat" onclick="openChat()" title="Chat">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+<button class="dock-btn" onclick="scrollToSection('pricing')" title="Pricing">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+</button>
+<button class="dock-btn" onclick="scrollToSection('features')" title="Features">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+</button>
+<button class="dock-btn" onclick="window.location.href='/app'" title="Sign In">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+</button>
+</div>
+
+<!-- ═══ SCROLL SECTIONS ═══ -->
+<div class="scroll-content">
+
+<section id="compare"><div class="container">
+<div class="sh-label fade-up">Why sovereign</div>
+<h2 class="sh-title fade-up s1">ChatGPT &amp; Claude vs <strong>KURO</strong></h2>
+<p class="sh-lead fade-up s2">Your conversations should belong to you.</p>
+<div class="compare-grid">
+<div class="compare-card glass-card them fade-up s3"><div class="compare-tag">Cloud LLMs</div><ul class="compare-list"><li>Your data trains their models</li><li>Rate limits on your own thinking</li><li>Conversations stored on servers you don't control</li><li>One policy change breaks your workflow</li><li>No audit trail or proof of interaction</li></ul></div>
+<div class="compare-card glass-card us fade-up s4"><div class="compare-tag">KURO OS</div><ul class="compare-list"><li>AI inference runs on dedicated GPUs you don't share</li><li>No rate limits — your own hardware allocation</li><li>Cryptographically signed audit trails</li><li>Conversations never used for training</li><li>Government-grade deployment profiles</li></ul></div>
+</div></div></section>
+
+<section id="features"><div class="container">
+<div class="sh-label fade-up">Capabilities</div>
+<h2 class="sh-title fade-up s1">Not a chatbot. An <strong>operating system.</strong></h2>
+<p class="sh-lead fade-up s2">Desktop environment, AI agents, and sovereign infrastructure in one platform.</p>
+<div class="features-grid">
+<div class="feature-card glass-card fade-up s1"><div class="feature-icon" style="background:rgba(147,51,234,0.1);color:#a855f7"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3>12-Layer Cognitive Pipeline</h3><p>Threat detection, semantic routing, knowledge retrieval, and quality refinement — every message, every time.</p></div>
+<div class="feature-card glass-card fade-up s2"><div class="feature-icon" style="background:rgba(59,130,246,0.1);color:#3b82f6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><h3>Desktop Environment</h3><p>Full windowed OS in your browser. Draggable windows, app dock, file explorer, terminal. Not a chat window — a workspace.</p></div>
+<div class="feature-card glass-card fade-up s3"><div class="feature-icon" style="background:rgba(34,197,94,0.1);color:#22c55e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg></div><h3>Specialised AI Agents</h3><p>Insights for analysis, Actions for execution, Analysis for research. Each with scoped permissions and audit trails.</p></div>
+<div class="feature-card glass-card fade-up s4"><div class="feature-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><h3>Ed25519 Audit Chain</h3><p>Every action cryptographically signed. Tamper-evident logs for compliance. Provable interaction history.</p></div>
+<div class="feature-card glass-card fade-up s5"><div class="feature-icon" style="background:rgba(239,68,68,0.1);color:#ef4444"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></div><h3>Image Generation</h3><p>KURO::VISION with intent detection and quality evaluation. Generated on local GPU — no external API calls.</p></div>
+<div class="feature-card glass-card fade-up s6"><div class="feature-icon" style="background:rgba(6,182,212,0.1);color:#06b6d4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><h3>Knowledge Engine</h3><p>Upload documents, build a private knowledge base, query it in conversation. Vector embeddings stored locally.</p></div>
+</div></div></section>
+
+<section><div class="container">
+<div class="sh-label fade-up">Architecture</div>
+<h2 class="sh-title fade-up s1">12 active layers. <strong>Every message.</strong></h2>
+<p class="sh-lead fade-up s2">Defence-in-depth cognitive processing pipeline.</p>
+<div class="pipeline-track fade-up s3">
+<div class="pipe-node"><div class="pipe-dot" style="background:#ef4444"></div>Iron Dome</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#f97316"></div>IFF Gate</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#eab308"></div>Edubba Archive</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#22c55e"></div>Semantic Router</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#14b8a6"></div>Memory Engine</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#06b6d4"></div>Orchestrator</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#3b82f6"></div>Fire Control</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#6366f1"></div>Reasoning</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#8b5cf6"></div>Maat Refiner</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#a855f7"></div>Enhancer</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#d946ef"></div>Stream</div>
+<div class="pipe-node"><div class="pipe-dot" style="background:#ec4899"></div>Feedback</div>
+</div></div></section>
+
+<section id="pricing"><div class="container">
+<div class="sh-label fade-up">Pricing</div>
+<h2 class="sh-title fade-up s1">Sovereign intelligence. <strong>Your terms.</strong></h2>
+<p class="sh-lead fade-up s2">Try it free. Upgrade when you're ready.</p>
+<div class="price-grid">
+<div class="price-card glass-card fade-up s3"><div class="price-tier">Free</div><div class="price-amount">$0</div><div class="price-period">25 messages + 1 image / week</div><ul class="price-list"><li>25 AI chat messages per week</li><li>1 image generation per week</li><li>12-layer pipeline active</li><li>Thinking + reasoning visible</li><li>Insights agent</li></ul><button onclick="launchOS()" class="btn btn-glass btn-sm" style="width:100%;justify-content:center">Try Free</button></div>
+<div class="price-card glass-card featured fade-up s4"><div class="price-tier">Pro</div><div class="price-amount">$19<span>/mo</span></div><div class="price-period">1,400 messages + 140 images / week</div><ul class="price-list"><li>1,400 messages per week</li><li>140 image generations per week</li><li>Insights + Actions agents</li><li>12-layer pipeline active</li><li>Priority inference</li><li>Email support</li></ul><a href="https://buy.stripe.com/cNi5kDepSaFPaCyeJd5sA00" class="btn btn-primary btn-sm">Subscribe to Pro</a></div>
+<div class="price-card glass-card fade-up s5"><div class="price-tier">Sovereign</div><div class="price-amount">$49<span>/mo</span></div><div class="price-period">3,500 messages + 350 images / week</div><ul class="price-list"><li>Everything in Pro</li><li>Full KURO OS desktop environment</li><li>All AI agents + creative model</li><li>DEV mode — code execution</li><li>Terminal + file explorer</li><li>Knowledge engine (RAG)</li><li>REST API access</li><li>Audit log export</li><li>Priority support</li></ul><a href="https://buy.stripe.com/cNi8wPgy0bJTdOK44z5sA01" class="btn btn-glass btn-sm">Subscribe to Sovereign</a></div>
+</div>
+<p style="text-align:center;margin-top:28px;font-size:12px;color:rgba(255,255,255,0.2)">All subscriptions can be cancelled anytime. Enterprise with dedicated nodes from $499/mo — <a href="/cdn-cgi/l/email-protection#a1c9c4cdcdcee1cad4d3cec6cdc0d2d28fcfc4d59ed2d4c3cbc4c2d59ceaf4f3ee849391e4cfd5c4d3d1d3c8d2c4" style="color:rgba(147,51,234,0.6)">Contact us</a></p>
+</div></section>
+
+<section class="access-section" id="access"><div class="container"><div class="access-box fade-up" style="text-align:center">
+<h3>Ready to launch?</h3>
+<p class="desc" style="margin-bottom:20px">Create a free account, sign in with Google/GitHub, or use your access token.</p>
+<a href="/app" class="btn btn-primary" style="display:inline-flex;justify-content:center;min-width:200px">Launch KURO</a>
+<p style="margin-top:14px;font-size:12px;color:rgba(255,255,255,0.25)">Create a <a href="/app" style="color:rgba(147,51,234,0.55)">free account</a> to get started</p>
+</div></div></section>
+
+<footer><div class="container">
+<div class="footer-inner">
+<div class="footer-brand"><div class="fb-name">KURO OS</div><div class="fb-entity">Henry George Lowe trading as KURO Technologies</div><div class="fb-entity">ABN 45 340 322 909</div><p class="fb-desc">Sovereign AI infrastructure. Built in Melbourne, Australia. Running on dedicated GPU hardware in the United States.</p></div>
+<div class="footer-col"><h4>Product</h4><a href="#" onclick="launchOS();return false">Try Free</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="https://docs.kuroglass.net" target="_blank" rel="noopener">Documentation</a></div>
+<div class="footer-col"><h4>Company</h4><a href="https://www.linkedin.com/company/kuro-os" target="_blank" rel="noopener">LinkedIn</a><a href="/cdn-cgi/l/email-protection#abc3cec7c7c4ebc0ded9c4ccc7cad8d885c5cedf">Contact</a><a href="#about">About</a></div>
+<div class="footer-col"><h4>Legal</h4><a href="#" onclick="openModal('terms-modal');return false">Terms of Service</a><a href="#" onclick="openModal('privacy-modal');return false">Privacy Policy</a><a href="#" onclick="openModal('disclaimer-modal');return false">Disclaimer</a><a href="#" onclick="openModal('aup-modal');return false">Acceptable Use</a><a href="#" onclick="openModal('cookie-modal');return false">Cookie Settings</a></div>
+</div>
+<div class="footer-bottom"><span>&copy; 2026 Henry George Lowe trading as KURO Technologies. All rights reserved.</span><span>Sovereign Intelligence Platform v7.0.3</span></div>
+</div></footer>
+
+</div><!-- /.scroll-content -->
+
+<!-- ═══ COOKIE BANNER ═══ -->
+<div class="cookie-banner" id="cookie-banner" style="display:none"><p>We use essential cookies for authentication and security (Cloudflare). No advertising or tracking cookies. <a href="#" onclick="openModal('cookie-modal');return false">Cookie Policy</a></p><div class="cookie-btns"><button class="cb-essential" onclick="setCookieConsent('essential')">Essential Only</button><button class="cb-accept" onclick="setCookieConsent('all')">Accept All</button><button class="cb-manage" onclick="openModal('cookie-modal')">Manage</button></div></div>
+
+<!-- ═══ LEGAL MODALS ═══ -->
+<div id="terms-modal" class="legal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)this.style.display='none'"><div style="max-width:640px;max-height:80vh;overflow-y:auto;background:rgba(12,12,16,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;color:rgba(255,255,255,0.7);font-size:13px;line-height:1.7"><h2 style="font-size:20px;color:#fff;margin-bottom:16px">Terms of Service</h2><p style="color:rgba(255,255,255,0.3);margin-bottom:16px">Last updated: 14 February 2026 &middot; Version 1.0</p>
+<p><strong style="color:#fff">1. Operator.</strong> KURO OS is operated by Henry George Lowe trading as KURO Technologies, ABN 45 340 322 909, Melbourne, Victoria, Australia ("we", "us", "KURO").</p>
+<p><strong style="color:#fff">2. Acceptance.</strong> By accessing or using KURO OS, you agree to be bound by these Terms. If you do not agree, do not use the service. You must be at least 18 years of age to use KURO OS.</p>
+<p><strong style="color:#fff">3. Service Description.</strong> KURO OS is an AI-powered operating system providing conversational AI, code execution, image generation, and related tools. AI inference runs on dedicated GPU hardware located in the United States. The platform uses third-party services including Cloudflare (security and CDN) and Stripe (payment processing). "Sovereign" refers to our architecture where AI models run on dedicated hardware not shared with other providers' training pipelines — it does not mean the platform operates without any third-party infrastructure services.</p>
+<p><strong style="color:#fff">4. Accounts &amp; Access.</strong> Access is via token-based authentication. You are responsible for maintaining the confidentiality of your access tokens. Notify us immediately at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="4d25282121220d26383f222a212c3e3e63232839">[email&#160;protected]</a> if you believe your token has been compromised.</p>
+<p><strong style="color:#fff">5. Acceptable Use.</strong> You agree to comply with our Acceptable Use Policy. We reserve the right to suspend or terminate access for violations. See the AUP for prohibited activities and enforcement procedures.</p>
+<p><strong style="color:#fff">6. AI Output &amp; Limitations.</strong> AI outputs are probabilistic and may contain errors, inaccuracies, or biases. Outputs do not constitute professional advice of any kind — including medical, legal, financial, engineering, or safety-critical advice. You are solely responsible for evaluating and acting on AI outputs. Code execution occurs in a sandboxed environment; however, you accept all risk associated with executing generated code.</p>
+<p><strong style="color:#fff">7. Data &amp; Privacy.</strong> Your use of KURO OS is also governed by our Privacy Policy. Conversations processed through KURO OS are not used to train AI models. Conversation data is stored on the inference server in the United States and subject to the retention periods described in our Privacy Policy.</p>
+<p><strong style="color:#fff">8. Billing &amp; Subscriptions.</strong> Paid plans are billed monthly via Stripe. Subscriptions renew automatically until cancelled. You may cancel at any time; cancellation takes effect at the end of the current billing period. No partial refunds are issued for the remaining days of a billing period after cancellation. Access tokens are delivered to your email address upon successful payment.</p>
+<p><strong style="color:#fff">9. Australian Consumer Law.</strong> Nothing in these Terms excludes, restricts, or modifies any consumer guarantee, right, or remedy conferred by the Australian Consumer Law (Schedule 2 of the Competition and Consumer Act 2010) or any other applicable law that cannot be excluded, restricted, or modified by agreement. If the Australian Consumer Law applies to you as a consumer, our liability for failure to comply with a consumer guarantee is limited (where permitted) to resupplying the service or paying the cost of having the service resupplied.</p>
+<p><strong style="color:#fff">10. Service Availability.</strong> We aim to provide reliable service but do not guarantee uninterrupted availability. We may suspend the service for maintenance, updates, security incidents, or circumstances beyond our control. We will make reasonable efforts to provide advance notice of planned maintenance.</p>
+<p><strong style="color:#fff">11. Limitation of Liability.</strong> To the maximum extent permitted by law and subject to clause 9 (Australian Consumer Law), our total aggregate liability for any claims arising from or related to the service is limited to the total fees you have paid to us in the 12 months preceding the claim. We are not liable for any indirect, incidental, special, consequential, or punitive damages.</p>
+<p><strong style="color:#fff">12. Disputes.</strong> If you have a dispute, please contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0169646d6d6e416a74736e666d6072722f6f6475">[email&#160;protected]</a>. We will attempt to resolve disputes informally within 30 days. If informal resolution is unsuccessful, disputes will be subject to the jurisdiction of the courts of Victoria, Australia, or the Victorian Civil and Administrative Tribunal (VCAT) where applicable.</p>
+<p><strong style="color:#fff">13. Changes.</strong> We may update these Terms from time to time. Material changes will be communicated via the email address associated with your account. Continued use after changes constitutes acceptance.</p>
+<p><strong style="color:#fff">14. Governing Law.</strong> These Terms are governed by the laws of Victoria, Australia.</p>
+<p><strong style="color:#fff">15. Contact.</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="036b666f6f6c436876716c646f6270702d6d6677">[email&#160;protected]</a></p>
+<button onclick="this.parentElement.parentElement.style.display='none'" style="margin-top:16px;padding:8px 20px;border-radius:8px;background:rgba(147,51,234,0.2);color:#c084fc;border:1px solid rgba(147,51,234,0.3);cursor:pointer;font-family:inherit;font-size:13px">Close</button></div></div>
+<div id="privacy-modal" class="legal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)this.style.display='none'"><div style="max-width:640px;max-height:80vh;overflow-y:auto;background:rgba(12,12,16,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;color:rgba(255,255,255,0.7);font-size:13px;line-height:1.7"><h2 style="font-size:20px;color:#fff;margin-bottom:16px">Privacy Policy</h2><p style="color:rgba(255,255,255,0.3);margin-bottom:16px">Last updated: 14 February 2026 &middot; Version 1.0</p>
+<p><strong style="color:#fff">Data Controller.</strong> Henry George Lowe trading as KURO Technologies, ABN 45 340 322 909, Melbourne, Victoria, Australia. Contact: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="afc7cac3c3c0efc4daddc0c8c3cedcdc81c1cadb">[email&#160;protected]</a>.</p>
+<p><strong style="color:#fff">What We Collect &amp; Why.</strong></p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Access tokens:</em> Generated upon subscription. Used for authentication and session management. Stored server-side in encrypted configuration files.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Email address:</em> Collected at subscription via Stripe. Used to deliver your access token and service communications. Not used for marketing.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Conversation data:</em> Messages you send and AI responses. Processed by AI models on our dedicated GPU infrastructure for the purpose of providing the service. Stored in session files on the inference server.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Payment information:</em> Processed entirely by Stripe. We do not store card numbers, CVVs, or bank details. We receive subscription status, customer ID, and transaction amounts from Stripe.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">IP addresses &amp; request metadata:</em> Processed by Cloudflare for security, DDoS protection, and content delivery. Logged server-side in audit logs for security monitoring.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Usage metrics:</em> Anonymised message counts and feature usage statistics. Used to monitor service health and capacity planning. Not linked to individual users.</p>
+<p><strong style="color:#fff">What We Do Not Do.</strong> We do not sell, rent, or trade your personal information. We do not use your conversations to train AI models. We do not use advertising or tracking cookies. We do not share data with advertisers or data brokers.</p>
+<p><strong style="color:#fff">Where Data Is Stored &amp; Processed.</strong> AI inference, conversation data, and session files are stored and processed on dedicated GPU servers located in the United States (TensorDock infrastructure). Authentication configuration is stored on the same servers. Payment processing occurs through Stripe's infrastructure (global). Security and CDN services are provided by Cloudflare (global). By using KURO OS, you consent to this overseas transfer and processing of your data. These providers maintain their own privacy and security certifications.</p>
+<p><strong style="color:#fff">Third-Party Processors.</strong></p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Cloudflare:</em> CDN, DDoS protection, SSL termination. <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener" style="color:rgba(168,85,247,0.7)">Privacy Policy</a></p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Stripe:</em> Payment processing, subscription management. <a href="https://stripe.com/privacy" target="_blank" rel="noopener" style="color:rgba(168,85,247,0.7)">Privacy Policy</a></p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Brevo (Sendinblue):</em> Transactional email delivery (access tokens, OTP codes). <a href="https://www.brevo.com/legal/privacypolicy/" target="_blank" rel="noopener" style="color:rgba(168,85,247,0.7)">Privacy Policy</a></p>
+<p><strong style="color:#fff">Data Retention.</strong></p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Conversation sessions:</em> Retained for 90 days (lab profile), then automatically purged.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Audit logs:</em> Retained for 90 days (lab profile). Government deployment profiles retain for up to 7 years as required.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Account &amp; billing records:</em> Retained for the duration of your subscription plus 7 years for tax and legal compliance (Australian Taxation Office requirements).</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Access tokens:</em> Active until revoked or subscription cancelled.</p>
+<p><strong style="color:#fff">Security.</strong> Data in transit is encrypted via TLS 1.3 (Cloudflare). Authentication uses cryptographically generated tokens. Audit logs use Ed25519 cryptographic signatures for tamper detection. Server access is restricted to authorised personnel via SSH key authentication. AI models run on isolated GPU infrastructure not shared with other tenants.</p>
+<p><strong style="color:#fff">Your Rights.</strong> Under the Australian Privacy Act 1988, you have the right to: access your personal information held by us; request correction of inaccurate information; request deletion of your data (subject to legal retention requirements for billing and tax records). To exercise these rights, email <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="fe969b929291be958b8c9199929f8d8dd0909b8a">[email&#160;protected]</a>. We will respond within 30 days. You may request your data in a machine-readable format.</p>
+<p><strong style="color:#fff">Complaints.</strong> If you believe we have breached the Australian Privacy Principles, please contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1c74797070735c77696e737b707d6f6f32727968">[email&#160;protected]</a>. We will investigate and respond within 30 days. If you are not satisfied with our response, you may lodge a complaint with the Office of the Australian Information Commissioner (OAIC) at <a href="https://www.oaic.gov.au/privacy/privacy-complaints" target="_blank" rel="noopener" style="color:rgba(168,85,247,0.7)">oaic.gov.au</a> or by phone at 1300 363 992.</p>
+<p><strong style="color:#fff">Cookies.</strong> See our Cookie Policy for details on cookies and similar technologies used by KURO OS.</p>
+<p><strong style="color:#fff">Changes.</strong> We may update this Privacy Policy from time to time. Material changes will be communicated via the email address associated with your account. The "Last updated" date at the top indicates the most recent revision.</p>
+<button onclick="this.parentElement.parentElement.style.display='none'" style="margin-top:16px;padding:8px 20px;border-radius:8px;background:rgba(147,51,234,0.2);color:#c084fc;border:1px solid rgba(147,51,234,0.3);cursor:pointer;font-family:inherit;font-size:13px">Close</button></div></div>
+<div id="disclaimer-modal" class="legal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)this.style.display='none'"><div style="max-width:640px;max-height:80vh;overflow-y:auto;background:rgba(12,12,16,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;color:rgba(255,255,255,0.7);font-size:13px;line-height:1.7"><h2 style="font-size:20px;color:#fff;margin-bottom:16px">Disclaimer</h2>
+<p><strong style="color:#fff">AI Output.</strong> All AI-generated content is probabilistic and may contain errors, inaccuracies, hallucinations, or biases. Outputs should not be relied upon without independent verification.</p>
+<p><strong style="color:#fff">Not Professional Advice.</strong> KURO OS does not provide and AI outputs do not constitute: medical or health advice; legal advice; financial, investment, or tax advice; engineering or safety-critical guidance; or any other form of professional advice. Always consult qualified professionals for decisions in these areas.</p>
+<p><strong style="color:#fff">Code Execution.</strong> The DEV mode code execution environment is sandboxed, but you use it entirely at your own risk. We are not responsible for any data loss, system damage, or other consequences of executing AI-generated code, whether in the sandbox or copied to your own systems.</p>
+<p><strong style="color:#fff">Image Generation.</strong> AI-generated images may not accurately represent reality. You are responsible for ensuring any generated images comply with applicable laws and do not infringe on the rights of others.</p>
+<p><strong style="color:#fff">Service Accuracy.</strong> While we strive for reliability, we do not guarantee that the service will be error-free, uninterrupted, or meet your specific requirements. Use the service at your own discretion and risk.</p>
+<button onclick="this.parentElement.parentElement.style.display='none'" style="margin-top:16px;padding:8px 20px;border-radius:8px;background:rgba(147,51,234,0.2);color:#c084fc;border:1px solid rgba(147,51,234,0.3);cursor:pointer;font-family:inherit;font-size:13px">Close</button></div></div>
+<div id="aup-modal" class="legal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)this.style.display='none'"><div style="max-width:640px;max-height:80vh;overflow-y:auto;background:rgba(12,12,16,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;color:rgba(255,255,255,0.7);font-size:13px;line-height:1.7"><h2 style="font-size:20px;color:#fff;margin-bottom:16px">Acceptable Use Policy</h2><p style="color:rgba(255,255,255,0.3);margin-bottom:16px">Last updated: 14 February 2026</p>
+<p><strong style="color:#fff">Prohibited Activities.</strong> You may not use KURO OS to: generate, store, or distribute child sexual abuse material (CSAM); create content promoting violence, terrorism, or extremism; develop malware, phishing tools, or exploit code; harass, threaten, or stalk individuals; generate non-consensual intimate imagery or deepfakes of real people; circumvent security controls or access restrictions; perform automated scraping or denial-of-service attacks; resell or redistribute access tokens; produce content that violates Australian law or the law of your jurisdiction.</p>
+<p><strong style="color:#fff">Enforcement.</strong> Violations are handled proportionally based on severity:</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Minor violations</em> (e.g. accidental misuse, borderline content): Written warning via email. Repeated minor violations may escalate.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Serious violations</em> (e.g. harassment, malware generation, circumvention): Immediate temporary suspension pending review. We will notify you within 48 hours with details and an opportunity to respond.</p>
+<p style="margin-left:12px"><em style="color:rgba(255,255,255,0.5)">Severe violations</em> (e.g. CSAM, terrorism, illegal content): Immediate permanent termination without prior notice. We may report to relevant law enforcement authorities as required by law.</p>
+<p><strong style="color:#fff">Appeals.</strong> If your access has been suspended or terminated for a serious violation, you may appeal by emailing <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c1a9a4adadae81aab4b3aea6ada0b2b2efafa4b5">[email&#160;protected]</a> within 14 days of notification. Appeals will be reviewed within 14 business days. Severe violations (CSAM, terrorism) are not eligible for appeal.</p>
+<p><strong style="color:#fff">Reporting.</strong> To report abuse or policy violations by another user, contact <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7018151c1c1f301b05021f171c1103035e1e1504">[email&#160;protected]</a> with relevant details. We will acknowledge receipt within 48 hours and investigate promptly.</p>
+<p><strong style="color:#fff">Monitoring.</strong> We maintain automated threat detection systems (Iron Dome) that filter harmful inputs. Audit logs record interactions for security purposes. We do not proactively monitor conversation content, but may review flagged sessions during investigations.</p>
+<button onclick="this.parentElement.parentElement.style.display='none'" style="margin-top:16px;padding:8px 20px;border-radius:8px;background:rgba(147,51,234,0.2);color:#c084fc;border:1px solid rgba(147,51,234,0.3);cursor:pointer;font-family:inherit;font-size:13px">Close</button></div></div>
+<div id="cookie-modal" class="legal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)this.style.display='none'"><div style="max-width:640px;max-height:80vh;overflow-y:auto;background:rgba(12,12,16,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;color:rgba(255,255,255,0.7);font-size:13px;line-height:1.7"><h2 style="font-size:20px;color:#fff;margin-bottom:16px">Cookie Policy</h2><p style="color:rgba(255,255,255,0.3);margin-bottom:16px">Last updated: 14 February 2026</p>
+<p>KURO OS uses a minimal set of cookies and browser storage technologies. We do not use advertising, tracking, or marketing cookies.</p>
+<p><strong style="color:#fff">Essential Cookies</strong> (always active — required for the service to function)</p>
+<table style="width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:12px"><tr style="border-bottom:1px solid rgba(255,255,255,0.08)"><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Name</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Provider</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Purpose</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Expiry</th></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">__cf_bm</td><td style="padding:6px 8px">Cloudflare</td><td style="padding:6px 8px">Bot detection / security</td><td style="padding:6px 8px">30 min</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">cf_clearance</td><td style="padding:6px 8px">Cloudflare</td><td style="padding:6px 8px">Security challenge clearance</td><td style="padding:6px 8px">30 min</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">__cfruid</td><td style="padding:6px 8px">Cloudflare</td><td style="padding:6px 8px">Rate limiting</td><td style="padding:6px 8px">Session</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">kuro_session</td><td style="padding:6px 8px">KURO OS</td><td style="padding:6px 8px">Authentication session</td><td style="padding:6px 8px">24 hours</td></tr>
+</table>
+<p><strong style="color:#fff">Local Storage</strong> (browser-side, not transmitted to servers)</p>
+<table style="width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:12px"><tr style="border-bottom:1px solid rgba(255,255,255,0.08)"><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Key</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Purpose</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Category</th></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">kuro_token</td><td style="padding:6px 8px">Stores your access token for authentication</td><td style="padding:6px 8px">Essential</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">kuro_cookies</td><td style="padding:6px 8px">Records your cookie consent choice</td><td style="padding:6px 8px">Essential</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">kuro_demo_count</td><td style="padding:6px 8px">Tracks free demo message usage</td><td style="padding:6px 8px">Essential</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">kuro_demo_week</td><td style="padding:6px 8px">Weekly reset counter for demo messages</td><td style="padding:6px 8px">Essential</td></tr>
+</table>
+<p><strong style="color:#fff">Third-Party Cookies (on payment pages only)</strong></p>
+<table style="width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:12px"><tr style="border-bottom:1px solid rgba(255,255,255,0.08)"><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Name</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Provider</th><th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,0.5);font-weight:600">Purpose</th></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">__stripe_mid</td><td style="padding:6px 8px">Stripe</td><td style="padding:6px 8px">Fraud prevention during checkout</td></tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px">__stripe_sid</td><td style="padding:6px 8px">Stripe</td><td style="padding:6px 8px">Checkout session management</td></tr>
+</table>
+<p><strong style="color:#fff">Analytics.</strong> KURO OS does not currently use any third-party analytics services (e.g. Google Analytics). If we add analytics in the future, we will update this policy and request your consent before loading any analytics scripts.</p>
+<p><strong style="color:#fff">Managing Cookies.</strong> Essential cookies cannot be disabled as they are required for the service to function. You can clear all browser cookies and local storage via your browser settings. Note that clearing local storage will log you out and reset your demo message counter.</p>
+<p><strong style="color:#fff">Your Consent.</strong> Your cookie consent preference is stored locally with a timestamp and version identifier. You can withdraw or change your consent at any time by clicking "Cookie Settings" in the footer or clearing your browser's local storage.</p>
+<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+<button onclick="setCookieConsent('essential');this.closest('.legal-modal').style.display='none'" style="padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.08);cursor:pointer;font-family:inherit;font-size:13px">Essential Only</button>
+<button onclick="setCookieConsent('all');this.closest('.legal-modal').style.display='none'" style="padding:8px 20px;border-radius:8px;background:rgba(147,51,234,0.2);color:#c084fc;border:1px solid rgba(147,51,234,0.3);cursor:pointer;font-family:inherit;font-size:13px">Accept All</button>
+<button onclick="this.closest('.legal-modal').style.display='none'" style="padding:8px 20px;border-radius:8px;background:none;color:rgba(255,255,255,0.4);border:none;cursor:pointer;font-family:inherit;font-size:13px">Close</button>
+</div></div></div>
+
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// KURO LANDING v7.0.3 — COMPLETE REWRITE
+// Fixes: scroll lock, quota sync, SSE+JSON gate handling, resize, maximize
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══ STATE ═══
+let MAX=5, DKEY='kuro_demo_count';
+let count=0, streaming=false, msgs=[], isMaximized=false, scrollY=0;
+
+// Fetch real quota from server (server enforces DEMO_LIMIT=5, not 25)
+(async function(){
+  try{
+    const r=await fetch('/api/guest/quota');
+    if(r.ok){const d=await r.json();MAX=d.limit||5;count=d.used||0;localStorage.setItem(DKEY,count)}
+  }catch(e){count=parseInt(localStorage.getItem(DKEY)||'0')}
+  updateCounter();
+})();
+
+// Elements
+const heroEl=document.getElementById('hero-overlay');
+const winEl=document.getElementById('chat-window');
+const msgsEl=document.getElementById('win-messages');
+const welcomeEl=document.getElementById('win-welcome');
+const inputEl=document.getElementById('win-input');
+const sendEl=document.getElementById('win-send');
+const counterEl=document.getElementById('win-counter');
+const thinkEl=document.getElementById('thinking-box');
+const typingEl=document.getElementById('typing-ind');
+const wallEl=document.getElementById('upgrade-wall');
+const inputArea=document.getElementById('win-input-area');
+const dockChat=document.getElementById('dock-chat');
+
+// ═══ SCROLL LOCK ═══
+function lockScroll(){
+  if(!document.body.classList.contains('scroll-locked')){
+    scrollY=window.scrollY;
+    document.body.style.top=-scrollY+'px';
+    document.body.classList.add('scroll-locked');
+  }
+}
+function unlockScroll(){
+  document.body.classList.remove('scroll-locked');
+  document.body.style.top='';
+  window.scrollTo(0,scrollY);
+}
+// Hero visible on load — lock immediately
+lockScroll();
+
+// ═══ LAYER PIPELINE ═══
+const LAYERS=[
+{name:'Iron Dome',color:'#ef4444'},{name:'IFF Gate',color:'#f97316'},{name:'Edubba',color:'#f59e0b'},
+{name:'Semantic Router',color:'#22c55e'},{name:'Context Engine',color:'#14b8a6'},{name:'Orchestrator',color:'#06b6d4'},
+{name:'Fire Control',color:'#3b82f6'},{name:'Prompt Build',color:'#6366f1'},{name:'Maat Refiner',color:'#8b5cf6'},
+{name:'Enhancer',color:'#a855f7'},{name:'Stream',color:'#d946ef'},{name:'Cache',color:'#ec4899'}
+];
+
+function updateCounter(){
+  const l=Math.max(0,MAX-count);
+  counterEl.textContent=l+'/'+MAX;
+  counterEl.style.color=l<=1?'rgba(239,68,68,0.7)':l<=3?'rgba(245,158,11,0.7)':'rgba(255,255,255,0.25)';
+}
+
+function showWall(){inputArea.style.display='none';wallEl.classList.add('show')}
+
+function addMsg(role,content){
+  if(welcomeEl)welcomeEl.style.display='none';
+  const d=document.createElement('div');
+  d.className='msg '+role;
+  if(role==='user') d.textContent=content;
+  msgsEl.appendChild(d);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+  return d;
+}
+
+function saveDemoMsgs(){
+  try{localStorage.setItem('kuro_demo_msgs',JSON.stringify(msgs))}catch(e){}
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ═══ THINKING ENGINE ═══
+async function showThinking(){
+  thinkEl.innerHTML='';
+  thinkEl.classList.add('active');
+  msgsEl.appendChild(thinkEl);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+  for(let i=0;i<LAYERS.length;i++){
+    const row=document.createElement('div');row.className='lyr-row';
+    row.innerHTML='<div class="lyr-dot" style="background:'+LAYERS[i].color+'"></div><span class="lyr-name">'+LAYERS[i].name+'</span><span class="lyr-status proc">PROC</span>';
+    thinkEl.appendChild(row);
+    msgsEl.scrollTop=msgsEl.scrollHeight;
+    await new Promise(r=>setTimeout(r,55+Math.random()*45));
+    row.querySelector('.lyr-status').className='lyr-status ok';
+    row.querySelector('.lyr-status').textContent='OK';
+  }
+  await new Promise(r=>setTimeout(r,200));
+  thinkEl.classList.remove('active');
+}
+
+// ═══ SEND MESSAGE ═══
+async function send(){
+  const t=inputEl.value.trim();
+  if(!t||streaming)return;
+  if(count>=MAX){showWall();return}
+
+  addMsg('user',t);
+  msgs.push({role:'user',content:t});
+  inputEl.value='';
+  count++;
+  localStorage.setItem(DKEY,count);
+  updateCounter();
+  streaming=true;
+  inputEl.disabled=true;
+  sendEl.disabled=true;
+
+  await showThinking();
+
+  typingEl.classList.add('active');
+  msgsEl.appendChild(typingEl);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+
+  const aiDiv=document.createElement('div');
+  aiDiv.className='msg ai';
+  aiDiv.style.display='none';
+
+  try{
+    const res=await fetch('/api/stream',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:msgs,mode:'main'})
+    });
+
+    if(!res.ok)throw new Error('Server error ('+res.status+')');
+
+    // CRITICAL: Server returns JSON for gate blocks, SSE for streams
+    const ct=res.headers.get('content-type')||'';
+    if(ct.includes('application/json')){
+      const data=await res.json();
+      typingEl.classList.remove('active');
+      if(data.type==='gate'){
+        count=data.limit||MAX;
+        localStorage.setItem(DKEY,count);
+        updateCounter();
+        showWall();
+        msgs.pop(); // remove the user msg that was blocked
+        streaming=false;inputEl.disabled=false;sendEl.disabled=false;
+        return;
+      }
+      throw new Error(data.error||'Unexpected server response');
+    }
+
+    // SSE stream path
+    typingEl.classList.remove('active');
+    msgsEl.appendChild(aiDiv);
+    aiDiv.style.display='block';
+
+    const reader=res.body.getReader();
+    const dec=new TextDecoder();
+    let buf='',full='';
+
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');
+      buf=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        const raw=line.slice(6);
+        if(raw==='[DONE]')continue;
+        try{
+          const d=JSON.parse(raw);
+          if(d.type==='token'&&d.content){
+            full+=d.content;
+            aiDiv.innerHTML=esc(full)+'<span class="stream-cursor">\u258c</span>';
+            msgsEl.scrollTop=msgsEl.scrollHeight;
+          }else if(d.type==='guest_quota'){
+            count=d.used;MAX=d.limit||MAX;
+            localStorage.setItem(DKEY,count);
+            updateCounter();
+          }else if(d.type==='blocked'){
+            aiDiv.textContent='[Blocked] '+(d.reason||'Request blocked.');
+            aiDiv.style.display='block';
+            break;
+          }else if(d.type==='done'){break}
+        }catch(e){}
+      }
+    }
+
+    // Remove cursor, set final text
+    if(full){
+      aiDiv.textContent=full;
+      msgs.push({role:'assistant',content:full});
+      saveDemoMsgs();
+    }else{
+      aiDiv.textContent='[No response — model may be loading. Try again.]';
+    }
+  }catch(e){
+    typingEl.classList.remove('active');
+    const errDiv=aiDiv.style.display==='none'?addMsg('ai',''):aiDiv;
+    errDiv.innerHTML='<span style="color:rgba(239,68,68,.7)">'+esc(e.message||'Connection error')+'</span> <button onclick="retryLast()" style="background:none;border:none;color:#a855f7;cursor:pointer;font-family:inherit;font-size:13px;text-decoration:underline">Retry</button>';
+    errDiv.style.display='block';
+    // Roll back failed message
+    if(msgs.length&&msgs[msgs.length-1].role==='user'){msgs.pop();count=Math.max(0,count-1);localStorage.setItem(DKEY,count);updateCounter()}
+  }
+
+  streaming=false;
+  inputEl.disabled=false;
+  sendEl.disabled=false;
+  if(count>=MAX)showWall();
+  else inputEl.focus();
+}
+
+function retryLast(){
+  const errMsg=msgsEl.querySelector('.msg.ai:last-child');
+  if(errMsg)errMsg.remove();
+  const lastUser=msgs[msgs.length-1];
+  if(lastUser&&lastUser.role==='user'){
+    inputEl.value=lastUser.content;
+    msgs.pop();
+    send();
+  }
+}
+
+sendEl.addEventListener('click',send);
+inputEl.addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+
+// ═══ WINDOW MANAGEMENT ═══
+let savedRect=null;
+
+function launchOS(){
+  window.location.href='/app';
+}
+
+function openChat(){
+  winEl.classList.remove('closed','minimized');
+  dockChat.classList.remove('standby');
+  dockChat.classList.add('active');
+  heroEl.classList.add('hidden');
+  lockScroll();
+  updateCounter();
+  setTimeout(()=>inputEl.focus(),300);
+}
+
+function closeChat(){
+  winEl.classList.add('closed');
+  dockChat.classList.remove('active','standby');
+  isMaximized=false;
+  winEl.classList.remove('maximized');
+  if(savedRect){winEl.style.cssText='top:'+savedRect.top+';left:'+savedRect.left+';width:'+savedRect.width+';height:'+savedRect.height+';right:auto;bottom:auto';savedRect=null}
+  if(heroEl.classList.contains('hidden'))unlockScroll();
+}
+
+function minimizeChat(){
+  winEl.classList.add('minimized');
+  dockChat.classList.remove('active');
+  dockChat.classList.add('standby');
+  if(heroEl.classList.contains('hidden'))unlockScroll();
+}
+
+function maximizeChat(){
+  if(window.innerWidth<=768)return; // Mobile is always fullscreen
+  isMaximized=!isMaximized;
+  if(isMaximized){
+    const r=winEl.getBoundingClientRect();
+    savedRect={top:r.top+'px',left:r.left+'px',width:r.width+'px',height:r.height+'px'};
+    winEl.style.cssText='';
+    winEl.classList.add('maximized');
+  }else{
+    winEl.classList.remove('maximized');
+    if(savedRect){
+      winEl.style.top=savedRect.top;
+      winEl.style.left=savedRect.left;
+      winEl.style.width=savedRect.width;
+      winEl.style.height=savedRect.height;
+      winEl.style.right='auto';
+      winEl.style.bottom='auto';
+    }
+  }
+}
+
+function toggleHero(){
+  const wasHidden=heroEl.classList.contains('hidden');
+  heroEl.classList.toggle('hidden');
+  if(!wasHidden){
+    // Hero now hidden
+    if(winEl.classList.contains('closed')||winEl.classList.contains('minimized'))unlockScroll();
+  }else{
+    lockScroll();
+  }
+}
+
+function scrollToSection(id){
+  heroEl.classList.add('hidden');
+  if(!winEl.classList.contains('closed')&&!winEl.classList.contains('minimized'))minimizeChat();
+  unlockScroll();
+  setTimeout(()=>document.getElementById(id)?.scrollIntoView({behavior:'smooth'}),50);
+}
+
+// ═══ WINDOW DRAGGING (desktop + touch) ═══
+(function(){
+  const tb=document.getElementById('win-titlebar');
+  let dragging=false,ox=0,oy=0;
+
+  function startDrag(cx,cy){
+    if(isMaximized||window.innerWidth<=768)return false;
+    dragging=true;
+    const r=winEl.getBoundingClientRect();
+    ox=cx-r.left;oy=cy-r.top;
+    // Lock width/height to px on first drag
+    if(!winEl.style.width||winEl.style.width.includes('%')){
+      winEl.style.width=r.width+'px';
+      winEl.style.height=r.height+'px';
+    }
+    tb.style.cursor='grabbing';
+    return true;
+  }
+  function moveDrag(cx,cy){
+    if(!dragging)return;
+    winEl.style.left=Math.max(0,cx-ox)+'px';
+    winEl.style.top=Math.max(0,cy-oy)+'px';
+    winEl.style.right='auto';
+    winEl.style.bottom='auto';
+  }
+  function endDrag(){dragging=false;tb.style.cursor='grab'}
+
+  // Mouse
+  tb.addEventListener('mousedown',e=>{
+    if(e.target.closest('.win-dot'))return;
+    if(startDrag(e.clientX,e.clientY))e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>moveDrag(e.clientX,e.clientY));
+  document.addEventListener('mouseup',endDrag);
+
+  // Touch (iPad)
+  tb.addEventListener('touchstart',e=>{
+    if(e.target.closest('.win-dot'))return;
+    const t=e.touches[0];
+    if(startDrag(t.clientX,t.clientY))e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchmove',e=>{
+    if(!dragging)return;
+    const t=e.touches[0];moveDrag(t.clientX,t.clientY);
+    e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchend',endDrag);
+})();
+
+// ═══ WINDOW RESIZE (desktop) ═══
+(function(){
+  let resizing=false,dir='',startX=0,startY=0,startW=0,startH=0,startL=0;
+  document.querySelectorAll('.win-resize').forEach(function(handle){
+    handle.addEventListener('mousedown',function(e){
+      if(isMaximized)return;
+      e.preventDefault();
+      resizing=true;
+      dir=handle.dataset.dir;
+      startX=e.clientX;startY=e.clientY;
+      var r=winEl.getBoundingClientRect();
+      startW=r.width;startH=r.height;startL=r.left;
+      // Convert to px if % based
+      winEl.style.top=r.top+'px';
+      winEl.style.left=r.left+'px';
+      winEl.style.width=r.width+'px';
+      winEl.style.height=r.height+'px';
+      winEl.style.right='auto';
+      winEl.style.bottom='auto';
+    });
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!resizing)return;
+    var dx=e.clientX-startX,dy=e.clientY-startY;
+    if(dir.includes('e'))winEl.style.width=Math.max(320,startW+dx)+'px';
+    if(dir.includes('w')){winEl.style.width=Math.max(320,startW-dx)+'px';winEl.style.left=(startL+dx)+'px'}
+    if(dir.includes('s'))winEl.style.height=Math.max(300,startH+dy)+'px';
+  });
+  document.addEventListener('mouseup',function(){resizing=false});
+})();
+
+// ═══ SCROLL ANIMATIONS ═══
+var obs=new IntersectionObserver(function(e){e.forEach(function(el){if(el.isIntersecting){el.target.classList.add('visible');obs.unobserve(el.target)}})},{threshold:0.1,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.fade-up').forEach(function(el){obs.observe(el)});
+
+document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var h=a.getAttribute('href');if(h.length>1&&!a.getAttribute('onclick')){e.preventDefault();document.querySelector(h)?.scrollIntoView({behavior:'smooth'})}})});
+
+// ═══ COOKIE CONSENT ═══
+function setCookieConsent(level){
+  localStorage.setItem('kuro_cookies',JSON.stringify({level:level,version:'1.0',timestamp:new Date().toISOString()}));
+  var b=document.getElementById('cookie-banner');if(b)b.style.display='none';
+}
+if(!localStorage.getItem('kuro_cookies')){
+  setTimeout(function(){var b=document.getElementById('cookie-banner');if(b)b.style.display='flex'},1500);
+}
+
+// ═══ MODALS ═══
+function openModal(id){document.getElementById(id).style.display='flex'}
+;(function(){var p=new URLSearchParams(window.location.search);var m=p.get('modal');if(m){var el=document.getElementById(m+'-modal');if(el){el.style.display='flex';window.history.replaceState({},'',window.location.pathname)}}})();
+</script>
+</body>
+</html>

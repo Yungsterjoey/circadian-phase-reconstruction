@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10s node:*)",
+      "Bash(git add:*)",
+      "Bash(sudo -n true:*)",
+      "Bash(node --version)",
+      "Bash(sudo apt-get:*)",
+      "Bash(sudo apt-get install:*)",
+      "Bash(sudo systemctl enable:*)",
+      "Bash(sudo systemctl start:*)",
+      "Bash(docker --version:*)",
+      "Bash(sudo docker build:*)",
+      "Bash(sudo cp:*)",
+      "Bash(sudo systemctl daemon-reload:*)",
+      "Bash(sudo systemctl status:*)",
+      "Bash(sudo systemctl restart:*)",
+      "Bash(curl:*)",
+      "Bash(ss:*)",
+      "Bash(git status:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

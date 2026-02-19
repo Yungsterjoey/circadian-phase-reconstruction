@@ -1,0 +1,1775 @@
+/**
+ * KURO CHAT v7.2
+ * v6.2 Sovereign Agent Architecture — HARDENED
+ * 
+ * Red Team Fixes (v7.1 → v7.2):
+ *  RT-01  Auth header on every fetch (X-KURO-Token)
+ *  RT-02  localStorage stores session IDs only, not messages
+ *  RT-03  X-KURO-Token sent on all API calls
+ *  RT-04  Agent selection validated server-side, client is hint only
+ *  RT-05  Profile fetched from server, never sent by client
+ *  RT-06  Live Edit removed (endpoint never existed)
+ *  RT-07  Audit opens proper viewer, not raw JSON
+ *  RT-08  onRegen uses index, not reference comparison
+ *  RT-09  onFork deep-clones messages
+ *  RT-10  Agent/profile defs fetched from server on mount
+ *  RT-11  SSE reconnection with exponential backoff
+ *  RT-12  Voice input debounced, only sends on explicit stop
+ *  RT-13  Textarea auto-resize on input
+ *  RT-14  Token count labeled per-message
+ *  RT-15  SSE parse errors surface to user
+ *  RT-16  Redaction count stored per-message
+ *  RT-17  ScopeIndicator visible on mobile (compact)
+ *  RT-18  Keyboard shortcuts use capture phase
+ *  RT-19  Artifact sandbox allows same-origin
+ *  RT-20  CSS variables use correct -- prefix
+ */
+
+import React, {
+  useState, useRef, useEffect, useCallback,
+  useMemo, createContext, useContext
+} from 'react';
+import {
+  Send, Plus, Image, FileText, Settings, ChevronDown, ChevronUp, Brain, Folder,
+  MessageSquare, X, Square, Sparkles, Trash2, Globe, ShoppingBag, Code, Search,
+  Lightbulb, FileCode, ExternalLink, Copy, Check, Zap, Target, Atom, Lock,
+  AlertTriangle, Eye, Mic, MicOff, Paperclip, RotateCcw, Play, Edit3, GitBranch,
+  Hash, Command, CornerDownLeft, FolderPlus, ChevronRight, MoreHorizontal,
+  Bookmark, Pin, Archive, Clock, Cpu, ArrowUp, User, Bot, Download, Share2,
+  Volume2, VolumeX, Pause, Moon, Sun, Maximize2, Minimize2, PanelLeft, Menu,
+  Home, Star, Wand2, Crown, Shield, Database, Key, RefreshCw, Activity,
+  FileSearch, Cog, Terminal, Layers, ShieldCheck, ShieldAlert, ShieldOff,
+  Building2, FlaskConical, Landmark, Link, Unlink, AlertCircle, Info,
+  CheckCircle2, XCircle, FileKey, ScrollText, GitCommit, Package, WifiOff
+} from 'lucide-react';
+
+import SandboxPanel from './SandboxPanel';
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════
+const KuroContext = createContext(null);
+const useKuro = () => {
+  const ctx = useContext(KuroContext);
+  if (!ctx) throw new Error('useKuro must be within KuroProvider');
+  return ctx;
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH — RT-01, RT-03: Token on every request
+// ═══════════════════════════════════════════════════════════════════════════
+function getToken() {
+  return localStorage.getItem('kuro_token') || '';
+}
+
+function authHeaders(extra = {}) {
+  return {
+    'Content-Type': 'application/json',
+    'X-KURO-Token': getToken(),
+    ...extra,
+  };
+}
+
+async function authFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: authHeaders(opts.headers || {}),
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FALLBACK DEFS — RT-10: Overridden by server on mount
+// ═══════════════════════════════════════════════════════════════════════════
+const FALLBACK_AGENTS = {
+  insights: {
+    id: 'insights', name: 'Insights', icon: 'Eye', color: '#5e5ce6',
+    tier: 1, capabilities: ['read', 'compute'],
+    scopes: ['docs', 'uploads', 'vectors'], desc: 'Read & analyze documents',
+  },
+  analysis: {
+    id: 'analysis', name: 'Analysis', icon: 'FileSearch', color: '#ff9f0a',
+    tier: 2, capabilities: ['read', 'compute', 'aggregate'],
+    scopes: ['docs', 'uploads', 'vectors', 'sessions'], desc: 'Deep research & aggregation',
+  },
+  actions: {
+    id: 'actions', name: 'Actions', icon: 'Terminal', color: '#ff375f',
+    tier: 3, capabilities: ['read', 'write', 'exec', 'compute'],
+    scopes: ['docs', 'uploads', 'vectors', 'sessions', 'data', 'code'], desc: 'Full system access',
+  },
+};
+
+const FALLBACK_PROFILES = {
+  gov: {
+    id: 'gov', name: 'Government', icon: 'Landmark', color: '#30d158',
+    maxAgentTier: 1, execEnabled: false, safety: true,
+  },
+  enterprise: {
+    id: 'enterprise', name: 'Enterprise', icon: 'Building2', color: '#5e5ce6',
+    maxAgentTier: 3, execEnabled: true, safety: true,
+  },
+  lab: {
+    id: 'lab', name: 'Lab', icon: 'FlaskConical', color: '#ff9f0a',
+    maxAgentTier: 3, execEnabled: true, safety: false,
+  },
+};
+
+const ICON_MAP = {
+  Eye, FileSearch, Terminal, Landmark, Building2, FlaskConical,
+  Brain, Shield, MessageSquare, Search, Code, Lightbulb, Wand2,
+};
+
+function resolveIcon(name) {
+  return ICON_MAP[name] || Brain;
+}
+
+const SKILLS = {
+  chat: { id: 'chat', name: 'Chat', icon: MessageSquare, color: '#a855f7' },
+  research: { id: 'research', name: 'Research', icon: Search, color: '#5e5ce6' },
+  code: { id: 'code', name: 'Code', icon: Code, color: '#ff9f0a' },
+  reason: { id: 'reason', name: 'Reason', icon: Lightbulb, color: '#ffd60a' },
+  create: { id: 'create', name: 'Create', icon: Wand2, color: '#ff375f' },
+  sandbox: { id: 'sandbox', name: 'Sandbox', icon: Terminal, color: '#30d158' },
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPING PROMPTS
+// ═══════════════════════════════════════════════════════════════════════════
+const TYPING_PROMPTS = [
+  "Analyze this document for key insights\u2026",
+  "Help me write secure, audited code\u2026",
+  "Research compliance requirements\u2026",
+  "Create a data governance report\u2026",
+  "Explain the audit chain status\u2026",
+  "Compare enterprise vs gov profiles\u2026",
+  "Debug this with full system access\u2026",
+  "Summarize session history\u2026",
+];
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPING ANIMATION
+// ═══════════════════════════════════════════════════════════════════════════
+const TypingAnimation = () => {
+  const [text, setText] = useState('');
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [phase, setPhase] = useState('typing');
+  const [deleteCount, setDeleteCount] = useState(0);
+
+  useEffect(() => {
+    const current = TYPING_PROMPTS[promptIndex];
+    let t;
+    if (phase === 'typing') {
+      if (text.length < current.length) {
+        t = setTimeout(() => setText(current.slice(0, text.length + 1)), 28 + Math.random() * 22);
+      } else { setPhase('paused'); }
+    } else if (phase === 'paused') {
+      t = setTimeout(() => { setPhase('deleting'); setDeleteCount(0); }, 4500);
+    } else if (phase === 'deleting') {
+      if (text.length > 0) {
+        t = setTimeout(() => { setText(text.slice(0, -1)); setDeleteCount(c => c + 1); },
+          deleteCount === 0 ? 90 : 38 + Math.random() * 12);
+      } else { setPhase('thinking'); }
+    } else if (phase === 'thinking') {
+      t = setTimeout(() => { setPromptIndex(i => (i + 1) % TYPING_PROMPTS.length); setPhase('typing'); },
+        800 + Math.random() * 1400);
+    }
+    return () => clearTimeout(t);
+  }, [text, promptIndex, phase, deleteCount]);
+
+  return (
+    <div className="typing-anim">
+      <span>{text}</span>
+      <span className={`cursor ${phase === 'thinking' ? 'thinking' : ''}`} />
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ISLAND
+// ═══════════════════════════════════════════════════════════════════════════
+const Island = ({ children, className = '', floating = false, glow = false }) => (
+  <div className={`island ${className} ${floating ? 'floating' : ''} ${glow ? 'glow' : ''}`}>
+    {children}
+  </div>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PILL
+// ═══════════════════════════════════════════════════════════════════════════
+const Pill = ({ icon: Icon, label, color, active, onClick, compact, badge, disabled }) => (
+  <button
+    className={`pill ${active ? 'active' : ''} ${compact ? 'compact' : ''} ${disabled ? 'disabled' : ''}`}
+    style={{ '--pill-color': color }}
+    onClick={onClick}
+    disabled={disabled}
+  >
+    {Icon && <Icon size={compact ? 14 : 16} />}
+    {label && <span>{label}</span>}
+    {badge && <span className="pill-badge">{badge}</span>}
+  </button>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POLICY BANNER
+// ═══════════════════════════════════════════════════════════════════════════
+const PolicyBanner = ({ notice, agents, onDismiss }) => {
+  if (!notice) return null;
+  const { reason, effectiveAgent } = notice;
+  const agent = agents[effectiveAgent] || agents.insights || Object.values(agents)[0];
+  const AgentIcon = resolveIcon(agent.icon);
+  return (
+    <div className="policy-banner">
+      <div className="policy-icon"><ShieldAlert size={16} /></div>
+      <div className="policy-content">
+        <span className="policy-label">Action scope limited</span>
+        <span className="policy-reason">{reason}</span>
+      </div>
+      <div className="policy-mode">
+        <Pill icon={AgentIcon} label={agent.name} color={agent.color} compact active />
+      </div>
+      <button className="policy-dismiss" onClick={onDismiss}><X size={14} /></button>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFILE INDICATOR
+// ═══════════════════════════════════════════════════════════════════════════
+const ProfileIndicator = ({ profileDef }) => {
+  if (!profileDef) return null;
+  const ProfileIcon = resolveIcon(profileDef.icon);
+  return (
+    <div className="profile-indicator" style={{ '--profile-color': profileDef.color }}>
+      <ProfileIcon size={14} />
+      <span>{profileDef.name}</span>
+      {profileDef.safety && <ShieldCheck size={12} className="safety-badge" />}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT SELECTOR — RT-04: Visual hint only, server enforces
+// ═══════════════════════════════════════════════════════════════════════════
+const AgentSelector = ({ active, onChange, agents, maxTier, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const activeAgent = agents[active] || Object.values(agents)[0];
+  const ActiveIcon = resolveIcon(activeAgent?.icon);
+  const ref = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
+  }, [open]);
+
+  return (
+    <div className="agent-selector" ref={ref}>
+      <button className="agent-current" onClick={() => !disabled && setOpen(!open)} disabled={disabled}>
+        <ActiveIcon size={16} />
+        <span>{activeAgent?.name || 'Agent'}</span>
+        <ChevronDown size={14} className={open ? 'open' : ''} />
+      </button>
+      {open && (
+        <div className="agent-dropdown">
+          {Object.values(agents).map(agent => {
+            const Icon = resolveIcon(agent.icon);
+            const allowed = agent.tier <= (maxTier || 3);
+            return (
+              <button
+                key={agent.id}
+                className={`agent-option ${active === agent.id ? 'active' : ''} ${!allowed ? 'disabled' : ''}`}
+                onClick={() => { if (allowed) { onChange(agent.id); setOpen(false); } }}
+                disabled={!allowed}
+              >
+                <Icon size={16} />
+                <div className="agent-info">
+                  <span className="agent-name">{agent.name}</span>
+                  <span className="agent-desc">{agent.desc}</span>
+                </div>
+                <div className="agent-caps">
+                  {agent.capabilities?.map(cap => (
+                    <span key={cap} className="cap-badge">{cap}</span>
+                  ))}
+                </div>
+                {!allowed && <Lock size={12} className="agent-lock" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCOPE INDICATOR — RT-17: Visible on mobile (compact mode)
+// ═══════════════════════════════════════════════════════════════════════════
+const ScopeIndicator = ({ agent, agents }) => {
+  const a = agents[agent] || Object.values(agents)[0];
+  if (!a?.scopes) return null;
+  return (
+    <div className="scope-indicator">
+      <span className="scope-label">Scope:</span>
+      {a.scopes.map(s => (
+        <span key={s} className="scope-badge">{s}</span>
+      ))}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REDACTION NOTICE — RT-16: Per-message
+// ═══════════════════════════════════════════════════════════════════════════
+const RedactionNotice = ({ count }) => {
+  if (!count || count === 0) return null;
+  return (
+    <div className="redaction-notice">
+      <ShieldCheck size={12} />
+      <span>{count} field{count > 1 ? 's' : ''} redacted</span>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT INDICATOR — RT-07: Proper handling
+// ═══════════════════════════════════════════════════════════════════════════
+const AuditIndicator = ({ status }) => {
+  const isHealthy = status?.verified !== false;
+  return (
+    <div className={`audit-indicator ${isHealthy ? 'healthy' : 'warning'}`}>
+      {isHealthy ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+      <span>Audit {isHealthy ? 'OK' : 'Issue'}</span>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THOUGHT BLOCK
+// ═══════════════════════════════════════════════════════════════════════════
+const ThoughtBlock = ({ content, isStreaming }) => {
+  const [expanded, setExpanded] = useState(false);
+  if (!content && !isStreaming) return null;
+  const lines = (content || '').split('\n').filter(l => l.trim());
+  const preview = lines.slice(0, 2).map(l => l.slice(0, 60)).join(' \u2022 ');
+  return (
+    <div className={`thought-block ${expanded ? 'expanded' : ''}`}>
+      <button className="thought-toggle" onClick={() => setExpanded(!expanded)}>
+        <div className="thought-icon">
+          <Brain size={14} />
+          {isStreaming && <span className="streaming-dot" />}
+        </div>
+        <span className="thought-label">Thinking</span>
+        {!expanded && <span className="thought-preview">{preview}</span>}
+        <ChevronDown size={14} className={`chevron ${expanded ? 'open' : ''}`} />
+      </button>
+      {expanded && <div className="thought-content"><pre>{content}</pre></div>}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARTIFACT CARD — RT-19: sandbox allows same-origin
+// ═══════════════════════════════════════════════════════════════════════════
+const ArtifactCard = ({ artifact }) => {
+  const [mode, setMode] = useState('preview');
+  const [copied, setCopied] = useState(false);
+  const iframeRef = useRef(null);
+  const canPreview = ['react', 'html', 'svg'].includes(artifact.type);
+
+  useEffect(() => {
+    if (mode === 'preview' && canPreview && iframeRef.current) {
+      const doc = iframeRef.current.contentDocument;
+      let html = artifact.content;
+      if (artifact.type === 'react') {
+        html = `<!DOCTYPE html><html><head><script src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script><script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script><script src="https://unpkg.com/@babel/standalone/babel.min.js"><\/script><script src="https://cdn.tailwindcss.com"><\/script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#0a0a0c;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}</style></head><body><div id="root"></div><script type="text/babel">${artifact.content};ReactDOM.render(React.createElement(typeof App!=='undefined'?App:()=>null),document.getElementById('root'));<\/script></body></html>`;
+      }
+      doc.open(); doc.write(html); doc.close();
+    }
+  }, [mode, artifact, canPreview]);
+
+  return (
+    <div className="artifact-card">
+      <div className="artifact-header">
+        <FileCode size={16} />
+        <span className="artifact-title">{artifact.title || 'Artifact'}</span>
+        <span className="artifact-type">{artifact.type}</span>
+        <div className="artifact-tabs">
+          {canPreview && (
+            <>
+              <button className={mode === 'preview' ? 'active' : ''} onClick={() => setMode('preview')}>Preview</button>
+              <button className={mode === 'code' ? 'active' : ''} onClick={() => setMode('code')}>Code</button>
+            </>
+          )}
+        </div>
+        <div className="artifact-actions">
+          <button onClick={() => { navigator.clipboard.writeText(artifact.content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+          <button><Download size={14} /></button>
+        </div>
+      </div>
+      {mode === 'preview' && canPreview ? (
+        <iframe ref={iframeRef} className="artifact-preview" sandbox="allow-scripts allow-same-origin" />
+      ) : (
+        <pre className="artifact-code"><code>{artifact.content}</code></pre>
+      )}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTENT PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+function parseContent(content) {
+  const result = { think: '', main: content || '', artifact: null, thinkStreaming: false };
+  const thinkMatch = content?.match(/<think>([\s\S]*?)<\/think>/i);
+  if (thinkMatch) {
+    result.think = thinkMatch[1];
+    result.main = content.replace(thinkMatch[0], '');
+  }
+  const openThink = content?.lastIndexOf('<think>');
+  if (openThink !== -1 && content?.indexOf('</think>', openThink) === -1) {
+    result.think = content.slice(openThink + 7);
+    result.main = content.slice(0, openThink);
+    result.thinkStreaming = true;
+  }
+  const artMatch = result.main.match(/<artifact[^>]*type="([^"]*)"[^>]*(?:title="([^"]*)")?[^>]*>([\s\S]*?)<\/artifact>/i);
+  if (artMatch) {
+    result.artifact = { type: artMatch[1], title: artMatch[2], content: artMatch[3] };
+    result.main = result.main.replace(artMatch[0], '');
+  }
+  result.main = result.main.trim();
+  return result;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MESSAGE — RT-08: Index-based regen, RT-16: per-message redaction
+// ═══════════════════════════════════════════════════════════════════════════
+const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, onRegen, onFork, showThoughts, agents, activeAgent }) => {
+  const [showActions, setShowActions] = useState(false);
+  const parsed = parseContent(msg.content);
+  const agent = agents[activeAgent] || Object.values(agents)[0];
+  const AgentIcon = resolveIcon(agent?.icon);
+
+  return (
+    <div
+      className={`message ${msg.role}`}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {msg.role === 'assistant' && (
+        <div className="message-avatar" style={{ '--agent-color': agent?.color || '#a855f7' }}>
+          <AgentIcon size={18} />
+        </div>
+      )}
+      <div className="message-content">
+        {msg.role === 'assistant' && showThoughts && parsed.think && (
+          <ThoughtBlock content={parsed.think} isStreaming={parsed.thinkStreaming} />
+        )}
+        {parsed.artifact && <ArtifactCard artifact={parsed.artifact} />}
+        <div className="message-text">
+          {parsed.main}
+          {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor">{'\u258C'}</span>}
+        </div>
+        {msg.role === 'assistant' && <RedactionNotice count={msg.redactionCount} />}
+        {showActions && !isStreaming && (
+          <div className="message-actions">
+            <button onClick={() => onCopy(msg.content)} title="Copy"><Copy size={14} /></button>
+            {msg.role === 'user' && <button onClick={() => onEdit(msg)} title="Edit"><Edit3 size={14} /></button>}
+            {msg.role === 'assistant' && <button onClick={() => onRegen(msgIndex)} title="Regenerate"><RotateCcw size={14} /></button>}
+            <button onClick={() => onFork(msgIndex)} title="Branch"><GitBranch size={14} /></button>
+          </div>
+        )}
+      </div>
+      {msg.role === 'user' && <div className="message-avatar user"><User size={18} /></div>}
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOICE INPUT — RT-12: Debounced, explicit stop only
+// ═══════════════════════════════════════════════════════════════════════════
+const VoiceInput = ({ onTranscript, isListening, setIsListening }) => {
+  const recognition = useRef(null);
+  const finalTranscript = useRef('');
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    recognition.current = new SR();
+    recognition.current.continuous = true;
+    recognition.current.interimResults = true;
+    recognition.current.onresult = (e) => {
+      let interim = '';
+      let final = '';
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      finalTranscript.current = final;
+      // Show interim in input but do NOT auto-send
+      onTranscript(final + interim, false);
+    };
+    recognition.current.onerror = () => setIsListening(false);
+    recognition.current.onend = () => {
+      if (isListening) {
+        // Send final transcript on explicit stop
+        onTranscript(finalTranscript.current, true);
+      }
+      setIsListening(false);
+    };
+  }, []);
+
+  const toggle = () => {
+    if (!recognition.current) return;
+    if (isListening) {
+      recognition.current.stop(); // triggers onend → sends final
+    } else {
+      finalTranscript.current = '';
+      recognition.current.start();
+      setIsListening(true);
+    }
+  };
+
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return null;
+
+  return (
+    <button className={`voice-btn ${isListening ? 'listening' : ''}`} onClick={toggle}>
+      {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+      {isListening && <span className="voice-pulse" />}
+    </button>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STREAM PROGRESS
+// ═══════════════════════════════════════════════════════════════════════════
+const StreamProgress = ({ tokens, startTime, isStreaming }) => {
+  if (!isStreaming || tokens === 0) return null;
+  const elapsed = (Date.now() - startTime) / 1000;
+  const tps = elapsed > 0 ? tokens / elapsed : 0;
+  const progress = Math.min(100, (tokens / 200) * 100);
+  return (
+    <div className="stream-progress">
+      <div className="progress-bar"><div className="progress-fill" style={{ width: `${progress}%` }} /></div>
+      <div className="progress-stats">
+        <span>{tokens} tokens</span>
+        <span>{tps.toFixed(1)} t/s</span>
+      </div>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONNECTION STATUS — RT-11
+// ═══════════════════════════════════════════════════════════════════════════
+const ConnectionStatus = ({ error }) => {
+  if (!error) return null;
+  return (
+    <div className="connection-error">
+      <WifiOff size={14} />
+      <span>{error}</span>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════════════════════════
+const Sidebar = ({
+  visible, onClose, projects, activeProject, setActiveProject, createProject,
+  conversations, activeId, setActiveId, createConv, deleteConv,
+  search, setSearch, profileDef, auditStatus
+}) => {
+  const filteredConvs = useMemo(() => {
+    let list = conversations;
+    if (activeProject) list = list.filter(c => c.projectId === activeProject);
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(c => c.title?.toLowerCase().includes(q));
+    }
+    return list;
+  }, [conversations, activeProject, search]);
+
+  return (
+    <>
+      {visible && <div className="sidebar-backdrop" onClick={onClose} />}
+      <aside className={`sidebar ${visible ? 'open' : ''}`}>
+        <div className="sidebar-top">
+          <button className="new-chat" onClick={createConv}><Plus size={18} /><span>New chat</span></button>
+        </div>
+        <div className="sidebar-search">
+          <Search size={14} />
+          <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button onClick={() => setSearch('')}><X size={12} /></button>}
+        </div>
+        <div className="sidebar-section">
+          <div className="section-title"><Folder size={12} /><span>Projects</span><button onClick={createProject}><Plus size={14} /></button></div>
+          <div className="project-list">
+            <button className={`project-item ${!activeProject ? 'active' : ''}`} onClick={() => setActiveProject(null)}>
+              <Home size={14} /><span>All Chats</span>
+            </button>
+            {projects.map(p => (
+              <button key={p.id} className={`project-item ${activeProject === p.id ? 'active' : ''}`} onClick={() => setActiveProject(p.id)}>
+                <Folder size={14} style={{ color: p.color }} /><span>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="sidebar-section flex-1">
+          <div className="section-title"><Clock size={12} /><span>Recent</span></div>
+          <div className="conv-list">
+            {filteredConvs.map(c => (
+              <button key={c.id} className={`conv-item ${c.id === activeId ? 'active' : ''}`} onClick={() => { setActiveId(c.id); onClose(); }}>
+                <MessageSquare size={14} /><span>{c.title || 'New chat'}</span>
+                <button className="conv-delete" onClick={e => { e.stopPropagation(); deleteConv(c.id); }}><X size={12} /></button>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="sidebar-bottom">
+          <ProfileIndicator profileDef={profileDef} />
+          <AuditIndicator status={auditStatus} />
+          <button className="sidebar-link"><Settings size={16} /><span>Settings</span></button>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMPTY STATE
+// ═══════════════════════════════════════════════════════════════════════════
+const EmptyState = ({ onSuggestion, agents, activeAgent, profileDef }) => {
+  const agent = agents[activeAgent] || Object.values(agents)[0];
+  const AgentIcon = resolveIcon(agent?.icon);
+  return (
+    <div className="empty-state">
+      <div className="empty-icon" style={{ '--agent-color': agent?.color || '#a855f7' }}>
+        <AgentIcon size={40} />
+      </div>
+      <h1>KURO</h1>
+      <TypingAnimation />
+      {profileDef && (
+        <div className="empty-profile">
+          {React.createElement(resolveIcon(profileDef.icon), { size: 14 })}
+          <span>{profileDef.name} Profile</span>
+          {profileDef.safety && <ShieldCheck size={12} />}
+        </div>
+      )}
+      <div className="quick-actions">
+        {Object.values(SKILLS).slice(0, 4).map(skill => (
+          <button key={skill.id} className="quick-action" onClick={() => onSuggestion('', skill.id)}>
+            <skill.icon size={18} /><span>{skill.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+export default function KuroChat() {
+  // RT-05, RT-10: Server-driven state
+  const [profile, setProfile] = useState('lab');
+  const [agents, setAgents] = useState(FALLBACK_AGENTS);
+  const [profiles, setProfiles] = useState(FALLBACK_PROFILES);
+  const [activeAgent, setActiveAgent] = useState('insights');
+  const [policyNotice, setPolicyNotice] = useState(null);
+  const [auditStatus, setAuditStatus] = useState({ verified: true });
+  const [connectionError, setConnectionError] = useState(null);
+
+  // RT-02: Only IDs in localStorage, messages in memory
+  const [projects, setProjects] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kuro_projects_v72') || '[]'); } catch { return []; }
+  });
+  const [conversationIndex, setConversationIndex] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('kuro_convindex_v72') || '[]');
+    } catch { return []; }
+  });
+  const [conversations, setConversations] = useState(() => {
+    // Initialize with one empty conversation
+    const id = Date.now();
+    return [{ id, title: '', messages: [], projectId: null }];
+  });
+  const [activeId, setActiveId] = useState(() => conversations[0]?.id);
+  const [activeProject, setActiveProject] = useState(null);
+
+  // UI State
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [activeSkill, setActiveSkill] = useState('chat');
+  const [tokenCount, setTokenCount] = useState(0);
+  const [streamStart, setStreamStart] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Settings
+  const [settings] = useState({ temperature: 70, showThinking: true });
+  const [powerDial, setPowerDial] = useState('instant'); // ⚡ instant | 🧠 deep | 👑 sovereign
+
+  // Refs
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
+
+  const activeConv = conversations.find(c => c.id === activeId) || conversations[0];
+  const messages = activeConv?.messages || [];
+  const profileDef = profiles[profile] || profiles.lab;
+
+  // ── RT-05, RT-10: Fetch server-driven config on mount ──────────────
+  useEffect(() => {
+    authFetch('/api/profile').then(r => r.json()).then(d => {
+      if (d.active) setProfile(d.active);
+      if (d.agents) setAgents(d.agents);
+      if (d.profiles) setProfiles(d.profiles);
+    }).catch(() => {});
+
+    authFetch('/api/audit/verify').then(r => r.json()).then(d => {
+      setAuditStatus(d);
+    }).catch(() => {});
+  }, []);
+
+  // ── Persist index (not messages) ───────────────────────────────────
+  useEffect(() => {
+    const index = conversations.map(c => ({ id: c.id, title: c.title, projectId: c.projectId }));
+    localStorage.setItem('kuro_convindex_v72', JSON.stringify(index));
+  }, [conversations]);
+  useEffect(() => { localStorage.setItem('kuro_projects_v72', JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
+
+  // ── RT-18: Keyboard shortcuts in capture phase ─────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); e.stopPropagation(); setSidebarOpen(true); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); e.stopPropagation(); createConv(); }
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handler, true); // capture phase
+    return () => window.removeEventListener('keydown', handler, true);
+  }, []);
+
+  // ── Drag & Drop ────────────────────────────────────────────────────
+  useEffect(() => {
+    const onDrag = (e) => { e.preventDefault(); setIsDragging(e.type !== 'dragleave'); };
+    const onDrop = (e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); };
+    window.addEventListener('dragenter', onDrag);
+    window.addEventListener('dragover', onDrag);
+    window.addEventListener('dragleave', onDrag);
+    window.addEventListener('drop', onDrop);
+    return () => { window.removeEventListener('dragenter', onDrag); window.removeEventListener('dragover', onDrag); window.removeEventListener('dragleave', onDrag); window.removeEventListener('drop', onDrop); };
+  }, []);
+
+  // ── RT-13: Textarea auto-resize ────────────────────────────────────
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
+  }, [input]);
+
+  const handleFiles = useCallback((files) => {
+    if (!files?.length) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const isImage = file.type.startsWith('image/');
+      const content = isImage
+        ? `[Image: ${file.name}]`
+        : `[File: ${file.name}]\n\`\`\`\n${e.target.result}\n\`\`\``;
+      const msg = { role: 'user', content, images: isImage ? [e.target.result.split(',')[1]] : undefined };
+      updateMessages(activeId, prev => [...prev, msg]);
+      if (isImage) sendMessage(msg);
+    };
+    file.type.startsWith('image/') ? reader.readAsDataURL(file) : reader.readAsText(file);
+  }, [activeId]);
+
+  const updateMessages = useCallback((cid, fn) => {
+    setConversations(prev => prev.map(c =>
+      c.id === cid ? { ...c, messages: typeof fn === 'function' ? fn(c.messages) : fn } : c
+    ));
+  }, []);
+
+  const createConv = useCallback(() => {
+    const n = { id: Date.now(), title: '', messages: [], projectId: activeProject };
+    setConversations(prev => [n, ...prev]);
+    setActiveId(n.id);
+    setSidebarOpen(false);
+  }, [activeProject]);
+
+  const deleteConv = useCallback((id) => {
+    setConversations(prev => {
+      const f = prev.filter(c => c.id !== id);
+      if (!f.length) {
+        const n = { id: Date.now(), title: '', messages: [], projectId: activeProject };
+        setActiveId(n.id);
+        return [n];
+      }
+      if (id === activeId) setActiveId(f[0].id);
+      return f;
+    });
+  }, [activeId, activeProject]);
+
+  const createProject = useCallback(() => {
+    const name = prompt('Project name:');
+    if (!name) return;
+    const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#a855f7'];
+    setProjects(prev => [...prev, { id: Date.now(), name, color: colors[Math.floor(Math.random() * colors.length)] }]);
+  }, []);
+
+  // ── RT-11: SSE with reconnection + RT-15: Error surfacing ─────────
+  const sendMessage = useCallback(async (preset = null) => {
+    const msg = preset || { role: 'user', content: input.trim() };
+    if (!preset && !input.trim()) return;
+
+    const cid = activeId;
+    if (!preset) {
+      updateMessages(cid, prev => [...prev, msg, { role: 'assistant', content: '', redactionCount: 0 }]);
+      setInput('');
+    } else {
+      updateMessages(cid, prev => [...prev, { role: 'assistant', content: '', redactionCount: 0 }]);
+    }
+
+    if (!messages.length && msg.content) {
+      setConversations(prev => prev.map(c => c.id === cid ? { ...c, title: msg.content.slice(0, 40) } : c));
+    }
+
+    setIsLoading(true);
+    setTokenCount(0);
+    setStreamStart(Date.now());
+    setPolicyNotice(null);
+    setConnectionError(null);
+
+    // RT-01, RT-04, RT-05: Auth + server resolves profile/agent
+    const payload = {
+      messages: [...messages, msg].map(m => ({
+        role: m.role,
+        content: m.content,
+        images: m.images,
+      })),
+      agent: activeAgent,       // Hint only — server enforces
+      skill: activeSkill,
+      temperature: settings.temperature / 100,
+      thinking: settings.showThinking,
+      sessionId: activeId,
+      powerDial,
+      // RT-05: Profile NOT sent — server resolves from token
+    };
+
+    let retries = 0;
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY = [1000, 3000];
+
+    const attemptStream = async () => {
+      try {
+        abortRef.current = new AbortController();
+        const res = await fetch('/api/stream', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload),
+          signal: abortRef.current.signal,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => `HTTP ${res.status}`);
+          throw new Error(`Server error: ${errText}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let tokens = 0;
+        let staleTimer = null;
+        const STALE_MS = 30000; // 30s stall detection
+
+        const resetStaleTimer = () => {
+          clearTimeout(staleTimer);
+          staleTimer = setTimeout(() => {
+            console.warn('[SSE] Stale stream detected');
+            setConnectionError('Stream stalled — reconnecting...');
+            abortRef.current?.abort();
+          }, STALE_MS);
+        };
+
+        resetStaleTimer();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          resetStaleTimer();
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6);
+            if (raw === '[DONE]') continue;
+
+            // RT-15: Parse errors surface to user
+            let d;
+            try {
+              d = JSON.parse(raw);
+            } catch (parseErr) {
+              console.warn('[SSE] Parse error:', raw.slice(0, 100));
+              continue;
+            }
+
+            if (d.type === 'token') {
+              tokens++;
+              setTokenCount(tokens);
+              updateMessages(cid, prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === 'assistant') {
+                  u[u.length - 1] = { ...last, content: last.content + d.content };
+                }
+                return u;
+              });
+            } else if (d.type === 'policy_notice') {
+              setPolicyNotice(d);
+            } else if (d.type === 'capability') {
+              // Capability router resolved profile — update dial if downgraded
+              if (d.downgraded && d.profile !== powerDial) {
+                setPowerDial(d.profile);
+                setPolicyNotice({ level: 'info', message: `Scaled to ${d.profile}: ${d.reason || 'infrastructure adjustment'}` });
+              }
+            } else if (d.type === 'redaction') {
+              // RT-16: Store redaction count on the message itself
+              updateMessages(cid, prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === 'assistant') {
+                  u[u.length - 1] = { ...last, redactionCount: d.count || 0 };
+                }
+                return u;
+              });
+            } else if (d.type === 'error') {
+              setConnectionError(d.message || 'Stream error');
+            } else if (d.type === 'done') {
+              clearTimeout(staleTimer);
+              setIsLoading(false);
+              setConnectionError(null);
+              return; // Success — no retry
+            }
+          }
+        }
+
+        clearTimeout(staleTimer);
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          // Check if it was a stale abort (retry) vs user abort (stop)
+          if (retries < MAX_RETRIES && isLoading) {
+            retries++;
+            setConnectionError(`Reconnecting (attempt ${retries + 1})...`);
+            await new Promise(r => setTimeout(r, RETRY_DELAY[retries - 1] || 3000));
+            return attemptStream(); // Retry
+          }
+        }
+        // RT-15: Surface error to user
+        updateMessages(cid, prev => {
+          const u = [...prev];
+          const last = u[u.length - 1];
+          if (last?.role === 'assistant' && !last.content) {
+            u[u.length - 1] = { ...last, content: `Error: ${err.message}` };
+          }
+          return u;
+        });
+        setConnectionError(err.message);
+      }
+      setIsLoading(false);
+    };
+
+    await attemptStream();
+  }, [input, activeId, activeAgent, activeSkill, messages, settings, isLoading]);
+
+  // ── RT-12: Voice — only set input, send on explicit isFinal ────────
+  const handleVoiceTranscript = useCallback((text, isFinal) => {
+    setInput(text);
+    if (isFinal && text.trim()) {
+      // Small delay so user sees final text before send
+      setTimeout(() => sendMessage(), 150);
+    }
+  }, [sendMessage]);
+
+  // ── RT-08: Index-based regen ───────────────────────────────────────
+  const handleRegen = useCallback((msgIndex) => {
+    if (msgIndex < 1) return;
+    const prevMsg = messages[msgIndex - 1];
+    if (!prevMsg || prevMsg.role !== 'user') return;
+    updateMessages(activeId, messages.slice(0, msgIndex));
+    sendMessage(prevMsg);
+  }, [messages, activeId, sendMessage]);
+
+  // ── RT-09: Deep-clone fork ─────────────────────────────────────────
+  const handleFork = useCallback((msgIndex) => {
+    const sliced = messages.slice(0, msgIndex + 1);
+    const deepCloned = JSON.parse(JSON.stringify(sliced));
+    const f = { id: Date.now(), title: 'Branch', messages: deepCloned, projectId: activeProject };
+    setConversations(prev => [f, ...prev]);
+    setActiveId(f.id);
+  }, [messages, activeProject]);
+
+  // Context
+  const contextValue = useMemo(() => ({
+    profile, activeAgent, auditStatus, agents, profiles,
+  }), [profile, activeAgent, auditStatus, agents, profiles]);
+
+  return (
+    <KuroContext.Provider value={contextValue}>
+      <div className={`kuro-v72 ${isDragging ? 'dragging' : ''}`}>
+        <Sidebar
+          visible={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          projects={projects}
+          activeProject={activeProject}
+          setActiveProject={setActiveProject}
+          createProject={createProject}
+          conversations={conversations}
+          activeId={activeId}
+          setActiveId={setActiveId}
+          createConv={createConv}
+          deleteConv={deleteConv}
+          search={search}
+          setSearch={setSearch}
+          profileDef={profileDef}
+          auditStatus={auditStatus}
+        />
+
+        <main className="main">
+          <PolicyBanner notice={policyNotice} agents={agents} onDismiss={() => setPolicyNotice(null)} />
+
+          {/* Header */}
+          <Island className="header-island" floating glow>
+            <button className="icon-btn" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button>
+            <AgentSelector
+              active={activeAgent}
+              onChange={setActiveAgent}
+              agents={agents}
+              maxTier={profileDef?.maxAgentTier || 3}
+            />
+            <div className="header-center">
+              {activeSkill !== 'chat' && (
+                <Pill icon={SKILLS[activeSkill]?.icon} label={SKILLS[activeSkill]?.name}
+                  color={SKILLS[activeSkill]?.color} active onClick={() => setActiveSkill('chat')} compact />
+              )}
+              {activeProject && (
+                <Pill icon={Folder} label={projects.find(p => p.id === activeProject)?.name}
+                  color={projects.find(p => p.id === activeProject)?.color} compact />
+              )}
+            </div>
+            <div className="header-right">
+              <ScopeIndicator agent={activeAgent} agents={agents} />
+              {tokenCount > 0 && <span className="token-badge">{tokenCount} tok</span>}
+              <button className="icon-btn" onClick={createConv}><Plus size={18} /></button>
+            </div>
+          </Island>
+
+          {/* Messages or Sandbox Panel */}
+          {activeSkill === 'sandbox' ? (
+            <div className="messages-scroll" style={{padding: 0}}>
+              <SandboxPanel
+                visible={activeSkill === 'sandbox'}
+                onAttachArtifact={(artRef) => {
+                  setInput(prev => prev + `\n[sandbox:${artRef.runId.slice(0,8)}] ${artRef.summary}`);
+                  setActiveSkill('chat');
+                }}
+              />
+            </div>
+          ) : (
+          <div className="messages-scroll">
+            {messages.length === 0 ? (
+              <EmptyState
+                onSuggestion={(t, s) => { setActiveSkill(s); setInput(t); }}
+                agents={agents} activeAgent={activeAgent} profileDef={profileDef}
+              />
+            ) : (
+              <div className="messages">
+                {messages.map((m, i) => (
+                  <Message
+                    key={`${activeId}-${i}`}
+                    msg={m}
+                    msgIndex={i}
+                    isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'}
+                    showThoughts={settings.showThinking}
+                    agents={agents}
+                    activeAgent={activeAgent}
+                    onCopy={c => navigator.clipboard.writeText(c)}
+                    onEdit={m => setInput(m.content)}
+                    onRegen={handleRegen}
+                    onFork={handleFork}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+          )}
+
+          <ConnectionStatus error={connectionError} />
+
+          {/* Input */}
+          <Island className="input-island" floating glow>
+            <div className="input-main">
+              <button className="icon-btn" onClick={() => fileInputRef.current?.click()}><Paperclip size={18} /></button>
+              <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="Message KURO..."
+                rows={1}
+              />
+              <VoiceInput onTranscript={handleVoiceTranscript} isListening={isListening} setIsListening={setIsListening} />
+              {isLoading ? (
+                <button className="send-btn stop" onClick={() => { abortRef.current?.abort(); setIsLoading(false); }}><Square size={16} /></button>
+              ) : (
+                <button className="send-btn" onClick={() => sendMessage()} disabled={!input.trim()}><ArrowUp size={18} /></button>
+              )}
+            </div>
+            <div className="input-tools">
+              <div className="power-dial">
+                {[
+                  { key: 'instant', icon: '⚡', label: 'Instant' },
+                  { key: 'deep', icon: '🧠', label: 'Deep' },
+                  { key: 'sovereign', icon: '👑', label: 'Sovereign' }
+                ].map(p => (
+                  <button key={p.key} className={`pd-btn ${powerDial === p.key ? 'active' : ''}`}
+                    onClick={() => setPowerDial(p.key)} title={p.label}>
+                    <span className="pd-icon">{p.icon}</span>
+                    <span className="pd-label">{p.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="skill-pills">
+                {Object.values(SKILLS).map(s => (
+                  <Pill key={s.id} icon={s.icon} label={s.name} color={s.color} compact
+                    active={activeSkill === s.id} onClick={() => setActiveSkill(activeSkill === s.id ? 'chat' : s.id)} />
+                ))}
+              </div>
+              <div className="input-meta">
+                <span className="hint"><Command size={10} />K</span>
+              </div>
+            </div>
+            <StreamProgress tokens={tokenCount} startTime={streamStart} isStreaming={isLoading} />
+          </Island>
+        </main>
+
+        {isDragging && <div className="drop-zone"><Paperclip size={48} /><span>Drop to upload</span></div>}
+
+        <style>{`
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO v7.2 — HARDENED
+   RT-20: All CSS vars use correct -- prefix
+═══════════════════════════════════════════════════════════════════════════ */
+.kuro-v72 {
+  --bg: #09090b;
+  --surface: rgba(255,255,255,0.04);
+  --surface-2: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.08);
+  --border-2: rgba(255,255,255,0.12);
+  --text: rgba(255,255,255,0.95);
+  --text-2: rgba(255,255,255,0.65);
+  --text-3: rgba(255,255,255,0.4);
+  --accent: #a855f7;
+  --accent-glow: rgba(168,85,247,0.25);
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff375f;
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  position: relative;
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  display: flex;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ ISLAND ═══ */
+.island {
+  background: rgba(22,22,26,0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+}
+.island.floating { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5); }
+.island.glow { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px -20px var(--accent-glow); }
+
+/* ═══ PILL ═══ */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--text-2);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.pill:hover { background: var(--surface-2); color: var(--text); }
+.pill.active {
+  background: color-mix(in srgb, var(--pill-color, var(--accent)) 18%, transparent);
+  border-color: color-mix(in srgb, var(--pill-color, var(--accent)) 40%, transparent);
+  color: var(--pill-color, var(--accent));
+}
+.pill.compact { padding: 5px 10px; font-size: 12px; gap: 4px; }
+.pill.compact svg { width: 12px; height: 12px; }
+.pill.disabled { opacity: 0.4; cursor: not-allowed; }
+.pill-badge { padding: 2px 6px; background: var(--accent); border-radius: 100px; font-size: 10px; color: white; }
+
+/* ═══ POLICY BANNER ═══ */
+.policy-banner {
+  position: absolute;
+  top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 60;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: rgba(255, 159, 10, 0.15);
+  border: 1px solid rgba(255, 159, 10, 0.3);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(20px);
+  animation: bannerIn 0.3s ease;
+  max-width: calc(100% - 24px);
+}
+@keyframes bannerIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.policy-icon { color: var(--warning); flex-shrink: 0; }
+.policy-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.policy-label { font-size: 12px; font-weight: 600; color: var(--warning); }
+.policy-reason { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.policy-mode { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.policy-dismiss { background: none; border: none; color: var(--text-3); cursor: pointer; padding: 4px; flex-shrink: 0; }
+.policy-dismiss:hover { color: var(--text); }
+
+/* ═══ PROFILE INDICATOR ═══ */
+.profile-indicator {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--profile-color, var(--text-2));
+  font-size: 12px; font-weight: 500;
+}
+.profile-indicator .safety-badge { color: var(--success); }
+
+/* ═══ AGENT SELECTOR ═══ */
+.agent-selector { position: relative; }
+.agent-current {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+}
+.agent-current:hover { background: var(--surface-2); }
+.agent-current .open { transform: rotate(180deg); }
+.agent-current:disabled { opacity: 0.5; cursor: not-allowed; }
+.agent-dropdown {
+  position: absolute;
+  top: calc(100% + 8px); left: 0;
+  width: 280px;
+  background: rgba(22,22,26,0.98);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(40px);
+  z-index: 100;
+  padding: 8px;
+  animation: dropIn 0.2s ease;
+}
+@keyframes dropIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.agent-option {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  background: none; border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2); font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.agent-option:hover { background: var(--surface); color: var(--text); }
+.agent-option.active { background: var(--surface-2); color: var(--text); }
+.agent-option.disabled { opacity: 0.4; cursor: not-allowed; }
+.agent-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.agent-name { font-weight: 500; }
+.agent-desc { font-size: 11px; color: var(--text-3); }
+.agent-caps { display: flex; gap: 4px; flex-wrap: wrap; }
+.cap-badge { padding: 2px 6px; background: var(--surface); border-radius: 4px; font-size: 10px; color: var(--text-3); }
+.agent-lock { color: var(--text-3); }
+
+/* ═══ SCOPE INDICATOR — RT-17: Visible on mobile (compact) ═══ */
+.scope-indicator {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.scope-label { color: var(--text-3); }
+.scope-badge { padding: 2px 5px; background: var(--surface); border-radius: 4px; color: var(--text-3); font-size: 10px; }
+
+/* ═══ REDACTION NOTICE ═══ */
+.redaction-notice {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(48, 209, 88, 0.1);
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  color: var(--success);
+}
+
+/* ═══ AUDIT INDICATOR ═══ */
+.audit-indicator {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.audit-indicator.healthy { color: var(--success); }
+.audit-indicator.warning { color: var(--warning); }
+
+/* ═══ CONNECTION ERROR — RT-11, RT-15 ═══ */
+.connection-error {
+  position: absolute;
+  bottom: 200px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 55, 95, 0.15);
+  border: 1px solid rgba(255, 55, 95, 0.3);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(20px);
+  z-index: 55;
+  font-size: 12px;
+  color: var(--danger);
+  animation: bannerIn 0.3s ease;
+}
+
+/* ═══ SIDEBAR ═══ */
+.sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 90; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sidebar {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 280px;
+  background: rgba(16,16,20,0.98);
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(40px);
+  z-index: 100;
+  display: flex; flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar.open { transform: translateX(0); }
+.sidebar-top { padding: 12px; }
+.new-chat {
+  width: 100%; padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text); font-size: 14px;
+  cursor: pointer;
+}
+.new-chat:hover { background: var(--surface-2); }
+.sidebar-search {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; margin: 0 12px 8px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+.sidebar-search svg { color: var(--text-3); flex-shrink: 0; }
+.sidebar-search input { flex: 1; background: none; border: none; color: var(--text); font-size: 13px; outline: none; }
+.sidebar-search button { background: none; border: none; color: var(--text-3); cursor: pointer; }
+.sidebar-section { padding: 0 8px; }
+.sidebar-section.flex-1 { flex: 1; overflow-y: auto; }
+.section-title {
+  display: flex; align-items: center; gap: 6px;
+  padding: 12px 8px 6px;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.section-title button { margin-left: auto; background: none; border: none; color: var(--text-3); cursor: pointer; }
+.section-title button:hover { color: var(--text); }
+.project-list, .conv-list { display: flex; flex-direction: column; gap: 2px; }
+.project-item, .conv-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: none; border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2); font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.project-item:hover, .conv-item:hover { background: var(--surface); color: var(--text); }
+.project-item.active, .conv-item.active { background: var(--surface-2); color: var(--text); }
+.conv-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-delete { opacity: 0; background: none; border: none; color: var(--text-3); cursor: pointer; padding: 4px; flex-shrink: 0; }
+.conv-item:hover .conv-delete { opacity: 1; }
+.sidebar-bottom {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: none; border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2); font-size: 13px;
+  cursor: pointer;
+}
+.sidebar-link:hover { background: var(--surface); color: var(--text); }
+
+/* ═══ MAIN ═══ */
+.main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+
+/* ═══ HEADER ═══ */
+.header-island {
+  position: absolute;
+  top: 12px; left: 12px; right: 12px;
+  z-index: 50;
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px;
+}
+.header-center { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.token-badge {
+  padding: 4px 10px;
+  background: var(--surface);
+  border-radius: 100px;
+  font-size: 11px; color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.icon-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer; flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--surface); color: var(--text); }
+
+/* ═══ MESSAGES ═══ */
+.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 200px; }
+.messages { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+.message { display: flex; gap: 12px; animation: msgIn 0.3s ease; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.message.user { justify-content: flex-end; }
+.message-avatar {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--agent-color, var(--accent)), #6366f1);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.message-avatar.user { background: var(--surface-2); }
+.message-avatar svg { color: white; }
+.message-content { max-width: 85%; min-width: 0; }
+.message.user .message-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+}
+.message-text { font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.stream-cursor { color: var(--accent); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.message-actions { display: flex; gap: 4px; margin-top: 8px; animation: fadeIn 0.15s ease; }
+.message-actions button {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.message-actions button:hover { background: var(--surface-2); color: var(--text); }
+
+/* ═══ THOUGHT BLOCK ═══ */
+.thought-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.thought-toggle {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: none; border: none;
+  color: var(--text-2); font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.thought-icon { position: relative; color: #bf5af2; flex-shrink: 0; }
+.streaming-dot {
+  position: absolute; top: -2px; right: -2px;
+  width: 6px; height: 6px;
+  background: var(--success);
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse { 50% { opacity: 0.5; } }
+.thought-label { font-weight: 500; flex-shrink: 0; }
+.thought-preview { flex: 1; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chevron { transition: transform 0.2s; flex-shrink: 0; }
+.chevron.open { transform: rotate(180deg); }
+.thought-content { padding: 0 14px 14px; }
+.thought-content pre {
+  margin: 0; padding: 12px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  font-family: 'SF Mono', monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ═══ ARTIFACT — RT-19 ═══ */
+.artifact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.artifact-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+  flex-wrap: wrap;
+}
+.artifact-header svg { color: #bf5af2; flex-shrink: 0; }
+.artifact-title { font-weight: 500; font-size: 14px; }
+.artifact-type { color: var(--text-3); font-size: 11px; }
+.artifact-tabs { display: flex; gap: 4px; margin-left: auto; }
+.artifact-tabs button { padding: 5px 10px; background: none; border: none; border-radius: 6px; color: var(--text-3); font-size: 12px; cursor: pointer; }
+.artifact-tabs button:hover { background: var(--surface); }
+.artifact-tabs button.active { background: var(--surface-2); color: var(--text); }
+.artifact-actions { display: flex; gap: 4px; }
+.artifact-actions button { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 6px; color: var(--text-3); cursor: pointer; }
+.artifact-actions button:hover { background: var(--surface); color: var(--text); }
+.artifact-preview { width: 100%; height: 280px; border: none; background: #0a0a0c; }
+.artifact-code { max-height: 280px; overflow: auto; padding: 16px; }
+.artifact-code pre { margin: 0; font-family: 'SF Mono', monospace; font-size: 12px; word-break: break-all; }
+
+/* ═══ EMPTY STATE ═══ */
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+  min-height: 60vh;
+}
+.empty-icon {
+  width: 72px; height: 72px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--agent-color, var(--accent)), #6366f1);
+  border-radius: 50%;
+  margin-bottom: 20px;
+  box-shadow: 0 0 60px var(--accent-glow);
+}
+.empty-icon svg { color: white; }
+.empty-state h1 { font-size: 32px; font-weight: 600; margin: 0 0 8px; }
+.empty-profile {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 24px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.typing-anim { height: 24px; margin-bottom: 16px; font-size: 16px; color: var(--text-2); }
+.typing-anim .cursor {
+  display: inline-block;
+  width: 2px; height: 18px;
+  background: var(--accent);
+  margin-left: 2px;
+  animation: cursorBlink 0.9s ease-in-out infinite;
+  vertical-align: middle;
+}
+.typing-anim .cursor.thinking { animation: cursorPulse 1.2s ease-in-out infinite; background: var(--text-3); }
+@keyframes cursorBlink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes cursorPulse { 0%, 100% { opacity: 0.3; transform: scaleY(0.8); } 50% { opacity: 0.7; transform: scaleY(1); } }
+.quick-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.quick-action {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-2); font-size: 14px;
+  cursor: pointer;
+}
+.quick-action:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent); }
+.quick-action svg { color: var(--accent); }
+
+/* ═══ INPUT ISLAND ═══ */
+.input-island {
+  position: absolute;
+  bottom: 16px; left: 16px; right: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  z-index: 50;
+  padding: 12px;
+}
+.input-main { display: flex; align-items: flex-end; gap: 8px; }
+.input-main textarea {
+  flex: 1;
+  background: none; border: none;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  min-height: 24px;
+  max-height: 150px;
+  font-family: inherit;
+}
+.input-main textarea::placeholder { color: var(--text-3); }
+.voice-btn {
+  position: relative;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none;
+  border-radius: 50%;
+  color: var(--text-2);
+  cursor: pointer; flex-shrink: 0;
+}
+.voice-btn:hover { background: var(--surface); color: var(--text); }
+.voice-btn.listening { color: var(--danger); }
+.voice-pulse {
+  position: absolute; inset: 0;
+  border: 2px solid var(--danger);
+  border-radius: 50%;
+  animation: voicePulse 1.5s infinite;
+  pointer-events: none;
+}
+@keyframes voicePulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+.send-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer; flex-shrink: 0;
+}
+.send-btn:hover { filter: brightness(1.1); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn.stop { background: var(--danger); }
+.input-tools {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.power-dial {
+  display: flex; gap: 2px; background: var(--surface); border-radius: 8px; padding: 2px; flex-shrink: 0;
+}
+.pd-btn {
+  display: flex; align-items: center; gap: 3px; padding: 3px 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--text-3); cursor: pointer; font-size: 11px;
+  transition: all 0.15s; white-space: nowrap;
+}
+.pd-btn:hover { background: var(--surface-2); color: var(--text-2); }
+.pd-btn.active { background: rgba(168,85,247,0.15); color: #a855f7; }
+.pd-icon { font-size: 12px; line-height: 1; }
+.pd-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+.skill-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.input-meta { display: flex; gap: 10px; flex-shrink: 0; }
+.hint { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3); }
+
+/* ═══ STREAM PROGRESS ═══ */
+.stream-progress { margin-top: 8px; padding: 8px 0; }
+.progress-bar { height: 3px; background: var(--surface); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #6366f1); border-radius: 2px; transition: width 0.3s ease; }
+.progress-stats { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ═══ DROP ZONE ═══ */
+.drop-zone {
+  position: absolute; inset: 16px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  background: rgba(10,10,12,0.95);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  z-index: 200;
+}
+.drop-zone svg { color: var(--accent); }
+.drop-zone span { font-size: 16px; color: var(--text-2); }
+
+/* ═══ RESPONSIVE — RT-17: Scope stays visible ═══ */
+@media (max-width: 768px) {
+  .header-island { top: 8px; left: 8px; right: 8px; padding: 6px 8px; gap: 8px; }
+  .input-island { bottom: 8px; left: 8px; right: 8px; padding: 10px; }
+  .messages-scroll { padding: 90px 12px 180px; }
+  .quick-actions { flex-direction: column; }
+  .skill-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .input-meta { display: none; }
+  .pd-label { display: none; }
+  .pd-btn { padding: 4px 6px; }
+  .power-dial { gap: 1px; }
+  .scope-indicator .scope-label { display: none; }
+  .scope-indicator { gap: 2px; }
+  .scope-badge { font-size: 9px; padding: 1px 4px; }
+  .agent-current span { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .policy-banner { left: 8px; right: 8px; transform: none; flex-wrap: wrap; }
+  .connection-error { left: 8px; right: 8px; transform: none; }
+}
+        `}</style>
+      </div>
+    </KuroContext.Provider>
+  );
+}

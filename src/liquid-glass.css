@@ -1,0 +1,695 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   KURO :: LIQUID GLASS ENGINE v2 — CSS Material System
+   Apple iOS 26 HIG-compliant • OLED-optimized • Sovereignty-first
+   
+   AUDIT v2 FIXES:
+   [1] Added .lg-frosted variant
+   [2] Content z-index: 3 — children always above pseudo-layers
+   [3] Removed non-portable backdrop-filter: url(#svg)
+   [4] Moved SVG refraction to opt-in pseudo-element class
+   [5] Added mobile blur ceilings (iOS Safari safe)
+   [6] Fixed transition: all → explicit properties on .lg-tinted
+   [7] Removed will-change: backdrop-filter (Safari compositor bug)
+   [8] Materialize no longer animates backdrop-filter
+   [9] Performance mode via data-attribute (minimal/maximum)
+   [10] .lg-frosted in all a11y/perf/GPU blocks
+   [11] High-contrast light-mode overrides added
+   [12] -webkit-tap-highlight-color on interactive children
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─── OLED-OPTIMIZED DESIGN TOKENS ─────────────────────────────────── */
+:root {
+  --lg-black: #000000;
+  --lg-void: rgba(0, 0, 0, 1);
+
+  /* Surface Hierarchy */
+  --lg-surface-0: rgba(0, 0, 0, 1);
+  --lg-surface-1: rgba(12, 12, 14, 0.92);
+  --lg-surface-2: rgba(22, 22, 26, 0.85);
+  --lg-surface-3: rgba(32, 32, 38, 0.78);
+
+  /* Glass Material */
+  --lg-glass-bg: rgba(255, 255, 255, 0.04);
+  --lg-glass-bg-hover: rgba(255, 255, 255, 0.07);
+  --lg-glass-bg-active: rgba(255, 255, 255, 0.10);
+  --lg-glass-border: rgba(255, 255, 255, 0.08);
+  --lg-glass-border-bright: rgba(255, 255, 255, 0.15);
+  --lg-glass-highlight: rgba(255, 255, 255, 0.12);
+  --lg-glass-shadow: rgba(0, 0, 0, 0.5);
+
+  /* Frosted-specific */
+  --lg-frosted-bg: rgba(255, 255, 255, 0.06);
+  --lg-frosted-bg-hover: rgba(255, 255, 255, 0.09);
+
+  /* Blur & Filters */
+  --lg-blur-standard: 40px;
+  --lg-blur-heavy: 80px;
+  --lg-blur-light: 16px;
+  --lg-blur-frosted: 24px;
+  --lg-saturate: 1.6;
+  --lg-brightness: 1.05;
+  --lg-contrast: 1.02;
+
+  /* Specular */
+  --lg-specular-color: rgba(255, 255, 255, 0.18);
+  --lg-specular-angle: 135deg;
+  --lg-specular-size: 60%;
+
+  /* Accent */
+  --lg-accent: #a855f7;
+  --lg-accent-glass: rgba(168, 85, 247, 0.15);
+  --lg-accent-glow: rgba(168, 85, 247, 0.25);
+
+  /* Text on Glass */
+  --lg-text-primary: rgba(255, 255, 255, 0.95);
+  --lg-text-secondary: rgba(255, 255, 255, 0.65);
+  --lg-text-tertiary: rgba(255, 255, 255, 0.40);
+  --lg-text-on-accent: rgba(255, 255, 255, 1);
+
+  /* Timing */
+  --lg-ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --lg-ease-decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0);
+  --lg-ease-accelerate: cubic-bezier(0.4, 0.0, 1.0, 1.0);
+  --lg-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1.0);
+  --lg-ease-glass: cubic-bezier(0.22, 0.68, 0.0, 1.0);
+
+  --lg-duration-instant: 80ms;
+  --lg-duration-fast: 150ms;
+  --lg-duration-standard: 280ms;
+  --lg-duration-slow: 450ms;
+  --lg-duration-morph: 600ms;
+
+  /* Radius */
+  --lg-radius-xs: 8px;
+  --lg-radius-sm: 12px;
+  --lg-radius-md: 16px;
+  --lg-radius-lg: 22px;
+  --lg-radius-xl: 28px;
+  --lg-radius-pill: 9999px;
+}
+
+
+/* ─── LIGHT MODE ───────────────────────────────────────────────────── */
+:root[data-theme="light"],
+.lg-light {
+  --lg-surface-0: rgba(245, 245, 250, 1);
+  --lg-surface-1: rgba(255, 255, 255, 0.85);
+  --lg-surface-2: rgba(255, 255, 255, 0.72);
+  --lg-surface-3: rgba(255, 255, 255, 0.60);
+  --lg-glass-bg: rgba(255, 255, 255, 0.45);
+  --lg-glass-bg-hover: rgba(255, 255, 255, 0.55);
+  --lg-glass-bg-active: rgba(255, 255, 255, 0.65);
+  --lg-glass-border: rgba(0, 0, 0, 0.06);
+  --lg-glass-border-bright: rgba(0, 0, 0, 0.10);
+  --lg-glass-highlight: rgba(255, 255, 255, 0.7);
+  --lg-glass-shadow: rgba(0, 0, 0, 0.12);
+  --lg-frosted-bg: rgba(255, 255, 255, 0.35);
+  --lg-frosted-bg-hover: rgba(255, 255, 255, 0.45);
+  --lg-specular-color: rgba(255, 255, 255, 0.5);
+  --lg-text-primary: rgba(0, 0, 0, 0.88);
+  --lg-text-secondary: rgba(0, 0, 0, 0.55);
+  --lg-text-tertiary: rgba(0, 0, 0, 0.30);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHARED GLASS BASE
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-regular,
+.lg-clear,
+.lg-tinted,
+.lg-frosted {
+  position: relative;
+  border-radius: var(--lg-radius-lg);
+  overflow: hidden;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* [FIX #2] Content z-index: children ALWAYS above pseudo-element layers */
+.lg-regular > *,
+.lg-clear > *,
+.lg-tinted > *,
+.lg-frosted > * {
+  position: relative;
+  z-index: 3;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT: .lg-regular — Standard navigation glass
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-regular {
+  background: var(--lg-glass-bg);
+  border: 1px solid var(--lg-glass-border);
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur-standard))
+    saturate(var(--lg-saturate))
+    brightness(var(--lg-brightness));
+  backdrop-filter:
+    blur(var(--lg-blur-standard))
+    saturate(var(--lg-saturate))
+    brightness(var(--lg-brightness));
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-glass-highlight),
+    0 1px 3px 0 var(--lg-glass-shadow),
+    0 8px 24px -4px rgba(0, 0, 0, 0.2);
+  transition:
+    background var(--lg-duration-standard) var(--lg-ease-standard),
+    box-shadow var(--lg-duration-standard) var(--lg-ease-standard),
+    transform var(--lg-duration-standard) var(--lg-ease-glass);
+}
+
+.lg-regular::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(
+      var(--lg-specular-angle),
+      var(--lg-specular-color) 0%,
+      transparent var(--lg-specular-size)
+    );
+  opacity: 0.6;
+  mix-blend-mode: overlay;
+  transition: opacity var(--lg-duration-standard) var(--lg-ease-standard);
+}
+
+.lg-regular::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.06),
+    inset 1px 0 0 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.lg-regular:hover {
+  background: var(--lg-glass-bg-hover);
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-glass-highlight),
+    0 2px 6px 0 var(--lg-glass-shadow),
+    0 12px 32px -4px rgba(0, 0, 0, 0.25);
+}
+
+.lg-regular:active {
+  background: var(--lg-glass-bg-active);
+  transform: scale(0.985);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT: .lg-clear — Transparent content-passthrough
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-clear {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur-light))
+    saturate(1.2);
+  backdrop-filter:
+    blur(var(--lg-blur-light))
+    saturate(1.2);
+  box-shadow:
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  transition:
+    background var(--lg-duration-standard) var(--lg-ease-standard),
+    transform var(--lg-duration-standard) var(--lg-ease-glass);
+}
+
+.lg-clear::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(
+      var(--lg-specular-angle),
+      rgba(255, 255, 255, 0.06) 0%,
+      transparent 50%
+    );
+  mix-blend-mode: overlay;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT: .lg-tinted — Accent-colored glass
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-tinted {
+  background: var(--lg-accent-glass);
+  border: 1px solid rgba(168, 85, 247, 0.12);
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur-standard))
+    saturate(1.8)
+    brightness(0.95);
+  backdrop-filter:
+    blur(var(--lg-blur-standard))
+    saturate(1.8)
+    brightness(0.95);
+  box-shadow:
+    inset 0 0.5px 0 0 rgba(168, 85, 247, 0.15),
+    0 1px 3px 0 rgba(0, 0, 0, 0.2),
+    0 0 20px -8px var(--lg-accent-glow);
+  /* [FIX #6] explicit properties, not transition: all */
+  transition:
+    background var(--lg-duration-standard) var(--lg-ease-standard),
+    box-shadow var(--lg-duration-standard) var(--lg-ease-standard),
+    transform var(--lg-duration-standard) var(--lg-ease-glass);
+}
+
+.lg-tinted::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(
+      var(--lg-specular-angle),
+      rgba(255, 255, 255, 0.12) 0%,
+      transparent 55%
+    );
+  mix-blend-mode: overlay;
+}
+
+.lg-tinted:hover {
+  background: rgba(168, 85, 247, 0.22);
+}
+
+.lg-tinted:active {
+  transform: scale(0.985);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT: .lg-frosted — Heavy privacy-glass [FIX #1 — NEW]
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-frosted {
+  background: var(--lg-frosted-bg);
+  border: 1px solid var(--lg-glass-border);
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur-frosted))
+    saturate(var(--lg-saturate))
+    brightness(1.02);
+  backdrop-filter:
+    blur(var(--lg-blur-frosted))
+    saturate(var(--lg-saturate))
+    brightness(1.02);
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-glass-highlight),
+    0 1px 4px 0 var(--lg-glass-shadow),
+    0 12px 32px -6px rgba(0, 0, 0, 0.3);
+  transition:
+    background var(--lg-duration-standard) var(--lg-ease-standard),
+    box-shadow var(--lg-duration-standard) var(--lg-ease-standard),
+    transform var(--lg-duration-standard) var(--lg-ease-glass);
+}
+
+.lg-frosted::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(
+      var(--lg-specular-angle),
+      var(--lg-specular-color) 0%,
+      transparent var(--lg-specular-size)
+    );
+  opacity: 0.4;
+  mix-blend-mode: overlay;
+}
+
+.lg-frosted::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.04);
+}
+
+.lg-frosted:hover {
+  background: var(--lg-frosted-bg-hover);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SVG REFRACTION — Pseudo-element only [FIX #2,#3,#4]
+   
+   Content stays crisp. Refraction renders on a z-index: 0 layer
+   below content (z-index: 3). Cross-browser: filter: url() works
+   in Chrome/Firefox/Safari. The Chromium-only backdrop-filter: url()
+   is behind @supports so Safari/Firefox skip it gracefully.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-refract-layer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-backdrop-filter: blur(var(--lg-blur-standard));
+  backdrop-filter: blur(var(--lg-blur-standard));
+  filter: url(#lg-refraction-filter);
+}
+
+@supports (backdrop-filter: url(#x)) {
+  .lg-refract-chromium::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    -webkit-backdrop-filter: url(#lg-refraction-filter) blur(var(--lg-blur-standard));
+    backdrop-filter: url(#lg-refraction-filter) blur(var(--lg-blur-standard));
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   COMPONENT SHAPES (composable with any variant)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lg-pill {
+  border-radius: var(--lg-radius-pill);
+  padding: 6px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lg-panel {
+  border-radius: var(--lg-radius-xl);
+  padding: 16px;
+}
+
+.lg-toolbar {
+  border-radius: var(--lg-radius-pill);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lg-toolbar > * {
+  padding: 8px 12px;
+  border-radius: var(--lg-radius-pill);
+  background: transparent;
+  border: none;
+  color: var(--lg-text-primary);
+  cursor: pointer;
+  transition:
+    background var(--lg-duration-fast) var(--lg-ease-standard),
+    transform var(--lg-duration-fast) var(--lg-ease-spring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lg-toolbar > *:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lg-toolbar > *:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lg-dock {
+  border-radius: var(--lg-radius-xl);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  --lg-blur-standard: 60px;
+}
+
+.lg-window {
+  border-radius: var(--lg-radius-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lg-window-titlebar {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  -webkit-app-region: drag;
+  cursor: grab;
+  position: relative;
+  z-index: 4;
+}
+
+.lg-window-body {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  z-index: 3;
+}
+
+.lg-notification {
+  border-radius: var(--lg-radius-lg);
+  padding: 14px 18px;
+  max-width: 380px;
+  --lg-blur-frosted: 32px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION SYSTEM
+   [FIX #8] Materialize does NOT animate backdrop-filter.
+   Opacity + transform only. Static backdrop just appears.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes lg-materialize {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.lg-materialize {
+  animation: lg-materialize var(--lg-duration-morph) var(--lg-ease-glass) both;
+}
+
+@keyframes lg-dematerialize {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+}
+
+.lg-dematerialize {
+  animation: lg-dematerialize var(--lg-duration-standard) var(--lg-ease-accelerate) both;
+}
+
+.lg-scroll-responsive {
+  transition:
+    padding var(--lg-duration-standard) var(--lg-ease-glass),
+    border-radius var(--lg-duration-standard) var(--lg-ease-glass),
+    transform var(--lg-duration-standard) var(--lg-ease-glass);
+}
+
+.lg-scroll-responsive.scrolled {
+  padding: 4px 8px;
+  transform: scale(0.9);
+}
+
+@keyframes lg-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--lg-accent-glow); }
+  50%      { box-shadow: 0 0 16px 2px var(--lg-accent-glow); }
+}
+
+.lg-pulse {
+  animation: lg-pulse 2.4s var(--lg-ease-standard) infinite;
+}
+
+.lg-stagger > * {
+  animation: lg-materialize var(--lg-duration-morph) var(--lg-ease-glass) both;
+  opacity: 0;
+}
+.lg-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.lg-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.lg-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.lg-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.lg-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.lg-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.lg-stagger > *:nth-child(7) { animation-delay: 360ms; }
+.lg-stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE PERFORMANCE [FIX #5]
+   iOS Safari compositor struggles with blur > 30px on large elements.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px), (pointer: coarse) {
+  :root {
+    --lg-blur-standard: 28px;
+    --lg-blur-heavy: 40px;
+    --lg-blur-light: 12px;
+    --lg-blur-frosted: 18px;
+    --lg-saturate: 1.4;
+    --lg-duration-morph: 400ms;
+    --lg-duration-slow: 300ms;
+  }
+
+  .lg-dock {
+    --lg-blur-standard: 32px;
+  }
+
+  .lg-regular,
+  .lg-frosted {
+    box-shadow:
+      inset 0 0.5px 0 0 var(--lg-glass-highlight),
+      0 4px 16px -4px rgba(0, 0, 0, 0.3);
+  }
+
+  .lg-regular:hover,
+  .lg-frosted:hover {
+    box-shadow:
+      inset 0 0.5px 0 0 var(--lg-glass-highlight),
+      0 6px 20px -4px rgba(0, 0, 0, 0.35);
+  }
+
+  .lg-tinted {
+    box-shadow:
+      inset 0 0.5px 0 0 rgba(168, 85, 247, 0.15),
+      0 4px 16px -4px rgba(0, 0, 0, 0.25);
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PERFORMANCE MODES — Via data-attribute on <html>
+   Set by LiquidGlassProvider.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* MINIMAL: aggressive clamp, kill pseudo-elements */
+:root[data-lg-perf="minimal"] {
+  --lg-blur-standard: 8px;
+  --lg-blur-heavy: 12px;
+  --lg-blur-light: 4px;
+  --lg-blur-frosted: 10px;
+  --lg-saturate: 1.1;
+  --lg-brightness: 1.0;
+  --lg-duration-morph: 250ms;
+}
+
+:root[data-lg-perf="minimal"] .lg-regular,
+:root[data-lg-perf="minimal"] .lg-clear,
+:root[data-lg-perf="minimal"] .lg-tinted,
+:root[data-lg-perf="minimal"] .lg-frosted {
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.2);
+}
+
+:root[data-lg-perf="minimal"] .lg-regular::before,
+:root[data-lg-perf="minimal"] .lg-tinted::before,
+:root[data-lg-perf="minimal"] .lg-frosted::before,
+:root[data-lg-perf="minimal"] .lg-clear::before,
+:root[data-lg-perf="minimal"] .lg-regular::after,
+:root[data-lg-perf="minimal"] .lg-frosted::after,
+:root[data-lg-perf="minimal"] .lg-refract-layer::before,
+:root[data-lg-perf="minimal"] .lg-refract-chromium::before {
+  display: none;
+}
+
+/* MAXIMUM: full quality */
+:root[data-lg-perf="maximum"] {
+  --lg-blur-standard: 60px;
+  --lg-blur-heavy: 100px;
+  --lg-blur-light: 24px;
+  --lg-blur-frosted: 40px;
+  --lg-saturate: 1.8;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY [FIX #10,#11,#12]
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-regular, .lg-clear, .lg-tinted, .lg-frosted,
+  .lg-materialize, .lg-dematerialize,
+  .lg-scroll-responsive, .lg-pulse,
+  .lg-stagger > * {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .lg-regular, .lg-clear, .lg-tinted, .lg-frosted {
+    background: var(--lg-surface-2) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .lg-regular::before, .lg-clear::before,
+  .lg-tinted::before, .lg-frosted::before {
+    display: none !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  :root {
+    --lg-glass-border: rgba(255, 255, 255, 0.30);
+    --lg-glass-border-bright: rgba(255, 255, 255, 0.40);
+    --lg-text-primary: rgba(255, 255, 255, 1);
+    --lg-text-secondary: rgba(255, 255, 255, 0.85);
+  }
+  :root[data-theme="light"],
+  .lg-light {
+    --lg-glass-border: rgba(0, 0, 0, 0.20);
+    --lg-glass-border-bright: rgba(0, 0, 0, 0.30);
+    --lg-text-primary: rgba(0, 0, 0, 1);
+    --lg-text-secondary: rgba(0, 0, 0, 0.80);
+  }
+}
+
+@media (dynamic-range: high) {
+  :root {
+    --lg-surface-0: #000000;
+    --lg-glass-shadow: rgba(0, 0, 0, 0.7);
+  }
+}

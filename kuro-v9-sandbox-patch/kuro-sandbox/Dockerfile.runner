@@ -1,0 +1,20 @@
+# KURO Sandbox Runner — Minimal Python image
+# Built for isolated, network-disabled code execution.
+# No package manager, no shell expansion, no secrets.
+
+FROM python:3.12-slim AS runner
+
+# Remove package manager to reduce attack surface
+RUN apt-get purge -y --auto-remove && \
+    rm -rf /var/lib/apt /var/cache/apt /usr/bin/apt* /usr/bin/dpkg* && \
+    pip install --no-cache-dir matplotlib numpy pandas pillow && \
+    pip cache purge && \
+    rm -rf /root/.cache
+
+# Non-root user
+RUN useradd -m -s /bin/false sandbox
+USER sandbox
+
+WORKDIR /workspace
+
+# No ENTRYPOINT — caller specifies command
