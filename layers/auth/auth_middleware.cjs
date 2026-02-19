@@ -85,7 +85,11 @@ function resolveUserV2(req) {
   const sid = req.cookies?.kuro_sid;
   if (sid) {
     const session = stmts.getSession.get(sid);
-    if (session) return sessionToUser(session);
+    if (session) {
+      // Sliding window: refresh session expiry on each authenticated request
+      try { stmts.refreshSession.run(sid); } catch(e) {}
+      return sessionToUser(session);
+    }
     // Cookie exists but session expired/invalid — clear it
     // (handled in middleware response)
   }

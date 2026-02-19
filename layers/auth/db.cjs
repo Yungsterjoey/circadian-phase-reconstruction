@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -149,11 +149,28 @@ function migrate() {
     try { db.exec('ALTER TABLE oauth_accounts ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch(e) {}
   }
 
+  if (current < 3) {
+    // v3: Admin flag
+    try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0'); } catch(e) {}
+  }
+
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   console.log(`[AUTH:DB] Schema v${SCHEMA_VERSION} applied`);
 }
 
 migrate();
+
+// Bootstrap admin from env
+const KURO_ADMIN_EMAIL = process.env.KURO_ADMIN_EMAIL;
+if (KURO_ADMIN_EMAIL) {
+  const adminUser = db.prepare('SELECT id, is_admin FROM users WHERE email = ?').get(KURO_ADMIN_EMAIL.toLowerCase().trim());
+  if (adminUser && !adminUser.is_admin) {
+    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(adminUser.id);
+    console.log(`[AUTH:DB] Bootstrapped admin: ${KURO_ADMIN_EMAIL}`);
+  } else if (!adminUser) {
+    console.log(`[AUTH:DB] KURO_ADMIN_EMAIL=${KURO_ADMIN_EMAIL} — user not found yet, will promote on first login`);
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 // PREPARED STATEMENTS
@@ -170,6 +187,9 @@ const stmts = {
   updateTier: db.prepare('UPDATE users SET tier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
   updatePassword: db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
   verifyEmail: db.prepare('UPDATE users SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
+  isAdmin: db.prepare('SELECT is_admin FROM users WHERE id = ?'),
+  listUsers: db.prepare('SELECT id, email, name, tier, is_admin, email_verified, created_at, last_login FROM users ORDER BY created_at DESC LIMIT 200'),
+  setAdmin: db.prepare('UPDATE users SET is_admin = ? WHERE id = ?'),
   touchLogin: db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?'),
   deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
 
@@ -179,6 +199,7 @@ const stmts = {
   getSession: db.prepare(`SELECT s.*, u.email, u.name, u.tier, u.profile, u.email_verified
     FROM sessions s JOIN users u ON s.user_id = u.id
     WHERE s.id = ? AND s.expires_at > datetime('now')`),
+  refreshSession: db.prepare("UPDATE sessions SET expires_at = datetime('now', '+24 hours') WHERE id = ? AND expires_at > datetime('now')"),
   deleteSession: db.prepare('DELETE FROM sessions WHERE id = ?'),
   deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
   cleanExpiredSessions: db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')"),

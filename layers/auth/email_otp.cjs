@@ -146,15 +146,17 @@ function verifyOTP(userId, code) {
     return { valid: false, error: 'No active code. Request a new one.' };
   }
 
-  // Increment attempt (GPT-02)
-  stmts.incrementOTPAttempt.run(otp.id);
+  // Atomic increment + check (prevents race condition on concurrent requests)
+  const updated = stmts.incrementOTPAttempt.run(otp.id);
 
-  if (otp.attempts >= 4) { // This is the 5th attempt
+  // Re-read after increment to get accurate attempt count
+  const current = stmts.getActiveOTP.get(userId);
+  if (!current || current.attempts > 5) {
     return { valid: false, error: 'Too many attempts. Request a new code.' };
   }
 
   if (otp.code !== code) {
-    const remaining = 4 - otp.attempts;
+    const remaining = Math.max(0, 5 - current.attempts);
     return { valid: false, error: `Invalid code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` };
   }
 

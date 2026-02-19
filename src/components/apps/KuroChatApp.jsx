@@ -189,13 +189,143 @@ const TypingAnimation = () => {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ISLAND
+// MARKDOWN RENDERER — lightweight inline parser (no dependencies)
 // ═══════════════════════════════════════════════════════════════════════════
-const Island = ({ children, className = '', floating = false, glow = false }) => (
-  <div className={`island ${className} ${floating ? 'floating' : ''} ${glow ? 'glow' : ''}`}>
-    {children}
-  </div>
-);
+const MarkdownText = React.memo(({ text }) => {
+  if (!text) return null;
+  const elements = [];
+  // Split on code blocks first
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  let key = 0;
+  for (const part of parts) {
+    if (part.startsWith('```')) {
+      const match = part.match(/^```(\w*)\n?([\s\S]*?)```$/);
+      const lang = match?.[1] || '';
+      const code = match?.[2] || part.slice(3, -3);
+      elements.push(
+        <pre key={key++} className="md-codeblock" data-lang={lang}>
+          {lang && <span className="md-lang">{lang}</span>}
+          <code>{code.replace(/\n$/, '')}</code>
+        </pre>
+      );
+    } else {
+      // Process inline markdown per line
+      const lines = part.split('\n');
+      const lineEls = [];
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        // Headers
+        const hMatch = line.match(/^(#{1,3})\s+(.+)$/);
+        if (hMatch) { const lvl = hMatch[1].length; lineEls.push(React.createElement(`h${lvl + 2}`, { key: key++, className: 'md-h' }, hMatch[2])); continue; }
+        // Unordered list
+        if (/^[\-\*]\s+/.test(line)) { lineEls.push(<li key={key++} className="md-li">{renderInline(line.replace(/^[\-\*]\s+/, ''))}</li>); continue; }
+        // Ordered list
+        const olMatch = line.match(/^(\d+)\.\s+(.+)$/);
+        if (olMatch) { lineEls.push(<li key={key++} className="md-li md-ol" value={olMatch[1]}>{renderInline(olMatch[2])}</li>); continue; }
+        // Empty line = paragraph break
+        if (!line.trim()) { lineEls.push(<br key={key++} />); continue; }
+        // Normal line with inline formatting
+        lineEls.push(<span key={key++} className="md-line">{renderInline(line)}</span>);
+        if (i < lines.length - 1 && lines[i + 1]?.trim()) lineEls.push(<br key={key++} />);
+      }
+      elements.push(<React.Fragment key={key++}>{lineEls}</React.Fragment>);
+    }
+  }
+  return <>{elements}</>;
+});
+
+function renderInline(text) {
+  // Process: bold, italic, inline code, links
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+  const rx = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[([^\]]+)\]\(([^)]+)\))/g;
+  let lastIdx = 0;
+  let m;
+  while ((m = rx.exec(remaining)) !== null) {
+    if (m.index > lastIdx) parts.push(remaining.slice(lastIdx, m.index));
+    const tok = m[0];
+    if (tok.startsWith('`')) parts.push(<code key={key++} className="md-inline-code">{tok.slice(1, -1)}</code>);
+    else if (tok.startsWith('**')) parts.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
+    else if (tok.startsWith('*')) parts.push(<em key={key++}>{tok.slice(1, -1)}</em>);
+    else if (m[2] && m[3]) parts.push(<a key={key++} href={m[3]} target="_blank" rel="noopener noreferrer" className="md-link">{m[2]}</a>);
+    lastIdx = m.index + tok.length;
+  }
+  if (lastIdx < remaining.length) parts.push(remaining.slice(lastIdx));
+  return parts.length ? parts : text;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ISLAND — vertical swipe to dismiss (up for top, down for bottom)
+// ═══════════════════════════════════════════════════════════════════════════
+const Island = ({ children, className = '', floating = false, glow = false, dismissable = false, position = 'top' }) => {
+  const [dismissed, setDismissed] = React.useState(false);
+  const [dragY, setDragY] = React.useState(0);
+  const [dragging, setDragging] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+  const ref = React.useRef(null);
+  const startRef = React.useRef(null);
+
+  React.useEffect(() => { setMounted(true); }, []);
+
+  const onPointerDown = React.useCallback((e) => {
+    if (!dismissable || !ref.current) return;
+    // Only start drag from the island border area or direct island — not from buttons/inputs
+    const tag = e.target.tagName.toLowerCase();
+    if (['button', 'input', 'textarea', 'select', 'a'].includes(tag) || e.target.closest('button, input, textarea, a')) return;
+    const cy = e.clientY || (e.touches?.[0]?.clientY ?? 0);
+    startRef.current = { y: cy };
+    setDragging(true);
+    const onMove = (ev) => {
+      ev.preventDefault();
+      const my = ev.clientY || (ev.touches?.[0]?.clientY ?? 0);
+      const dy = my - startRef.current.y;
+      // Top island: only allow dragging up (negative). Bottom: only down (positive).
+      const toward = position === 'top' ? dy < 0 : dy > 0;
+      if (toward) setDragY(dy);
+      else setDragY(dy * 0.12); // rubber-band resistance
+    };
+    const onUp = (ev) => {
+      const uy = (ev.clientY || ev.changedTouches?.[0]?.clientY) ?? 0;
+      const dy = uy - startRef.current.y;
+      const toward = position === 'top' ? dy < 0 : dy > 0;
+      if (toward && Math.abs(dy) > 60) setDismissed(true);
+      setDragY(0); setDragging(false);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }, [dismissable, position]);
+
+  if (dismissed) return (
+    <button
+      className={`island-restore island-restore-enter ${position === 'top' ? 'restore-top' : 'restore-bottom'}`}
+      onClick={() => { setDismissed(false); setMounted(false); setTimeout(() => setMounted(true), 50); }}
+    >
+      <ChevronDown size={14} style={{ transform: position === 'top' ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+    </button>
+  );
+
+  const style = dragY ? {
+    transform: `translateY(${dragY}px)`,
+    opacity: 1 - Math.min(Math.abs(dragY) / 120, 0.5),
+    transition: dragging ? 'none' : 'transform 0.35s cubic-bezier(.2,.9,.3,1), opacity 0.35s ease'
+  } : {};
+
+  return (
+    <div ref={ref}
+      className={`island ${!mounted ? 'island-enter' : ''} ${className} ${floating ? 'floating' : ''} ${glow ? 'glow' : ''} ${dismissable ? 'dismissable' : ''}`}
+      style={style} onPointerDown={dismissable ? onPointerDown : undefined}>
+      {dismissable && <div className={`island-hint ${position === 'top' ? 'hint-up' : 'hint-down'}`}><ChevronDown size={10} /></div>}
+      {children}
+    </div>
+  );
+};
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -425,7 +555,7 @@ const ArtifactCard = ({ artifact }) => {
         </div>
       </div>
       {mode === 'preview' && canPreview ? (
-        <iframe ref={iframeRef} className="artifact-preview" sandbox="allow-scripts allow-same-origin" />
+        <iframe ref={iframeRef} className="artifact-preview" sandbox="allow-scripts" />
       ) : (
         <pre className="artifact-code"><code>{artifact.content}</code></pre>
       )}
@@ -486,7 +616,7 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, onRegen, onFork, 
         )}
         {parsed.artifact && <ArtifactCard artifact={parsed.artifact} />}
         <div className="message-text">
-          {parsed.main}
+          {msg.role === 'assistant' ? <MarkdownText text={parsed.main} /> : parsed.main}
           {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor">{'\u258C'}</span>}
         </div>
         {msg.role === 'assistant' && <RedactionNotice count={msg.redactionCount} />}
@@ -663,14 +793,20 @@ const Sidebar = ({
 // ═══════════════════════════════════════════════════════════════════════════
 // EMPTY STATE
 // ═══════════════════════════════════════════════════════════════════════════
+const KuroCube = () => (
+  <div className="kuro-cube-wrap">
+    <div className="kuro-cube">
+      <div className="kc-face kc-ft" /><div className="kc-face kc-bk" />
+      <div className="kc-face kc-rt" /><div className="kc-face kc-lt" />
+      <div className="kc-face kc-tp" /><div className="kc-face kc-bt" />
+    </div>
+  </div>
+);
+
 const EmptyState = ({ onSuggestion, agents, activeAgent, profileDef }) => {
-  const agent = agents[activeAgent] || Object.values(agents)[0];
-  const AgentIcon = resolveIcon(agent?.icon);
   return (
     <div className="empty-state">
-      <div className="empty-icon" style={{ '--agent-color': agent?.color || '#a855f7' }}>
-        <AgentIcon size={40} />
-      </div>
+      <KuroCube />
       <h1>KURO</h1>
       <TypingAnimation />
       {profileDef && (
@@ -1070,7 +1206,7 @@ export default function KuroChat() {
           <PolicyBanner notice={policyNotice} agents={agents} onDismiss={() => setPolicyNotice(null)} />
 
           {/* Header */}
-          <Island className="header-island" floating glow>
+          <Island className="header-island" floating glow dismissable position="top">
             <button className="icon-btn" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button>
             <AgentSelector
               active={activeAgent}
@@ -1139,7 +1275,7 @@ export default function KuroChat() {
           <ConnectionStatus error={connectionError} />
 
           {/* Input */}
-          <Island className="input-island" floating glow>
+          <Island className="input-island" floating glow dismissable position="bottom">
             <div className="input-main">
               <button className="icon-btn" onClick={() => fileInputRef.current?.click()}><Paperclip size={18} /></button>
               <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
@@ -1236,6 +1372,33 @@ export default function KuroChat() {
 }
 .island.floating { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5); }
 .island.glow { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px -20px var(--accent-glow); }
+.island.dismissable { touch-action: none; }
+.island-enter { animation: islandSlideIn 0.4s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes islandSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Dismiss hint — subtle directional chevron */
+.island-hint {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.12); pointer-events: none;
+  animation: hintPulse 3s ease-in-out infinite;
+}
+.island-hint.hint-up { top: -14px; }
+.island-hint.hint-up svg { transform: rotate(180deg); }
+.island-hint.hint-down { bottom: -14px; }
+@keyframes hintPulse { 0%,100% { opacity: 0; transform: translateX(-50%) translateY(0); } 50% { opacity: 1; transform: translateX(-50%) translateY(-2px); } }
+
+/* Restore pill */
+.island-restore {
+  position: absolute; z-index: 50; left: 50%; transform: translateX(-50%);
+  background: rgba(30,30,34,0.7); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 6px 16px; cursor: pointer; color: rgba(255,255,255,0.4);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: all 0.2s;
+}
+.island-restore:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+.restore-top { top: 8px; }
+.restore-bottom { bottom: 8px; }
+.island-restore-enter { animation: restoreSlideIn 0.35s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes restoreSlideIn { from { opacity: 0; transform: translateX(-50%) scale(0.85); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
 
 /* ═══ PILL ═══ */
 .pill {
@@ -1497,7 +1660,7 @@ export default function KuroChat() {
 .icon-btn:hover { background: var(--surface); color: var(--text); }
 
 /* ═══ MESSAGES ═══ */
-.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 200px; }
+.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 200px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .messages { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 .message { display: flex; gap: 12px; animation: msgIn 0.3s ease; }
 @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1518,9 +1681,23 @@ export default function KuroChat() {
   border-radius: var(--radius-md);
   padding: 14px 18px;
 }
-.message-text { font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.message-text { font-size: 15px; line-height: 1.65; word-break: break-word; }
+.message.user .message-text { white-space: pre-wrap; }
 .stream-cursor { color: var(--accent); animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* ═══ MARKDOWN ═══ */
+.md-codeblock { position: relative; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; font-size: 13px; line-height: 1.5; font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace; }
+.md-codeblock code { color: rgba(255,255,255,0.85); }
+.md-lang { position: absolute; top: 4px; right: 8px; font-size: 10px; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 1px; font-family: inherit; }
+.md-inline-code { background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', ui-monospace, monospace; color: rgba(255,255,255,0.85); }
+.md-h { margin: 12px 0 4px; font-weight: 600; color: rgba(255,255,255,0.9); }
+h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0.95em; }
+.md-li { margin-left: 16px; padding-left: 4px; list-style: disc; display: list-item; }
+.md-li.md-ol { list-style: decimal; }
+.md-link { color: #a78bfa; text-decoration: none; border-bottom: 1px solid rgba(167,139,250,0.3); }
+.md-link:hover { color: #c4b5fd; border-bottom-color: rgba(196,181,253,0.5); }
+.md-line { display: inline; }
 .message-actions { display: flex; gap: 4px; margin-top: 8px; animation: fadeIn 0.15s ease; }
 .message-actions button {
   width: 28px; height: 28px;
@@ -1611,15 +1788,15 @@ export default function KuroChat() {
   text-align: center;
   min-height: 60vh;
 }
-.empty-icon {
-  width: 72px; height: 72px;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--agent-color, var(--accent)), #6366f1);
-  border-radius: 50%;
-  margin-bottom: 20px;
-  box-shadow: 0 0 60px var(--accent-glow);
-}
-.empty-icon svg { color: white; }
+/* ═══ KURO CUBE (EmptyState) ═══ */
+.kuro-cube-wrap { perspective: 600px; width: 80px; height: 80px; margin: 0 auto 16px; }
+.kuro-cube { width: 52px; height: 52px; position: relative; transform-style: preserve-3d; animation: kcSpin 20s linear infinite; margin: 14px auto; }
+@keyframes kcSpin { from { transform: rotateX(-20deg) rotateY(-30deg); } to { transform: rotateX(-20deg) rotateY(330deg); } }
+.kc-face { position: absolute; width: 52px; height: 52px; background: linear-gradient(135deg,rgba(91,33,182,.35),rgba(76,29,149,.25) 50%,rgba(49,10,101,.45)); border: 1px solid rgba(139,92,246,.25); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.kc-ft { transform: translateZ(26px); } .kc-bk { transform: rotateY(180deg) translateZ(26px); }
+.kc-rt { transform: rotateY(90deg) translateZ(26px); } .kc-lt { transform: rotateY(-90deg) translateZ(26px); }
+.kc-tp { transform: rotateX(90deg) translateZ(26px); } .kc-bt { transform: rotateX(-90deg) translateZ(26px); }
+@media (prefers-reduced-motion: reduce) { .kuro-cube { animation: none; transform: rotateX(-20deg) rotateY(-30deg); } }
 .empty-state h1 { font-size: 32px; font-weight: 600; margin: 0 0 8px; }
 .empty-profile {
   display: flex; align-items: center; gap: 6px;
@@ -1749,23 +1926,71 @@ export default function KuroChat() {
 .drop-zone svg { color: var(--accent); }
 .drop-zone span { font-size: 16px; color: var(--text-2); }
 
-/* ═══ RESPONSIVE — RT-17: Scope stays visible ═══ */
+/* ═══ RESPONSIVE ═══ */
+
+/* Tablet (iPad portrait / landscape) */
+@media (max-width: 1024px) {
+  .header-island { top: 10px; left: 10px; right: 10px; padding: 7px 10px; gap: 10px; }
+  .input-island { bottom: 12px; left: 12px; right: 12px; padding: 11px; max-width: 680px; }
+  .messages-scroll { padding: 76px 14px 190px; }
+  .messages { max-width: 680px; gap: 20px; }
+  .message-text { font-size: 14.5px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .send-btn { width: 34px; height: 34px; }
+  .voice-btn { width: 34px; height: 34px; }
+  .empty-state h1 { font-size: 28px; }
+  .typing-anim { font-size: 15px; }
+}
+
+/* Phone (iPhone / Android) — RT-17: Scope stays visible */
 @media (max-width: 768px) {
-  .header-island { top: 8px; left: 8px; right: 8px; padding: 6px 8px; gap: 8px; }
-  .input-island { bottom: 8px; left: 8px; right: 8px; padding: 10px; }
-  .messages-scroll { padding: 90px 12px 180px; }
+  .header-island { top: 6px; left: 6px; right: 6px; padding: 6px 8px; gap: 6px; }
+  .input-island { bottom: 6px; left: 6px; right: 6px; padding: 10px; max-width: none; }
+  .messages-scroll { padding: 82px 10px 170px; }
+  .messages { gap: 16px; }
+  .message { gap: 8px; }
+  .message-avatar { width: 28px; height: 28px; }
+  .message-text { font-size: 14px; line-height: 1.55; }
+  .input-main textarea { font-size: 16px; }
+  .icon-btn { width: 32px; height: 32px; }
+  .send-btn { width: 34px; height: 34px; }
   .quick-actions { flex-direction: column; }
+  .quick-action { font-size: 13px; }
   .skill-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
   .input-meta { display: none; }
   .pd-label { display: none; }
-  .pd-btn { padding: 4px 6px; }
+  .pd-btn { padding: 4px 6px; font-size: 11px; }
   .power-dial { gap: 1px; }
   .scope-indicator .scope-label { display: none; }
   .scope-indicator { gap: 2px; }
   .scope-badge { font-size: 9px; padding: 1px 4px; }
   .agent-current span { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .policy-banner { left: 8px; right: 8px; transform: none; flex-wrap: wrap; }
-  .connection-error { left: 8px; right: 8px; transform: none; }
+  .policy-banner { left: 6px; right: 6px; transform: none; flex-wrap: wrap; }
+  .connection-error { left: 6px; right: 6px; transform: none; }
+  .token-badge { display: none; }
+  .empty-state h1 { font-size: 24px; }
+  .empty-state { padding: 40px 16px; min-height: 50vh; }
+  .kuro-cube-wrap { width: 64px; height: 64px; }
+  .kuro-cube { width: 42px; height: 42px; }
+  .kc-face { width: 42px; height: 42px; }
+  .kc-ft { transform: translateZ(21px); } .kc-bk { transform: rotateY(180deg) translateZ(21px); }
+  .kc-rt { transform: rotateY(90deg) translateZ(21px); } .kc-lt { transform: rotateY(-90deg) translateZ(21px); }
+  .kc-tp { transform: rotateX(90deg) translateZ(21px); } .kc-bt { transform: rotateX(-90deg) translateZ(21px); }
+  .md-codeblock { font-size: 12px; padding: 10px 12px; }
+}
+
+/* Small phone (iPhone SE / Mini / compact) */
+@media (max-width: 430px) {
+  .header-island { top: 4px; left: 4px; right: 4px; padding: 5px 6px; gap: 4px; }
+  .input-island { bottom: 4px; left: 4px; right: 4px; padding: 8px; }
+  .messages-scroll { padding: 74px 8px 160px; }
+  .message-text { font-size: 13.5px; }
+  .agent-selector { font-size: 12px; }
+  .agent-current span { max-width: 48px; }
+  .pill { padding: 5px 10px; font-size: 11px; }
+  .pill.compact { padding: 3px 8px; font-size: 10px; }
+  .empty-state h1 { font-size: 22px; }
+  .quick-action { padding: 10px 14px; font-size: 12px; }
 }
         `}</style>
       </div>

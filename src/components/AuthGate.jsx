@@ -37,6 +37,7 @@ export default function AuthGate() {
   const [loading, setLoading] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const inputRef = useRef(null);
+  const submittingRef = useRef(false);
   const { signup, login, verifyEmail, forgotPassword, resetPassword, tokenLogin } = useAuthStore();
 
   useEffect(() => { if (stage === 2) setTimeout(() => inputRef.current?.focus(), 150); }, [mode, stage]);
@@ -46,6 +47,8 @@ export default function AuthGate() {
   const switchMode = (m) => { setMode(m); reset(); };
 
   const submit = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     reset(); setLoading(true);
     // Require terms agreement for signup and token modes
     if (['signup', 'token'].includes(mode) && !agreeTerms) {
@@ -76,6 +79,7 @@ export default function AuthGate() {
       }
     } catch (e) { setError(e.message || 'Something went wrong.'); }
     setLoading(false);
+    submittingRef.current = false;
   };
 
   const onKey = e => { if (e.key === 'Enter') submit(); };
@@ -93,8 +97,11 @@ export default function AuthGate() {
           <p className="ag-sub">SOVEREIGN INTELLIGENCE PLATFORM</p>
         </div>
         <div className="ag-body">
-          <button className="ag-btn ag-submit" onClick={() => setStage(2)}>
-            Continue
+          <button className="ag-btn ag-submit" onClick={() => { setMode('signup'); setStage(2); }}>
+            Create Account
+          </button>
+          <button className="ag-btn ag-oauth" onClick={() => { setMode('login'); setStage(2); }}>
+            Sign In
           </button>
           <div className="ag-footer-inline">
             <span className="ag-legal">By continuing you agree to our</span>
@@ -157,7 +164,7 @@ export default function AuthGate() {
           {mode === 'otp' && (
             <>
               <p className="ag-hint">6-digit code sent to <strong>{form.email}</strong></p>
-              <input type="text" placeholder="000000" value={form.code} maxLength={6} ref={inputRef}
+              <input type="text" inputMode="numeric" placeholder="000000" value={form.code} maxLength={6} ref={inputRef}
                 onChange={e => upd('code', e.target.value.replace(/\D/g, ''))}
                 className="ag-input ag-otp" autoComplete="one-time-code" onKeyDown={onKey} />
             </>

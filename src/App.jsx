@@ -13,6 +13,8 @@ import AuthGate from './components/AuthGate';
 import CookieBanner from './components/CookieBanner';
 import DesktopBackground from './components/DesktopBackground';
 import KuroChatApp from './components/apps/KuroChatApp';
+import AdminApp from './components/apps/AdminApp';
+import KuroIcon from './components/KuroIcon';
 
 const APP_COMPONENTS = {
   KuroChatApp: KuroChatApp,
@@ -24,6 +26,7 @@ const APP_COMPONENTS = {
   LiveEditApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>LiveEdit — Coming Soon</div>,
   SettingsApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Settings — Coming Soon</div>,
   SandboxApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Sandbox — Coming Soon</div>,
+  AdminApp: AdminApp,
   AboutApp: () => (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,padding:32}}>
       <div className="about-cube"><div className="about-cube-inner">
@@ -61,6 +64,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
     dragRef.current = { startX: clientX - (win?.x || 0), startY: clientY - (win?.y || 0) };
     focusWindow(appId);
     const onMove = (ev) => {
+      ev.preventDefault();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
       updateWindowPosition(appId, cx - dragRef.current.startX, cy - dragRef.current.startY);
@@ -70,7 +74,9 @@ function AppWindow({ appId, children, noClose, title, icon }) {
       document.removeEventListener('mouseup', onEnd);
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
+      document.documentElement.classList.remove('is-dragging');
     };
+    document.documentElement.classList.add('is-dragging');
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -85,6 +91,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
     resizeRef.current = { startX: clientX, startY: clientY, startW: win?.width || 800, startH: win?.height || 600 };
     focusWindow(appId);
     const onMove = (ev) => {
+      ev.preventDefault();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
       updateWindowSize(appId, Math.max(400, resizeRef.current.startW + (cx - resizeRef.current.startX)), Math.max(300, resizeRef.current.startH + (cy - resizeRef.current.startY)));
@@ -94,7 +101,9 @@ function AppWindow({ appId, children, noClose, title, icon }) {
       document.removeEventListener('mouseup', onEnd);
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
+      document.documentElement.classList.remove('is-dragging');
     };
+    document.documentElement.classList.add('is-dragging');
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -119,7 +128,8 @@ function AppWindow({ appId, children, noClose, title, icon }) {
           <button className="tl tl-min" onClick={(e) => { e.stopPropagation(); minimizeApp(appId); }} aria-label="Minimize" />
           <button className="tl tl-max" onClick={(e) => { e.stopPropagation(); maximizeApp(appId); }} aria-label="Maximize" />
         </div>
-        <span className="window-title">{displayIcon} {displayTitle}</span>
+        <span className="window-title"><KuroIcon name={appId} size={14} color="rgba(255,255,255,0.6)" style={{verticalAlign:'middle',marginRight:6}} />{displayTitle}</span>
+        <div className="titlebar-spacer" />
       </div>
       <div className="window-content">{children}</div>
       {!win.isMaximized && <div className="resize-handle" onMouseDown={onResizeStart} onTouchStart={onResizeStart} />}
@@ -159,7 +169,8 @@ function GlassDock({ isLocked, onLockedAppClick }) {
   const { pinnedApps, apps, windows, openApp, focusWindow, restoreApp, toggleGlassPanel, glassPanelOpen } = useOSStore();
   const { user } = useAuthStore();
   const userTier = user?.tier || 'free';
-  const pinnedAppData = apps.filter(a => pinnedApps.includes(a.id));
+  const isAdmin = user?.isAdmin;
+  const pinnedAppData = apps.filter(a => pinnedApps.includes(a.id)).filter(a => a.id !== 'kuro.admin' || isAdmin);
 
   const handleClick = (app) => {
     // When locked (no user), all apps redirect to AuthGate window
@@ -191,7 +202,7 @@ function GlassDock({ isLocked, onLockedAppClick }) {
         return (
           <button key={app.id} className={`dock-item ${windows[app.id]?.isOpen ? 'open' : ''} ${locked ? 'locked' : ''}`}
             onClick={() => handleClick(app)} title={app.name}>
-            <span className="dock-icon">{app.icon}</span>
+            <span className="dock-icon"><KuroIcon name={app.id} size={22} color="rgba(255,255,255,0.85)" /></span>
             {locked && !isLocked && <LockBadge minTier={app.minTier} />}
             {locked && isLocked && <span className="lock-badge" style={{background:'rgba(255,255,255,0.15)'}}>🔒</span>}
             {windows[app.id]?.isOpen && !locked && <div className="dock-indicator" />}
@@ -228,6 +239,7 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
   const { apps, openApp, glassPanelOpen } = useOSStore();
   const { user } = useAuthStore();
   const userTier = user?.tier || 'free';
+  const isAdmin = user?.isAdmin;
 
   if (!glassPanelOpen) return null;
 
@@ -242,11 +254,11 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
     <div className="glass-panel">
       <div className="panel-header">KURO OS</div>
       <div className="panel-grid">
-        {apps.map(app => {
+        {apps.filter(a => a.id !== 'kuro.admin' || isAdmin).map(app => {
           const locked = isLocked || ((TIER_LEVEL[userTier] || 0) < (TIER_LEVEL[app.minTier] || 0));
           return (
             <button key={app.id} className={`panel-app ${locked ? 'locked' : ''}`} onClick={() => handleClick(app)}>
-              <span className="panel-icon">{app.icon}</span>
+              <span className="panel-icon"><KuroIcon name={app.id} size={28} color="rgba(255,255,255,0.85)" /></span>
               <span className="panel-label">{app.name}</span>
               {locked && !isLocked && <LockBadge minTier={app.minTier} />}
             </button>
@@ -358,7 +370,7 @@ export default function App() {
 
         <style>{`
 .kuro-desktop {
-  width: 100vw; height: 100vh; overflow: hidden; position: relative;
+  width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; position: fixed; inset: 0;
   background: var(--lg-surface-0, #000); color: var(--lg-text-primary, #fff);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 }
@@ -371,12 +383,18 @@ export default function App() {
   box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.1);
 }
 .window-titlebar {
-  height: 42px; display: flex; align-items: center; padding: 0 12px; gap: 8px;
-  background: rgba(30,30,34,0.6); cursor: grab; user-select: none; flex-shrink: 0;
+  height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 12px;
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(60px) saturate(1.8); -webkit-backdrop-filter: blur(60px) saturate(1.8);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  cursor: grab; user-select: none; flex-shrink: 0;
   -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .window-titlebar:active { cursor: grabbing; }
+.window-titlebar { touch-action: none; }
+.resize-handle { touch-action: none; }
 .traffic-lights { display: flex; gap: 7px; align-items: center; }
+.titlebar-spacer { min-width: 55px; }
 .tl {
   width: 13px; height: 13px; border-radius: 50%; border: none; cursor: pointer;
   transition: opacity 0.15s, transform 0.1s; opacity: 0.8;
@@ -389,12 +407,26 @@ export default function App() {
 .tl-max { background: #28c840; }
 .window-title { font-size: 13px; color: var(--lg-text-secondary, rgba(255,255,255,0.7)); flex: 1; text-align: center; }
 .window-content { flex: 1; overflow: auto; position: relative; }
-.resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+.resize-handle {
+  position: absolute; bottom: 0; right: 0; width: 28px; height: 28px; cursor: nwse-resize; z-index: 10;
+  background: transparent;
+}
+.resize-handle::after {
+  content: ''; position: absolute; bottom: 3px; right: 3px;
+  width: 14px; height: 14px;
+  border-right: 1.5px solid rgba(255,255,255,0.15);
+  border-bottom: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 0 0 10px 0;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.resize-handle:hover::after { border-color: rgba(168,85,247,0.4); border-width: 2px; }
+.resize-handle:active::after { border-color: rgba(168,85,247,0.7); border-width: 2px; }
 
 /* ═══ DOCK ═══ */
 .glass-dock {
   position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px; padding: 6px 12px;
+  touch-action: manipulation;
   background: rgba(30,30,34,0.7);
   backdrop-filter: blur(var(--lg-blur-standard, 40px)); -webkit-backdrop-filter: blur(var(--lg-blur-standard, 40px));
   border-radius: var(--lg-radius-lg, 18px); border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.1)); z-index: 9999;
@@ -489,10 +521,35 @@ export default function App() {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+/* ═══ TABLET (iPad portrait & landscape) ═══ */
+@media (max-width: 1024px) {
+  .app-window { border-radius: 12px; }
+  .window-titlebar { height: 40px; padding: 0 10px; }
+  .tl { width: 12px; height: 12px; }
+  .window-title { font-size: 12px; }
+  .glass-dock { bottom: 10px; padding: 5px 10px; gap: 3px; }
+  .dock-cube, .dock-item { width: 42px; height: 42px; }
+  .dock-icon { font-size: 22px; }
+  .glass-panel { width: 360px; bottom: 72px; padding: 18px; }
+  .panel-icon { font-size: 26px; }
+  .panel-label { font-size: 10px; }
+}
+
+/* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
-  .glass-dock { bottom: 8px; padding: 4px 8px; }
+  .app-window { border-radius: 0; }
+  .window-titlebar { height: 38px; padding: 0 8px; }
+  .tl { width: 11px; height: 11px; }
+  .tl-close-disabled { width: 11px; height: 11px; }
+  .traffic-lights { gap: 6px; }
+  .window-title { font-size: 12px; }
+  .titlebar-spacer { min-width: 42px; }
+  .glass-dock { bottom: 8px; padding: 4px 8px; gap: 2px; border-radius: 16px; }
   .dock-cube, .dock-item { width: 38px; height: 38px; }
   .dock-icon { font-size: 20px; }
+  .dock-sep { height: 22px; margin: 0 2px; }
+  .dock-user { width: 30px; height: 30px; }
+  .dock-user-tier { font-size: 11px; }
   .start-cube-wrap { width: 18px; height: 18px; }
   .start-cube { width: 18px; height: 18px; }
   .cube-face { width: 18px; height: 18px; }
@@ -502,8 +559,35 @@ export default function App() {
   .cube-face.right  { transform: rotateY(90deg) translateZ(9px); }
   .cube-face.top    { transform: rotateX(90deg) translateZ(9px); }
   .cube-face.bottom { transform: rotateX(-90deg) translateZ(9px); }
-  .glass-panel { width: calc(100vw - 24px); bottom: 66px; }
-  .panel-grid { grid-template-columns: repeat(3, 1fr); }
+  .glass-panel { width: calc(100vw - 24px); bottom: 62px; padding: 16px; }
+  .panel-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .panel-app { padding: 10px 4px; gap: 5px; }
+  .panel-icon { font-size: 24px; }
+  .panel-label { font-size: 9px; }
+  .panel-header { font-size: 12px; margin-bottom: 12px; }
+}
+
+/* ═══ SMALL PHONE (iPhone SE / Mini) ═══ */
+@media (max-width: 430px) {
+  .glass-dock { padding: 3px 6px; gap: 1px; border-radius: 14px; }
+  .dock-cube, .dock-item { width: 34px; height: 34px; }
+  .dock-icon { font-size: 18px; }
+  .dock-sep { height: 20px; }
+  .dock-user { width: 28px; height: 28px; }
+  .dock-user-tier { font-size: 10px; }
+  .start-cube-wrap { width: 16px; height: 16px; }
+  .start-cube { width: 16px; height: 16px; }
+  .cube-face { width: 16px; height: 16px; }
+  .cube-face.front  { transform: translateZ(8px); }
+  .cube-face.back   { transform: rotateY(180deg) translateZ(8px); }
+  .cube-face.left   { transform: rotateY(-90deg) translateZ(8px); }
+  .cube-face.right  { transform: rotateY(90deg) translateZ(8px); }
+  .cube-face.top    { transform: rotateX(90deg) translateZ(8px); }
+  .cube-face.bottom { transform: rotateX(-90deg) translateZ(8px); }
+  .glass-panel { width: calc(100vw - 16px); bottom: 56px; padding: 14px; }
+  .panel-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .panel-app { padding: 8px 2px; }
+  .panel-icon { font-size: 22px; }
 }
         `}</style>
       </div>

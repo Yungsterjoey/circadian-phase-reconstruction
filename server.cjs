@@ -28,7 +28,7 @@ const cookieParser = require('cookie-parser');
 const PROFILES = {
   gov: { name:'Government', safety:true, execAllowed:false, writeScope:'data', auditLevel:'full', maxAgentTier:1, redaction:true, retention:'7y', blockNSFW:true, corsOrigin:'same' },
   enterprise: { name:'Enterprise', safety:true, execAllowed:true, writeScope:'data', auditLevel:'full', maxAgentTier:3, redaction:true, retention:'3y', blockNSFW:false, corsOrigin:'whitelist' },
-  lab: { name:'Laboratory', safety:false, execAllowed:true, writeScope:'all', auditLevel:'standard', maxAgentTier:3, redaction:false, retention:'90d', blockNSFW:false, corsOrigin:'*' }
+  lab: { name:'Laboratory', safety:false, execAllowed:true, writeScope:'all', auditLevel:'standard', maxAgentTier:3, redaction:false, retention:'90d', blockNSFW:false, corsOrigin:'localhost' }
 };
 const ACTIVE_PROFILE = process.env.KURO_PROFILE || 'enterprise';
 const PROFILE = PROFILES[ACTIVE_PROFILE] || PROFILES.enterprise;
@@ -88,7 +88,9 @@ try {
   sanitizeSessionId=(s)=>s?.replace(/[^a-zA-Z0-9\-_]/g,'').slice(0,64)||null;
   sanitizeFilename=(f)=>f?.replace(/[\/\\:*?"<>|\.\.]/g,'_').slice(0,128)||`upload_${Date.now()}`;
   validatePath=()=>({safe:true}); validateMode=(m)=>m||'main'; validateNamespace=(n)=>n||'edubba';
-  validateBody=()=>({valid:true,errors:[]}); securityHeaders=(q,s,n)=>n(); requestIdMw=(q,s,n)=>{q.requestId=crypto.randomBytes(8).toString('hex');n();};
+  validateBody=()=>({valid:true,errors:[]});
+  securityHeaders=(q,s,n)=>{s.setHeader('X-Content-Type-Options','nosniff');s.setHeader('X-Frame-Options','DENY');s.setHeader('X-XSS-Protection','1; mode=block');s.setHeader('Referrer-Policy','strict-origin-when-cross-origin');s.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');n();};
+  requestIdMw=(q,s,n)=>{q.requestId=crypto.randomBytes(8).toString('hex');n();};
 }
 
 // Guest Gate
@@ -245,8 +247,8 @@ const MODEL_REGISTRY = {
   // Brain: heavy reasoning (resident, ~11GB)
   // Budget: 3 + 11 + 4 (KV cache) = 18GB used, 6GB headroom
 
-  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'gemma3:4b',                                  ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Gemma 4B)', vram: 3 },
-  'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-abliterated:14b-v2',        ctx: 16384, thinking: true,  tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3 14B)', vram: 11 },
+  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'devstral:24b',                                   ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Devstral 24B)', vram: 14 },
+  'kuro-core':     { name: 'KURO::CORE',     ollama: 'devstral:24b',                               ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Devstral 24B)', vram: 14 },
   'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                          ctx: 2048,  embedding: true, tier: 'subconscious' }
 };
 
@@ -345,6 +347,25 @@ if (createStripeRoutes) {
   app.use('/api/stripe', createStripeRoutes(auth));
   console.log('[STRIPE] Checkout + portal routes mounted');
 }
+
+// Admin routes (lightweight, no separate file)
+try {
+  const { stmts: adminStmts } = require('./layers/auth/db.cjs');
+  const requireAdmin = (req, res, next) => {
+    if (!req.user || req.user.userId === 'anon') return res.status(401).json({ error: 'Auth required' });
+    const row = adminStmts.isAdmin.get(req.user.userId);
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  };
+  app.get('/api/admin/whoami', auth.required, requireAdmin, (req, res) => {
+    res.json({ admin: true, userId: req.user.userId, email: req.user.email, tier: req.user.tier });
+  });
+  app.get('/api/admin/users', auth.required, requireAdmin, (req, res) => {
+    const users = adminStmts.listUsers.all();
+    res.json({ users, count: users.length });
+  });
+  console.log('[ADMIN] Routes mounted at /api/admin/*');
+} catch(e) { console.warn('[ADMIN] Failed to mount:', e.message); }
 
 // Sandbox routes (isolated code execution for Pro/Sovereign)
 if (createSandboxRoutes) {
@@ -731,7 +752,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     if (tierGate && !req.isGuest && req.user) tierGate.recordUsage(req.user.userId, 'chat');
 
     logEvent({ agent: ar.agentId, action: 'stream_complete', requestId: req.requestId, clientFingerprint: fp, userId: user.userId, meta: { tokens: tc, mode: ar.mode, sid, isGuest: !!req.isGuest } });
-  } catch(err) { sendSSE(res, { type: 'error', message: err.message }); logEvent({ agent: 'system', action: 'stream_error', requestId: req.requestId, result: 'error', userId: user.userId, meta: { error: err.message } }); }
+  } catch(err) { const errMsg = err?.message || 'Unknown error'; sendSSE(res, { type: 'error', message: errMsg }); logEvent({ agent: 'system', action: 'stream_error', requestId: req.requestId, result: 'error', userId: user.userId, meta: { error: errMsg } }); }
   streamController.unregisterStream(sid);
   setStreaming(false); // B5: allow model warming again
   clearInterval(ka); res.end();
@@ -770,7 +791,7 @@ app.get('/api/health', (_, res) => { res.json({ status: 'ok', version: 'v9.0', a
 
 app.post('/api/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' }), (req, res) => { const fn = sanitizeFilename(req.headers['x-filename']); const up = path.join(DATA_DIR, 'uploads', fn); if (!path.resolve(up).startsWith(path.join(DATA_DIR, 'uploads'))) return res.status(400).json({ error: 'Invalid filename' }); logEvent({ agent: 'system', action: 'upload', target: fn, userId: req.user.userId, requestId: req.requestId }); try { fs.writeFileSync(up, req.body); res.json({ success: true, path: up, size: req.body.length }); } catch(e) { res.status(500).json({ error: e.message }); } });
 
-app.get('/api/files', auth.required, (req, res) => { const dp = req.query.path || DATA_DIR; const scope = req.user.devAllowed ? 'actions' : (req.user.level >= 2 ? 'analysis' : 'insights'); try { const f = fileConn.list ? fileConn.list(dp, req.user.userId, scope) : []; res.json({ files: f, path: dp }); } catch(e) { res.status(404).json({ error: e.message }); } });
+app.get('/api/files', auth.required, (req, res) => { const dp = req.query.path || DATA_DIR; const resolved = path.resolve(dp); if (!resolved.startsWith(path.resolve(DATA_DIR)) && !resolved.startsWith(path.resolve(CODE_DIR))) return res.status(403).json({ error: 'Path outside allowed scope' }); const scope = req.user.devAllowed ? 'actions' : (req.user.level >= 2 ? 'analysis' : 'insights'); try { const f = fileConn.list ? fileConn.list(dp, req.user.userId, scope) : []; res.json({ files: f, path: dp }); } catch(e) { res.status(404).json({ error: e.message }); } });
 app.get('/api/sessions', auth.analyst, (req, res) => { try { res.json(sessionConn.aggregate ? sessionConn.aggregate(req.user.userId) : { totalSessions: 0, sessions: [] }); } catch(e) { res.json({ totalSessions: 0, sessions: [] }); } });
 app.get('/api/profile', guestOrAuth(resolveUser), (_, res) => { res.json({ active: ACTIVE_PROFILE, profile: PROFILE, available: Object.keys(PROFILES) }); });
 app.get('/api/guest/quota', (_req, res) => { const q = checkGuestQuota(_req); res.json(q); });
@@ -879,6 +900,20 @@ app.use((req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══ Startup model validation ═══
+(async () => {
+  try {
+    const { data } = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
+    const available = new Set((data.models || []).map(m => m.name));
+    const required = Object.entries(MODEL_REGISTRY).filter(([,c]) => !c.embedding);
+    for (const [id, cfg] of required) {
+      const ok = available.has(cfg.ollama) || available.has(cfg.ollama.split(':')[0]);
+      if (!ok) console.warn(`[STARTUP] WARNING: Model '${cfg.ollama}' (${id}) not found in Ollama. Chat will fail for this model.`);
+      else console.log(`[STARTUP] Model '${cfg.ollama}' (${id}) — OK`);
+    }
+  } catch(e) { console.warn(`[STARTUP] Could not reach Ollama at ${OLLAMA_URL} — models not validated`); }
+})();
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   logEvent({ agent: 'system', action: 'server_start', meta: { port: PORT, version: 'v9.0', profile: ACTIVE_PROFILE } });
   console.log('\n  KURO OS v9.0 — UNIFIED BUILD (L4)');

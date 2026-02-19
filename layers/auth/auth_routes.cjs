@@ -223,6 +223,12 @@ function createAuthRoutes(authMiddleware) {
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
+      // Auto-promote admin on login if KURO_ADMIN_EMAIL matches
+      const adminEmail = process.env.KURO_ADMIN_EMAIL;
+      if (adminEmail && user.email === adminEmail.toLowerCase().trim() && !user.is_admin) {
+        try { db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id); } catch(e) {}
+      }
+
       const sid = createSession(user.id, req);
       setSessionCookie(res, sid);
       res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: !!user.email_verified } });
@@ -352,9 +358,9 @@ function createAuthRoutes(authMiddleware) {
         const ticket = await client.verifyIdToken({ idToken: tokenResp.id_token, audience: GOOGLE_CLIENT_ID });
         payload = ticket.getPayload();
       } else {
-        // Fallback: decode JWT (less secure but functional without google-auth-library)
-        const parts = tokenResp.id_token.split('.');
-        payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+        // SECURITY: Cannot verify Google JWT signature without google-auth-library — reject
+        console.error('[AUTH] google-auth-library not installed — cannot verify Google OAuth tokens');
+        return res.redirect('/app?auth=error&reason=oauth_verification_unavailable');
       }
 
       if (!payload.email_verified) return res.redirect('/app?auth=error&reason=email_not_verified');
@@ -564,7 +570,7 @@ function createAuthRoutes(authMiddleware) {
       user: {
         id: user.id, email: user.email, name: user.name,
         tier: user.tier, profile: user.profile,
-        emailVerified: !!user.email_verified,
+        emailVerified: !!user.email_verified, isAdmin: !!user.is_admin,
         createdAt: user.created_at, lastLogin: user.last_login,
         oauthProviders: oauthAccounts.map(a => a.provider)
       },

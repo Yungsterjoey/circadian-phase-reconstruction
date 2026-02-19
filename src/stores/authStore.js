@@ -2,6 +2,13 @@ import { create } from 'zustand';
 
 const API = '/api/auth';
 
+// Fetch with timeout (prevents indefinite hangs)
+function tfetch(url, opts = {}, ms = 15000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 export const useAuthStore = create((set, get) => ({
   user: null,
   subscription: null,
@@ -45,7 +52,7 @@ export const useAuthStore = create((set, get) => ({
 
   _fetchMe: async () => {
     try {
-      const r = await fetch(`${API}/me`, { credentials: 'include' });
+      const r = await tfetch(`${API}/me`, { credentials: 'include' });
       const d = await r.json();
       if (d.authenticated) {
         set({ user: d.user, subscription: d.subscription, authenticated: true, loading: false, authMethod: d.authMethod });
@@ -58,7 +65,7 @@ export const useAuthStore = create((set, get) => ({
 
   signup: async (email, password, name) => {
     try {
-      const r = await fetch(`${API}/signup`, {
+      const r = await tfetch(`${API}/signup`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ email, password, name })
       });
@@ -73,7 +80,7 @@ export const useAuthStore = create((set, get) => ({
 
   login: async (email, password) => {
     try {
-      const r = await fetch(`${API}/login`, {
+      const r = await tfetch(`${API}/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ email, password })
       });
@@ -88,14 +95,16 @@ export const useAuthStore = create((set, get) => ({
 
   logout: async () => {
     try {
-      await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' });
+      await tfetch(`${API}/logout`, { method: 'POST', credentials: 'include' });
     } catch(e) {}
-    set({ user: null, authenticated: false, subscription: null });
+    // Clear persistent client state
+    try { localStorage.removeItem('kuro_token'); localStorage.removeItem('kuro_projects_v72'); localStorage.removeItem('kuro_sid'); } catch(e) {}
+    set({ user: null, authenticated: false, subscription: null, authMethod: null });
   },
 
   verifyEmail: async (code) => {
     try {
-      const r = await fetch(`${API}/verify-email`, {
+      const r = await tfetch(`${API}/verify-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ code })
       });
@@ -110,7 +119,7 @@ export const useAuthStore = create((set, get) => ({
 
   forgotPassword: async (email) => {
     try {
-      const r = await fetch(`${API}/forgot-password`, {
+      const r = await tfetch(`${API}/forgot-password`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
@@ -121,7 +130,7 @@ export const useAuthStore = create((set, get) => ({
 
   resetPassword: async (email, code, newPassword) => {
     try {
-      const r = await fetch(`${API}/reset-password`, {
+      const r = await tfetch(`${API}/reset-password`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code, newPassword })
       });
@@ -132,7 +141,7 @@ export const useAuthStore = create((set, get) => ({
 
   tokenLogin: async (token) => {
     try {
-      const r = await fetch(`${API}/token-login`, {
+      const r = await tfetch(`${API}/token-login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ token })
       });
@@ -147,7 +156,7 @@ export const useAuthStore = create((set, get) => ({
 
   linkOAuth: async (state, password) => {
     try {
-      const r = await fetch(`${API}/link-oauth`, {
+      const r = await tfetch(`${API}/link-oauth`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ state, password })
       });
