@@ -243,13 +243,13 @@ const VECTOR_DIR = path.join(DATA_DIR, 'vectors');
 
 const MODEL_REGISTRY = {
   // ═══ GCP NVIDIA L4 (24GB VRAM) — Router + Brain Architecture ═══
-  // Router: fast intent classification (stateless, ~3GB)
-  // Brain: heavy reasoning (resident, ~11GB)
-  // Budget: 3 + 11 + 4 (KV cache) = 18GB used, 6GB headroom
+  // Router: fast intent classification (Gemma3 4B, ~3GB VRAM)
+  // Brain: heavy reasoning (Qwen3-30B-A3B VL abliterated, ~10GB active VRAM)
+  // Budget: 3 + 10 + 4 (KV cache) = 17GB used, 7GB headroom
 
-  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'devstral:24b',                                   ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Devstral 24B)', vram: 14 },
-  'kuro-core':     { name: 'KURO::CORE',     ollama: 'devstral:24b',                               ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Devstral 24B)', vram: 14 },
-  'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                          ctx: 2048,  embedding: true, tier: 'subconscious' }
+  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'gemma3:4b',                                                      ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Gemma3 4B)', vram: 3 },
+  'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 10 },
+  'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                                              ctx: 2048,  embedding: true, tier: 'subconscious' }
 };
 
 // Skill → Model routing (all skills → kuro-core except creative/unrestricted → kuro-moe)
@@ -481,13 +481,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     }
   }
 
-  // ── TIER GATE ──
-  if (tierGate && !req.isGuest && req.user) {
-    const allowed = tierGate.checkQuota(req.user.userId, req.user.tier || 'free', 'chat');
-    if (!allowed.ok) {
-      return res.status(200).json({ type: 'gate', reason: 'tier_limit', message: allowed.message || 'Chat limit reached for your tier.', tier: req.user.tier || 'free' });
-    }
-  }
+  // ── TIER GATE — checked post-SSE so client receives a proper gate event ──
 
   const { messages = [], mode: rawMode = 'main', skill, temperature = 0.7, clientType = 'executioner', sessionId: rawSid, images = [], thinking = false, reasoning = false, incubation = false, redTeam = false, nuclearFusion = false, useRAG = true, ragNamespace: rawNs = 'edubba', ragTopK = 3, fileIds = [], powerDial = 'instant' } = req.body;
 
@@ -515,6 +509,15 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Connection', 'keep-alive'); res.setHeader('X-Accel-Buffering', 'no'); res.flushHeaders();
 
   if (req.isGuest) { const q = req.guestQuota || checkGuestQuota(req); sendSSE(res, { type: 'guest_quota', remaining: q.remaining - 1, limit: q.limit, used: q.used + 1 }); }
+
+  // Tier gate — post-SSE so client gets a proper event
+  if (tierGate && !req.isGuest && req.user) {
+    const gateCheck = tierGate.checkQuota(req.user.userId, req.user.tier || 'free', 'chat');
+    if (!gateCheck.allowed) {
+      sendSSE(res, { type: 'gate', reason: 'tier_limit', message: gateCheck.message || `Chat limit reached. Upgrade for more.`, tier: req.user.tier || 'free', remaining: gateCheck.remaining, limit: gateCheck.limit });
+      return res.end();
+    }
+  }
 
   const ka = setInterval(() => { try { res.write(':ka\n\n'); } catch(e) {} }, 15000);
   let aborted = false;
@@ -874,17 +877,21 @@ app.get('/api/frontier/status', auth.required, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ROUTING: Landing at /, React OS at /app
+// ROUTING: "/" is the React OS desktop (SPA). Marketing landing at /landing.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Landing page (static marketing)
+// React OS — primary entry point
 app.get('/', (req, res) => {
-  const lp = path.join(__dirname, 'landing.html');
-  if (fs.existsSync(lp)) return res.sendFile(lp);
-  // Fallback to SPA if no landing
   const ip = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(ip)) return res.sendFile(ip);
-  res.status(200).send('<html><body><h1>KURO OS v9.0</h1></body></html>');
+  res.status(200).send('<html><body><h1>KURO OS v9.0</h1><p>Run npm run build.</p></body></html>');
+});
+
+// Marketing landing page (optional, preserved at /landing)
+app.get('/landing', (req, res) => {
+  const lp = path.join(__dirname, 'landing.html');
+  if (fs.existsSync(lp)) return res.sendFile(lp);
+  res.redirect('/');
 });
 
 // React OS SPA (all /app routes)

@@ -14,6 +14,7 @@ import CookieBanner from './components/CookieBanner';
 import DesktopBackground from './components/DesktopBackground';
 import KuroChatApp from './components/apps/KuroChatApp';
 import AdminApp from './components/apps/AdminApp';
+import AboutApp from './components/apps/AboutApp';
 import KuroIcon from './components/KuroIcon';
 
 const APP_COMPONENTS = {
@@ -27,19 +28,7 @@ const APP_COMPONENTS = {
   SettingsApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Settings — Coming Soon</div>,
   SandboxApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Sandbox — Coming Soon</div>,
   AdminApp: AdminApp,
-  AboutApp: () => (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,padding:32}}>
-      <div className="about-cube"><div className="about-cube-inner">
-        <div className="about-cf ft"/><div className="about-cf bk"/>
-        <div className="about-cf rt"/><div className="about-cf lt"/>
-        <div className="about-cf tp"/><div className="about-cf bt"/>
-      </div></div>
-      <h1 style={{fontSize:28,fontWeight:200,letterSpacing:14,color:'#fff',margin:0,textIndent:14}}>KURO</h1>
-      <p style={{fontSize:18,fontWeight:500,letterSpacing:6,color:'#a855f7',margin:0,textIndent:6}}>.OS</p>
-      <p style={{fontSize:9,fontWeight:500,letterSpacing:3.5,textTransform:'uppercase',color:'rgba(255,255,255,0.28)',margin:0}}>SOVEREIGN INTELLIGENCE PLATFORM</p>
-      <p style={{fontSize:11,color:'rgba(255,255,255,0.2)',marginTop:12}}>v9.1.0</p>
-    </div>
-  ),
+  AboutApp: AboutApp,
 };
 
 const TIER_LEVEL = { free: 0, pro: 1, sovereign: 2 };
@@ -422,22 +411,48 @@ export default function App() {
 }
 
 .app-window {
-  border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
+  border-radius: var(--lg-radius-lg, 22px); overflow: hidden; display: flex; flex-direction: column;
   background: var(--lg-surface-1, rgba(18,18,22,0.85));
   backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
   -webkit-backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
   border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.08));
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.1);
+  box-shadow:
+    0 0 0 0.5px rgba(255,255,255,0.06),
+    0 4px 16px rgba(0,0,0,0.4),
+    0 24px 60px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.10);
   animation: winOpen 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both;
   will-change: transform, opacity;
 }
 .window-titlebar {
   height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 12px;
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(60px) saturate(1.8); -webkit-backdrop-filter: blur(60px) saturate(1.8);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  cursor: grab; user-select: none; flex-shrink: 0;
+  /* Liquid glass: diagonal specular sweep + heavy top catch-light */
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,0.09) 0%,
+      rgba(255,255,255,0.03) 60%,
+      rgba(255,255,255,0.01) 100%),
+    linear-gradient(105deg,
+      rgba(255,255,255,0.06) 0%,
+      transparent 55%,
+      rgba(255,255,255,0.02) 100%);
+  backdrop-filter: blur(60px) saturate(2.2) brightness(1.05); -webkit-backdrop-filter: blur(60px) saturate(2.2) brightness(1.05);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.20),   /* top catch-light */
+    inset 0 -1px 0 rgba(0,0,0,0.12),            /* bottom depth shadow */
+    inset 1px 0 0 rgba(255,255,255,0.04),        /* left edge refraction */
+    inset -1px 0 0 rgba(255,255,255,0.04);       /* right edge refraction */
+  position: relative; cursor: grab; user-select: none; flex-shrink: 0;
   -webkit-user-select: none; -webkit-touch-callout: none;
+}
+/* Noise grain layer — prevents plastic/flat look */
+.window-titlebar::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: 0.6; pointer-events: none; mix-blend-mode: overlay;
 }
 .window-titlebar:active { cursor: grabbing; }
 .window-titlebar { touch-action: none; }
@@ -514,12 +529,12 @@ export default function App() {
   touch-action: manipulation; position: relative;
   background: rgba(28,28,32,0.55);
   backdrop-filter: blur(40px) saturate(1.6); -webkit-backdrop-filter: blur(40px) saturate(1.6);
-  border-radius: 22px; border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 0.5px 0 rgba(255,255,255,0.06);
+  border-radius: var(--lg-radius-lg, 22px); border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10);
 }
 .glass-dock::before {
-  content: ''; position: absolute; inset: -0.5px; border-radius: 23px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 50%);
+  content: ''; position: absolute; inset: -0.5px; border-radius: calc(var(--lg-radius-lg, 22px) + 0.5px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 55%);
   pointer-events: none; z-index: -1;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude; -webkit-mask-composite: xor; padding: 0.5px;
@@ -555,13 +570,6 @@ export default function App() {
 @keyframes cubeSpin { from { transform: rotateX(-20deg) rotateY(0deg); } to { transform: rotateX(-20deg) rotateY(360deg); } }
 @keyframes cubeSpinFast { from { transform: rotateX(-20deg) rotateY(0deg); } to { transform: rotateX(-20deg) rotateY(720deg); } }
 
-/* ═══ About App cube ═══ */
-.about-cube { perspective: 600px; width: 80px; height: 80px; margin: 0 auto; }
-.about-cube-inner { width: 56px; height: 56px; position: relative; transform-style: preserve-3d; animation: cubeSpin 20s linear infinite; margin: 12px auto; }
-.about-cf { position: absolute; width: 56px; height: 56px; background: linear-gradient(135deg,rgba(91,33,182,.35),rgba(76,29,149,.25) 50%,rgba(49,10,101,.45)); border: 1px solid rgba(139,92,246,.25); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
-.about-cf.ft { transform: translateZ(28px); } .about-cf.bk { transform: rotateY(180deg) translateZ(28px); }
-.about-cf.rt { transform: rotateY(90deg) translateZ(28px); } .about-cf.lt { transform: rotateY(-90deg) translateZ(28px); }
-.about-cf.tp { transform: rotateX(90deg) translateZ(28px); } .about-cf.bt { transform: rotateX(-90deg) translateZ(28px); }
 
 .dock-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.08); margin: 0 4px; }
 .dock-item {
@@ -598,9 +606,9 @@ export default function App() {
   position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
   width: 380px; padding: 20px;
   background: rgba(20,20,24,0.85);
-  backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);
-  border-radius: var(--lg-radius-md, 16px); border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.1)); z-index: 9998;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  backdrop-filter: blur(50px) saturate(1.6); -webkit-backdrop-filter: blur(50px) saturate(1.6);
+  border-radius: var(--lg-radius-xl, 28px); border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.1)); z-index: 9998;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10);
 }
 .panel-header { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.5); letter-spacing: 2px; text-align: center; margin-bottom: 16px; }
 .panel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -616,9 +624,23 @@ export default function App() {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+/* ═══ REDUCED MOTION ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .app-window { animation: none !important; }
+  .dock-item { transition: background 0.15s !important; }
+  .dock-item:hover { transform: none !important; }
+  .dock-item:active { transform: none !important; }
+  .dock-item.open .dock-icon { animation: none !important; }
+  .glass-dock { transition: none !important; }
+  .glass-panel { transition: none !important; }
+  .dock-cube:hover { transform: none !important; }
+  .dock-cube:active { transform: none !important; }
+  .dock-reveal-tab { animation: none !important; }
+}
+
 /* ═══ TABLET (iPad portrait & landscape) ═══ */
 @media (max-width: 1024px) {
-  .app-window { border-radius: 14px; }
+  .app-window { border-radius: var(--lg-radius-lg, 22px); }
   .window-titlebar { height: 40px; padding: 0 10px; }
   .tl { width: 12px; height: 12px; }
   .window-title { font-size: 12px; }
@@ -633,7 +655,7 @@ export default function App() {
 
 /* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
-  .app-window { border-radius: 16px; }
+  .app-window { border-radius: var(--lg-radius-lg, 22px); }
   .window-titlebar { height: 38px; padding: 0 8px; }
   .tl { width: 11px; height: 11px; }
   .tl-close-disabled { width: 11px; height: 11px; }
@@ -641,7 +663,7 @@ export default function App() {
   .window-title { font-size: 12px; }
   .titlebar-spacer { min-width: 42px; }
   .dock-outer { bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px)); }
-  .glass-dock { padding: 4px 8px; gap: 2px; border-radius: 16px; }
+  .glass-dock { padding: 4px 8px; gap: 2px; border-radius: var(--lg-radius-md, 16px); }
   .dock-cube, .dock-item { width: 38px; height: 38px; }
   .dock-icon { font-size: 20px; }
   .dock-sep { height: 22px; margin: 0 2px; }
@@ -666,9 +688,9 @@ export default function App() {
 
 /* ═══ SMALL PHONE (iPhone SE / Mini) ═══ */
 @media (max-width: 430px) {
-  .app-window { border-radius: 14px; }
+  .app-window { border-radius: var(--lg-radius-md, 16px); }
   .dock-outer { bottom: max(14px, calc(env(safe-area-inset-bottom) + 6px)); }
-  .glass-dock { padding: 3px 6px; gap: 1px; border-radius: 14px; }
+  .glass-dock { padding: 3px 6px; gap: 1px; border-radius: var(--lg-radius-sm, 12px); }
   .dock-cube, .dock-item { width: 34px; height: 34px; }
   .dock-icon { font-size: 18px; }
   .dock-sep { height: 20px; }

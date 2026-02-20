@@ -8,7 +8,7 @@ const SYSTEM_APPS = [
   { id: 'kuro.vision', name: 'Vision', icon: '🎨', component: 'VisionApp', defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
   { id: 'kuro.terminal', name: 'Terminal', icon: '⌨️', component: 'TerminalApp', defaultWidth: 800, defaultHeight: 500, minTier: 'sovereign' },
   { id: 'kuro.sandbox', name: 'Sandbox', icon: '🧪', component: 'SandboxApp', defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
-  { id: 'kuro.about', name: 'About', icon: '🔮', component: 'AboutApp', defaultWidth: 420, defaultHeight: 480, minTier: 'free' },
+  { id: 'kuro.about', name: 'About KURO', icon: '🔮', component: 'AboutApp', defaultWidth: 680, defaultHeight: 580, minTier: 'free' },
   { id: 'kuro.admin', name: 'Admin', icon: '🛡️', component: 'AdminApp', defaultWidth: 700, defaultHeight: 500, minTier: 'sovereign' },
   { id: 'kuro.settings', name: 'Settings', icon: '⚙️', component: 'SettingsApp', defaultWidth: 600, defaultHeight: 500, minTier: 'free' },
   // kuro.auth is a virtual window — not in SYSTEM_APPS, managed by App.jsx directly
