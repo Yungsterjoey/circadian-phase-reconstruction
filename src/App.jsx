@@ -141,7 +141,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
           <button className="tl tl-min" onClick={(e) => { e.stopPropagation(); minimizeApp(appId); }} aria-label="Minimize" />
           <button className="tl tl-max" onClick={(e) => { e.stopPropagation(); maximizeApp(appId); }} aria-label="Maximize" />
         </div>
-        <span className="window-title"><KuroIcon name={appId} size={14} color="rgba(255,255,255,0.6)" style={{verticalAlign:'middle',marginRight:6}} />{displayTitle}</span>
+        <span className="window-title">{displayTitle}</span>
         <div className="titlebar-spacer" />
       </div>
       <div className="window-content">{children}</div>
@@ -466,7 +466,7 @@ export default function App() {
   animation: winClose 0.18s cubic-bezier(0.4, 0, 1, 1) both;
 }
 .window-titlebar {
-  height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 12px;
+  height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 16px;
   /* Liquid glass: diagonal specular sweep + heavy top catch-light */
   background:
     linear-gradient(180deg,
@@ -499,33 +499,39 @@ export default function App() {
 .window-titlebar { touch-action: none; }
 .resize-handle { touch-action: none; }
 .traffic-lights { display: flex; gap: 7px; align-items: center; }
-.titlebar-spacer { min-width: 55px; }
+.titlebar-spacer { min-width: 68px; }
 .tl {
-  width: 13px; height: 13px; border-radius: 50%; border: none; cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s; opacity: 0.8;
+  width: 12px; height: 12px; border-radius: 50%; border: none; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s; opacity: 0.85;
 }
-.tl:hover { opacity: 1; transform: scale(1.15); }
+.tl:hover { opacity: 1; transform: scale(1.12); }
 .tl:active { transform: scale(0.9); }
 .tl-close { background: #ff5f57; }
-.tl-close-disabled { width: 13px; height: 13px; border-radius: 50%; background: rgba(255,255,255,0.08); }
+.tl-close-disabled { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.08); }
 .tl-min { background: #ffbd2e; }
 .tl-max { background: #28c840; }
-.window-title { font-size: 13px; color: var(--lg-text-secondary, rgba(255,255,255,0.7)); flex: 1; text-align: center; }
+.window-title {
+  font-size: 13px; font-weight: 500; letter-spacing: -0.1px;
+  color: rgba(255,255,255,0.55); flex: 1; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 0 8px;
+}
 .window-content { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .resize-handle {
-  position: absolute; bottom: 0; right: 0; width: 28px; height: 28px; cursor: nwse-resize; z-index: 10;
+  position: absolute; bottom: 0; right: 0; width: 32px; height: 32px; cursor: nwse-resize; z-index: 10;
   background: transparent;
 }
+/* Lines positioned inside the 28px radius safe zone (corner clip = ~8px diagonal) */
 .resize-handle::after {
-  content: ''; position: absolute; bottom: 3px; right: 3px;
-  width: 14px; height: 14px;
-  border-right: 2.5px solid rgba(255,255,255,0.2);
-  border-bottom: 2.5px solid rgba(255,255,255,0.2);
-  border-radius: 0 0 10px 0;
-  transition: border-color 0.15s, opacity 0.15s;
+  content: ''; position: absolute; bottom: 9px; right: 9px;
+  width: 11px; height: 11px;
+  border-right: 2px solid rgba(255,255,255,0.18);
+  border-bottom: 2px solid rgba(255,255,255,0.18);
+  border-radius: 0 0 5px 0;
+  transition: border-color 0.15s;
 }
-.resize-handle:hover::after { border-color: rgba(168,85,247,0.55); border-width: 2.5px; }
-.resize-handle:active::after { border-color: rgba(168,85,247,0.8); border-width: 2.5px; }
+.resize-handle:hover::after { border-color: rgba(168,85,247,0.5); }
+.resize-handle:active::after { border-color: rgba(168,85,247,0.75); }
 
 /* ═══ DOCK ═══ */
 .dock-outer {
@@ -727,7 +733,7 @@ export default function App() {
 /* ═══ TABLET (iPad portrait & landscape) ═══ */
 @media (max-width: 1024px) {
   .app-window { border-radius: var(--lg-radius-xl, 28px); }
-  .window-titlebar { height: 40px; padding: 0 10px; }
+  .window-titlebar { height: 40px; padding: 0 14px; }
   .tl { width: 12px; height: 12px; }
   .window-title { font-size: 12px; }
   .dock-outer { bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px)); }
@@ -742,7 +748,7 @@ export default function App() {
 /* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
   .app-window { border-radius: var(--lg-radius-xl, 28px); }
-  .window-titlebar { height: 38px; padding: 0 8px; }
+  .window-titlebar { height: 38px; padding: 0 14px; }
   .tl { width: 11px; height: 11px; }
   .tl-close-disabled { width: 11px; height: 11px; }
   .traffic-lights { gap: 6px; }
