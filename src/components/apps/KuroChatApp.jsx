@@ -228,6 +228,44 @@ function useCyclingPlaceholder(active) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TERMINAL REVEAL — LOST-style character-by-character typewriter for stream
+// ═══════════════════════════════════════════════════════════════════════════
+function useTerminalReveal(text, isStreaming) {
+  const full = text || '';
+  const [revealLen, setRevealLen] = useState(() => isStreaming ? 0 : full.length);
+  const ref = useRef({ text: full, isStreaming, revealLen: isStreaming ? 0 : full.length, timer: null });
+
+  ref.current.text = full;
+  ref.current.isStreaming = isStreaming;
+
+  useEffect(() => {
+    if (!isStreaming) {
+      const len = full.length;
+      if (ref.current.timer) { clearTimeout(ref.current.timer); ref.current.timer = null; }
+      ref.current.revealLen = len;
+      setRevealLen(len);
+      return;
+    }
+    if (ref.current.timer) return; // loop already running
+    function step() {
+      ref.current.timer = null;
+      if (ref.current.revealLen >= ref.current.text.length) return; // caught up, idle until more text
+      ref.current.revealLen++;
+      setRevealLen(ref.current.revealLen);
+      ref.current.timer = setTimeout(step, 20 + Math.random() * 18); // 20–38ms/char
+    }
+    ref.current.timer = setTimeout(step, 20);
+    // intentionally no cleanup: let timer persist across text-change re-runs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [full, isStreaming]);
+
+  useEffect(() => () => { if (ref.current.timer) clearTimeout(ref.current.timer); }, []);
+
+  return full.slice(0, ref.current.revealLen);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MARKDOWN RENDERER — lightweight inline parser (no dependencies)
 // ═══════════════════════════════════════════════════════════════════════════
 const MarkdownText = React.memo(({ text }) => {
@@ -661,6 +699,10 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
   const [editValue, setEditValue] = useState('');
   const editRef = useRef(null);
   const parsed = parseContent(msg.content);
+  const revealedMain = useTerminalReveal(
+    msg.role === 'assistant' ? parsed.main : null,
+    isStreaming && !parsed.thinkStreaming
+  );
   const agent = agents[activeAgent] || Object.values(agents)[0];
   const AgentIcon = resolveIcon(agent?.icon);
 
@@ -722,12 +764,12 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
         ) : (
           <div className="message-text">
             {msg.role === 'assistant'
-              ? <MarkdownText text={parsed.main} />
+              ? <MarkdownText text={revealedMain} />
               : (msg.images?.length > 0
                   ? parsed.main.replace(/^\[Image:[^\]]+\]\n?/gm, '').trim() || null
                   : parsed.main)
             }
-            {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor" />}
+            {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor">_</span>}
           </div>
         )}
         {showActions && !isStreaming && !editing && (
@@ -1819,14 +1861,12 @@ export default function KuroChat() {
 .message-text { font-size: 15px; line-height: 1.65; word-break: break-word; }
 .message.user .message-text { white-space: pre-wrap; }
 .stream-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1.1em;
-  background: var(--accent);
-  border-radius: 1px;
-  margin-left: 2px;
-  vertical-align: text-bottom;
+  display: inline;
+  color: var(--accent);
+  text-shadow: 0 0 6px var(--accent-glow), 0 0 14px var(--accent-glow);
   animation: cursorFade 0.9s ease-in-out infinite;
+  font-weight: normal;
+  user-select: none;
 }
 @keyframes cursorFade {
   0%, 100% { opacity: 1; }
