@@ -15,7 +15,7 @@
 const axios = require('axios');
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const KURO_EYE = 'kuro-eye';
+const KURO_EYE = 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M';
 
 // ─── Scene Graph Prompt ──────────────────────────────────────────────────
 

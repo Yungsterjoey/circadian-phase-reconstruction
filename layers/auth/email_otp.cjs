@@ -97,26 +97,115 @@ async function sendOTP(userId, email, ip) {
   const mailOpts = {
     from: process.env.SMTP_FROM || '"KURO OS" <noreply@kuroglass.net>',
     to: email,
-    subject: 'Your KURO access code',
-    text: `Your code: ${code}\n\nEnter this in KURO OS to verify your identity.\nThis code expires in 10 minutes.\n\nIf you didn't request this, ignore this email.\n\n— KURO OS · kuroglass.net`,
-    html: `
-      <div style="font-family:-apple-system,system-ui,sans-serif;max-width:400px;margin:0 auto;padding:32px 0">
-        <div style="background:#09090b;border-radius:16px;padding:32px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="text-align:center;margin-bottom:24px">
-            <div style="display:inline-block;width:40px;height:40px;background:linear-gradient(135deg,#9333ea,#6366f1);border-radius:10px;line-height:40px;color:#fff;font-weight:700;font-size:18px">K</div>
-          </div>
-          <p style="color:#fff;font-size:14px;margin:0 0 16px;text-align:center">Your verification code:</p>
-          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;text-align:center;margin-bottom:16px">
-            <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#fff;font-family:monospace">${code}</span>
-          </div>
-          <p style="color:rgba(255,255,255,0.4);font-size:12px;margin:0;text-align:center">Expires in 10 minutes</p>
-        </div>
-        <p style="color:rgba(255,255,255,0.25);font-size:11px;text-align:center;margin-top:16px">
-          If you didn't request this, ignore this email.<br>
-          KURO OS · kuroglass.net
-        </p>
-      </div>
-    `
+    subject: 'Your KURO verification code',
+    text: `Your KURO code: ${code}\n\nEnter this in KURO OS to continue. Expires in 10 minutes.\n\nIf you didn't request this, ignore this email.\n\n— KURO OS · kuroglass.net`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>KURO OS — Verification Code</title>
+</head>
+<body style="margin:0;padding:0;background:#000000;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#000000">
+  <tr>
+    <td align="center" style="padding:52px 20px 40px">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:440px">
+
+        <!-- Logo: 3D isometric glass cube + wordmark -->
+        <tr>
+          <td align="center" style="padding-bottom:36px">
+            <svg width="54" height="54" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 16px">
+              <defs>
+                <linearGradient id="kct" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#f3e8ff"/>
+                  <stop offset="60%" stop-color="#c084fc"/>
+                  <stop offset="100%" stop-color="#a855f7"/>
+                </linearGradient>
+                <linearGradient id="kcl" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#9333ea"/>
+                  <stop offset="100%" stop-color="#3b0764"/>
+                </linearGradient>
+                <linearGradient id="kcr" x1="100%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#7c3aed"/>
+                  <stop offset="100%" stop-color="#1e0a3c"/>
+                </linearGradient>
+              </defs>
+              <!-- Cube faces -->
+              <polygon points="28,4 52,16 28,28 4,16" fill="url(#kct)"/>
+              <polygon points="4,16 28,28 28,52 4,40" fill="url(#kcl)"/>
+              <polygon points="52,16 52,40 28,52 28,28" fill="url(#kcr)"/>
+              <!-- Glass edge highlights -->
+              <polyline points="28,4 52,16 52,40 28,52 4,40 4,16 28,4" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+              <line x1="28" y1="28" x2="28" y2="52" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+              <line x1="28" y1="4" x2="28" y2="28" stroke="rgba(255,255,255,0.22)" stroke-width="0.5"/>
+              <line x1="4" y1="16" x2="52" y2="16" stroke="rgba(255,255,255,0.0)" stroke-width="0"/>
+              <!-- Top-face specular catchlight -->
+              <polygon points="28,4 52,16 28,28 4,16" fill="rgba(255,255,255,0.07)"/>
+              <line x1="28" y1="4" x2="52" y2="16" stroke="rgba(255,255,255,0.45)" stroke-width="0.8"/>
+              <line x1="28" y1="4" x2="4" y2="16" stroke="rgba(255,255,255,0.28)" stroke-width="0.8"/>
+            </svg>
+            <div style="font-size:20px;font-weight:200;letter-spacing:10px;color:#ffffff;line-height:1;margin-bottom:3px">KURO<span style="color:#a855f7;font-weight:500;letter-spacing:4px;font-size:16px">.OS</span></div>
+            <div style="font-size:9px;letter-spacing:4px;color:rgba(168,85,247,0.5);text-transform:uppercase;font-weight:500">Sovereign Intelligence</div>
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td style="background:#08080d;border:1px solid rgba(168,85,247,0.18);border-radius:22px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,0.8),0 32px 80px rgba(0,0,0,0.9)">
+
+            <!-- Card header -->
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:linear-gradient(160deg,rgba(168,85,247,0.08) 0%,rgba(99,102,241,0.03) 100%);padding:30px 32px 24px;border-bottom:1px solid rgba(255,255,255,0.04)">
+                  <p style="margin:0 0 8px;font-size:9px;letter-spacing:3.5px;text-transform:uppercase;color:rgba(168,85,247,0.6);font-weight:600">Verification Code</p>
+                  <h1 style="margin:0 0 10px;font-size:24px;font-weight:300;color:#ffffff;letter-spacing:-0.5px;line-height:1.2">One-time code</h1>
+                  <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.38);line-height:1.65">Enter this in KURO OS to continue. Expires in&nbsp;<span style="color:rgba(255,255,255,0.6);font-weight:500">10 minutes</span>.</p>
+                </td>
+              </tr>
+
+              <!-- Code block -->
+              <tr>
+                <td style="padding:24px 32px">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="background:#000000;border:1px solid rgba(168,85,247,0.22);border-radius:16px;padding:24px 12px;text-align:center">
+                        <p style="margin:0 0 14px;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.18);font-weight:500">One-Time Code</p>
+                        <p style="margin:0;font-family:'SF Mono','Cascadia Code','Menlo','Courier New',Courier,monospace;font-size:40px;font-weight:700;letter-spacing:16px;color:#ffffff;text-indent:16px;line-height:1">${code}</p>
+                        <p style="margin:14px 0 0;font-size:11px;color:rgba(255,255,255,0.16)">Single use &middot; Do not share</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Footer note -->
+              <tr>
+                <td style="padding:0 32px 28px;border-top:1px solid rgba(255,255,255,0.04)">
+                  <p style="margin:16px 0 0;font-size:12px;color:rgba(255,255,255,0.18);line-height:1.75">If you didn't request this code, you can safely ignore this email. KURO support will never ask you for this code.</p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center" style="padding-top:28px">
+            <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.1);letter-spacing:0.5px">
+              KURO OS &middot; <a href="https://kuroglass.net" style="color:rgba(168,85,247,0.35);text-decoration:none">kuroglass.net</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`
   };
 
   if (transporter) {

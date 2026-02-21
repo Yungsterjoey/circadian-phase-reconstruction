@@ -227,7 +227,14 @@ export default function AuthGate() {
         if (r.success) window.location.reload(); else setError(r.error || 'Invalid token.');
       } else if (mode === 'reset') {
         const r = await resetPassword(form.email, form.code, form.newPassword);
-        r.success ? (setMessage('Password reset!'), switchMode('login')) : setError(r.error);
+        if (r.success) {
+          // Switch to login WITHOUT calling reset() so the message survives the mode change
+          setMode('login');
+          setError('');
+          setMessage('Password reset — sign in with your new password.');
+        } else {
+          setError(r.error);
+        }
       } else if (mode === 'forgot') {
         const r = await forgotPassword(form.email);
         r.success ? (setMessage('Check email for reset code.'), setMode('reset')) : setError(r.error);
@@ -461,27 +468,27 @@ function AuthGateStyles() {
 }
 
 /* Hero row */
-.ag-l-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.ag-l-hero { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 8px; }
 .ag-l-wordmark { display: flex; flex-direction: column; }
 .ag-l-kuro { font-size: 32px; font-weight: 200; letter-spacing: 10px; color: rgba(255,255,255,0.95); line-height: 1; }
 .ag-l-os { font-size: 16px; font-weight: 500; letter-spacing: 5px; color: #a855f7; line-height: 1.2; }
-.ag-l-tag { font-size: 9px; font-weight: 500; letter-spacing: 3.5px; text-transform: uppercase; color: rgba(255,255,255,0.3); margin: 0 0 12px; }
+.ag-l-tag { font-size: 11px; font-weight: 500; letter-spacing: 3.5px; text-transform: uppercase; color: rgba(255,255,255,0.3); margin: 0 0 12px; text-align: center; }
 
 /* Scanline separator — PS1 aesthetic: thin low-opacity rule */
 .ag-scanline { height: 1px; background: rgba(255,255,255,0.06); margin: 10px 0; }
 
 /* Feature list */
-.ag-l-features { list-style: none; padding: 0; margin: 0 0 0; display: flex; flex-direction: column; gap: 5px; }
-.ag-l-features li { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 500; letter-spacing: 1.5px; color: rgba(255,255,255,0.55); }
-.ag-l-features li span { color: #a855f7; font-size: 9px; flex-shrink: 0; }
+.ag-l-features { list-style: none; padding: 0; margin: 0 0 0; display: flex; flex-direction: column; gap: 7px; }
+.ag-l-features li { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; letter-spacing: 1.5px; color: rgba(255,255,255,0.55); }
+.ag-l-features li span { color: #a855f7; font-size: 11px; flex-shrink: 0; }
 
 /* Compare strip */
 .ag-l-compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; margin: 2px 0; align-items: start; }
-.ag-l-col-vs { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.18); text-align: center; padding-top: 18px; }
-.ag-l-col-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.35); margin-bottom: 5px; text-transform: uppercase; }
+.ag-l-col-vs { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.18); text-align: center; padding-top: 18px; }
+.ag-l-col-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.35); margin-bottom: 5px; text-transform: uppercase; }
 .ag-l-col-them .ag-l-col-label { color: rgba(255,100,100,0.5); }
 .ag-l-col-us .ag-l-col-label { color: rgba(168,85,247,0.7); }
-.ag-l-col-item { font-size: 10px; color: rgba(255,255,255,0.4); padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.ag-l-col-item { font-size: 12px; color: rgba(255,255,255,0.4); padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
 .ag-l-col-us .ag-l-col-item { color: rgba(255,255,255,0.65); }
 
 /* Pricing tier grid */
@@ -495,14 +502,14 @@ function AuthGateStyles() {
   background: rgba(147,51,234,0.07); border-color: rgba(147,51,234,0.22);
   box-shadow: 0 0 20px -8px rgba(147,51,234,0.3);
 }
-.ag-l-tier-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.4); }
+.ag-l-tier-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.4); }
 .ag-l-tier-pro .ag-l-tier-label { color: #a855f7; }
 .ag-l-tier-price { font-size: 18px; font-weight: 200; color: rgba(255,255,255,0.9); line-height: 1.1; }
 .ag-l-tier-price span { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.35); }
-.ag-l-tier-quota { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 0.5px; }
+.ag-l-tier-quota { font-size: 10px; color: rgba(255,255,255,0.3); letter-spacing: 0.5px; }
 .ag-l-tier-link {
-  margin-top: 4px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
-  padding: 4px 8px; border-radius: 6px; border: none; cursor: pointer;
+  margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer;
   background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
   text-decoration: none; display: inline-block; transition: all 0.15s; font-family: inherit;
 }
@@ -517,7 +524,7 @@ function AuthGateStyles() {
 /* CTA buttons */
 .ag-l-ctas { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; }
 .ag-l-primary {
-  width: 100%; padding: 12px; border-radius: var(--lg-radius-sm, 12px);
+  width: 100%; padding: 13px; border-radius: var(--lg-radius-sm, 12px); min-height: 44px;
   background: linear-gradient(135deg, rgba(147,51,234,0.92), rgba(91,33,182,0.92));
   color: #fff; font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
   box-shadow: 0 0 24px rgba(147,51,234,0.15), 0 4px 16px rgba(0,0,0,0.25);
@@ -526,7 +533,7 @@ function AuthGateStyles() {
 .ag-l-primary:hover { transform: translateY(-1px); box-shadow: 0 0 32px rgba(147,51,234,0.25), 0 6px 24px rgba(0,0,0,0.3); }
 .ag-l-primary:active { transform: scale(0.985); }
 .ag-l-secondary {
-  width: 100%; padding: 11px; border-radius: var(--lg-radius-sm, 12px);
+  width: 100%; padding: 13px; border-radius: var(--lg-radius-sm, 12px); min-height: 44px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 500;
   transition: all 0.15s;
@@ -537,12 +544,12 @@ function AuthGateStyles() {
 /* Legal links footer */
 .ag-l-legal {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px;
-  margin-top: 10px; font-size: 10px;
+  margin-top: 10px; font-size: 11px;
 }
-.ag-l-legal button { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 10px; font-family: inherit; transition: color 0.15s; padding: 0; }
+.ag-l-legal button { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 11px; font-family: inherit; transition: color 0.15s; padding: 0; }
 .ag-l-legal button:hover { color: rgba(255,255,255,0.55); }
 .ag-l-legal span { color: rgba(255,255,255,0.15); }
-.ag-l-entity { color: rgba(255,255,255,0.14); font-size: 9px; letter-spacing: 0.5px; }
+.ag-l-entity { color: rgba(255,255,255,0.14); font-size: 10px; letter-spacing: 0.5px; }
 
 /* ═══ AUTH STAGE ═══════════════════════════════════════════════════════ */
 .ag-inner { padding: 20px 20px 14px; overflow-y: auto; }
@@ -556,7 +563,7 @@ function AuthGateStyles() {
 .ag-body { display: flex; flex-direction: column; gap: 8px; }
 .ag-oauth {
   display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; padding: 11px; background: rgba(255,255,255,0.03);
+  width: 100%; padding: 13px; background: rgba(255,255,255,0.03); min-height: 44px;
   border: 1px solid rgba(255,255,255,0.06) !important;
   border-radius: var(--lg-radius-sm, 12px); color: rgba(255,255,255,0.88);
   font-size: 13px; font-weight: 500; transition: all 0.15s;
@@ -570,7 +577,7 @@ function AuthGateStyles() {
 
 .ag-form { display: flex; flex-direction: column; gap: 9px; }
 .ag-input {
-  width: 100%; padding: 11px 14px; background: rgba(255,255,255,0.03);
+  width: 100%; padding: 13px 14px; background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06); border-radius: var(--lg-radius-sm, 12px);
   color: rgba(255,255,255,0.9); font-size: 14px; font-family: inherit;
   outline: none; transition: border-color 0.15s, box-shadow 0.15s;
@@ -589,8 +596,8 @@ function AuthGateStyles() {
 .ag-check-link:hover { color: #c084fc; }
 
 .ag-submit {
-  width: 100%; padding: 12px; background: linear-gradient(135deg, rgba(147,51,234,0.9), rgba(91,33,182,0.9));
-  color: #fff; border-radius: var(--lg-radius-sm, 12px); font-size: 14px; font-weight: 600;
+  width: 100%; padding: 13px; background: linear-gradient(135deg, rgba(147,51,234,0.9), rgba(91,33,182,0.9));
+  color: #fff; border-radius: var(--lg-radius-sm, 12px); font-size: 14px; font-weight: 600; min-height: 44px;
   transition: all 0.2s; box-shadow: 0 0 24px rgba(147,51,234,0.12), 0 4px 16px rgba(0,0,0,0.25);
 }
 .ag-submit:hover { transform: translateY(-1px); box-shadow: 0 0 32px rgba(147,51,234,0.2), 0 6px 24px rgba(0,0,0,0.3); }
@@ -636,6 +643,28 @@ function AuthGateStyles() {
 .ag-legal-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.6; }
 .ag-legal-item strong { color: rgba(255,255,255,0.85); margin-right: 3px; }
 .ag-legal-note { margin-top: 16px; padding: 10px 12px; background: rgba(147,51,234,0.05); border: 1px solid rgba(147,51,234,0.12); border-radius: 8px; font-size: 11px; color: rgba(255,255,255,0.35); text-align: center; line-height: 1.5; }
+
+/* Stage transitions */
+.ag-landing, .ag-inner, .ag-legal-view {
+  animation: agStageIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes agStageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── MOBILE ─────────────────────────────────────────────────────── */
+@media (max-width: 430px) {
+  .ag-landing { padding: 16px 16px 12px; }
+  .ag-inner { padding: 16px 16px 12px; }
+  .ag-l-tiers { grid-template-columns: 1fr; gap: 8px; }
+  .ag-l-tier { padding: 12px; flex-direction: row; justify-content: space-between; align-items: center; }
+  .ag-l-tier-link { margin-top: 0; }
+  .ag-l-compare { grid-template-columns: 1fr; gap: 6px; }
+  .ag-l-col-vs { display: none; }
+  .ag-input { padding: 13px 14px; font-size: 16px; }
+  .ag-l-legal { flex-direction: column; gap: 4px; }
+}
     `}</style>
   );
 }

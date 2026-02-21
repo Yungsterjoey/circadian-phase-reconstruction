@@ -51,9 +51,9 @@ const INTENT_MODEL_MAP = {
   triage:      'kuro-core',
   chat:        'kuro-core',
   general:     'kuro-core',
-  creative:    'kuro-moe',
-  unrestricted:'kuro-moe',
-  exec:        'kuro-moe'
+  creative:    'kuro-core',
+  unrestricted:'kuro-core',
+  exec:        'kuro-core'
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
