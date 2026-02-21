@@ -134,7 +134,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
 
   return (
     <div ref={windowRef} className={`app-window${win.isMaximized ? ' maximized' : ''}${isClosing ? ' closing' : ''}`} style={style} onMouseDown={() => !isClosing && focusWindow(appId)} onTouchStart={() => !isClosing && focusWindow(appId)} onAnimationEnd={(e) => { if (isClosing && e.animationName === 'winClose') finalizeClose(appId); }}>
-      <div className="window-titlebar" onMouseDown={onDragStart} onTouchStart={onDragStart}>
+      <div className="window-titlebar lg-regular" onMouseDown={onDragStart} onTouchStart={onDragStart}>
         <div className="traffic-lights">
           {!noClose && <button className="tl tl-close" onClick={(e) => { e.stopPropagation(); closeApp(appId); }} aria-label="Close" />}
           {noClose && <div className="tl tl-close-disabled" />}
@@ -374,27 +374,27 @@ export default function App() {
 
   useEffect(() => { init(); }, []);
 
-  // Auto-open AuthGate window when locked
+  // Open AuthGate window as soon as we know user is not authenticated.
+  // Fire on mount (!user, covers both loading=true and loading=false states)
+  // so there's no black screen gap during the session check.
   useEffect(() => {
-    if (isLocked && !windows[AUTH_WINDOW_ID]?.isOpen) {
-      // Open auth window centered — auto-maximize on mobile
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isMobile = vw < 768;
-      const w = isMobile ? vw : Math.min(420, vw - 32);
-      const h = isMobile ? vh : Math.min(580, vh - 80);
-      const x = isMobile ? 0 : Math.max(16, (vw - w) / 2);
-      const y = isMobile ? 0 : Math.max(16, (vh - h) / 2);
-      useOSStore.setState(s => ({
-        windows: {
-          ...s.windows,
-          [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex, ...(isMobile ? { _prevX: x, _prevY: y, _prevW: w, _prevH: h } : {}) }
-        },
-        windowOrder: [...s.windowOrder.filter(id => id !== AUTH_WINDOW_ID), AUTH_WINDOW_ID],
-        nextZIndex: s.nextZIndex + 1,
-      }));
-    }
-  }, [isLocked]);
+    if (user || windows[AUTH_WINDOW_ID]?.isOpen) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isMobile = vw < 768;
+    const w = isMobile ? vw : Math.min(420, vw - 32);
+    const h = isMobile ? vh : Math.min(580, vh - 80);
+    const x = isMobile ? 0 : Math.max(16, (vw - w) / 2);
+    const y = isMobile ? 0 : Math.max(16, (vh - h) / 2);
+    useOSStore.setState(s => ({
+      windows: {
+        ...s.windows,
+        [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex, ...(isMobile ? { _prevX: x, _prevY: y, _prevW: w, _prevH: h } : {}) }
+      },
+      windowOrder: [...s.windowOrder.filter(id => id !== AUTH_WINDOW_ID), AUTH_WINDOW_ID],
+      nextZIndex: s.nextZIndex + 1,
+    }));
+  }, []);
 
   // Close AuthGate window when user authenticates
   useEffect(() => {
@@ -434,8 +434,10 @@ export default function App() {
         <DesktopBackground />
         <CookieBanner />
 
-        {/* AuthGate as OS window — no close button, minimize+maximize allowed */}
-        {isLocked && windows[AUTH_WINDOW_ID]?.isOpen && (
+        {/* AuthGate as OS window — no close button, minimize+maximize allowed.
+            Rendered via window state only (not isLocked) so the close animation
+            plays on login instead of the window being hard-unmounted. */}
+        {windows[AUTH_WINDOW_ID]?.isOpen && (
           <AppWindow appId={AUTH_WINDOW_ID} noClose title="KURO .OS" icon="🔐">
             <AuthGate />
           </AppWindow>
@@ -533,6 +535,18 @@ export default function App() {
   -webkit-user-select: none; -webkit-touch-callout: none;
 }
 /* Noise grain layer — prevents plastic/flat look */
+/* Override lg-regular geometry so it works as a flat bar, not a floating panel */
+.window-titlebar.lg-regular {
+  border-radius: 0;
+  overflow: visible;
+  transform: none;
+  /* Keep our hand-tuned backdrop — override lg's lighter one */
+  backdrop-filter: blur(60px) saturate(2.2) brightness(1.08) !important;
+  -webkit-backdrop-filter: blur(60px) saturate(2.2) brightness(1.08) !important;
+}
+.window-titlebar.lg-regular:before, .window-titlebar.lg-regular:after {
+  border-radius: 0;
+}
 .window-titlebar::before {
   content: '';
   position: absolute; inset: 0; border-radius: inherit;
