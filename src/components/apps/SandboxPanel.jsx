@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  FolderPlus, Play, File, FileText, Image, Code, X, Plus,
+  FolderPlus, Play, File, FileText, Image, Code, X, Plus, Square,
   ChevronRight, ChevronDown, RefreshCw, Paperclip, Terminal,
   Eye, Download, Loader, AlertCircle, CheckCircle2, FolderOpen,
   Trash2, Upload
@@ -27,9 +27,6 @@ function authHeaders(extra = {}) {
 async function authFetch(url, opts = {}) {
   return fetch(url, { ...opts, headers: authHeaders(opts.headers || {}) });
 }
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-const POLL_INTERVAL = 1500;
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -132,10 +129,11 @@ function OutputConsole({ stdout, stderr, status, exitCode }) {
       <div className="sbx-console-header">
         <Terminal size={14} />
         <span>Output</span>
-        {status === 'running' && <Loader size={12} className="spin" />}
+        {(status === 'running' || status === 'queued') && <Loader size={12} className="spin" />}
         {status === 'done' && exitCode === 0 && <CheckCircle2 size={12} style={{color:'#30d158'}} />}
-        {status === 'done' && exitCode !== 0 && <AlertCircle size={12} style={{color:'#ff375f'}} />}
-        {status === 'done' && <span className="sbx-exit">exit {exitCode}</span>}
+        {['done','failed'].includes(status) && exitCode !== 0 && <AlertCircle size={12} style={{color:'#ff375f'}} />}
+        {['done','failed'].includes(status) && <span className="sbx-exit">exit {exitCode}</span>}
+        {['killed','timeout'].includes(status) && <span className="sbx-exit sbx-killed">{status}</span>}
       </div>
       <pre className="sbx-console-body" ref={ref}>
         {stdout && <span className="sbx-stdout">{stdout}</span>}
@@ -154,7 +152,7 @@ function ArtifactPreview({ runId, artifacts, workspaceId }) {
 
   const art = artifacts[activeArt];
   const ext = (art?.ext || art?.path?.split('.').pop() || '').toLowerCase().replace('.', '');
-  const artUrl = `/api/sandbox/artifacts/${runId}/${art.path}`;
+  const artUrl = `/api/runner/artifacts/${runId}/file?path=${encodeURIComponent(art.path)}`;
 
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
   const isHtml = ['html', 'htm'].includes(ext);
@@ -208,6 +206,7 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
   const [files, setFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
   const [editorContent, setEditorContent] = useState('# Write your Python code here\nprint("Hello from KURO Sandbox!")\n');
+  const [lang, setLang] = useState('python');
   const [runId, setRunId] = useState(null);
   const [runStatus, setRunStatus] = useState(null);
   const [stdout, setStdout] = useState('');
@@ -217,7 +216,7 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
   const [wsLoading, setWsLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
   const [error, setError] = useState(null);
-  const pollRef = useRef(null);
+  const evsRef = useRef(null);
 
   // ─── Load workspaces ──────────────────────────────────────────────────────
   const loadWorkspaces = useCallback(async () => {
@@ -294,9 +293,58 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
     setActiveFile(filePath);
   };
 
+  // ─── Connect SSE stream ────────────────────────────────────────────────────
+  const connectSSE = useCallback((jobId) => {
+    if (evsRef.current) evsRef.current.abort();
+    const controller = new AbortController();
+    evsRef.current = controller;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/runner/events/${jobId}`, {
+          headers: { 'X-KURO-Token': getToken() },
+          signal: controller.signal,
+        });
+        if (!res.ok) { setError(`Stream error: ${res.status}`); setRunLoading(false); return; }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.slice(6));
+              if (evt.t === 'stdout') setStdout(prev => prev + evt.d);
+              else if (evt.t === 'stderr') setStderr(prev => prev + evt.d);
+              else if (evt.t === 'sys') setStdout(prev => prev + evt.d);
+              else if (evt.t === 'status') {
+                setRunStatus(evt.status);
+                setExitCode(evt.exitCode ?? null);
+                setRunLoading(false);
+                if (['done', 'failed', 'killed', 'timeout'].includes(evt.status)) {
+                  authFetch(`/api/runner/artifacts/${jobId}`)
+                    .then(r => r.json()).then(d => setArtifacts(d.artifacts || [])).catch(() => {});
+                }
+                controller.abort();
+              }
+            } catch { /* malformed event */ }
+          }
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') { setError(e.message); setRunLoading(false); }
+      }
+    })();
+  }, []);
+
   // ─── Run code ─────────────────────────────────────────────────────────────
   const runCode = async () => {
-    if (!activeWs) return;
     setRunLoading(true);
     setRunStatus('queued');
     setStdout('');
@@ -305,47 +353,32 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
     setArtifacts([]);
     setError(null);
 
-    // Auto-save before running
-    if (activeFile) await saveFile();
-
+    const cmd = activeFile || (lang === 'node' ? 'index.js' : 'main.py');
     try {
-      const r = await authFetch('/api/sandbox/run', {
+      const r = await authFetch('/api/runner/spawn', {
         method: 'POST',
-        body: JSON.stringify({ workspaceId: activeWs.id, entrypoint: activeFile || 'main.py' }),
+        body: JSON.stringify({ cmd, lang, inlineCode: editorContent }),
       });
       const data = await r.json();
-      if (!r.ok) { setError(data.error || 'Run failed'); setRunLoading(false); setRunStatus('error'); return; }
-
-      setRunId(data.runId);
-      setRunStatus('queued');
-
-      // Start polling
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const pr = await authFetch(`/api/sandbox/run/${data.runId}`);
-          const pd = await pr.json();
-          setRunStatus(pd.status);
-          setStdout(pd.stdout || '');
-          setStderr(pd.stderr || '');
-          if (pd.status === 'done' || pd.status === 'error') {
-            setExitCode(pd.exitCode);
-            setArtifacts(pd.artifacts || []);
-            setRunLoading(false);
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        } catch { /* keep polling */ }
-      }, POLL_INTERVAL);
+      if (!r.ok) { setError(data.error || 'Spawn failed'); setRunLoading(false); setRunStatus('failed'); return; }
+      setRunId(data.jobId);
+      connectSSE(data.jobId);
     } catch (e) {
       setError(e.message);
       setRunLoading(false);
-      setRunStatus('error');
+      setRunStatus('failed');
     }
   };
 
-  // Cleanup polling on unmount
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  // ─── Kill job ─────────────────────────────────────────────────────────────
+  const killJob = async () => {
+    if (!runId) return;
+    try { await authFetch(`/api/runner/kill/${runId}`, { method: 'POST' }); }
+    catch (e) { setError(e.message); }
+  };
+
+  // Cleanup SSE on unmount
+  useEffect(() => () => { if (evsRef.current) evsRef.current.abort(); }, []);
 
   // ─── Attach to chat ───────────────────────────────────────────────────────
   const handleAttach = () => {
@@ -393,8 +426,15 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
                 <FileText size={14} /> {activeFile || '(no file selected)'}
               </span>
               <div className="sbx-editor-actions">
+                <select className="sbx-lang-select" value={lang} onChange={e => setLang(e.target.value)} disabled={runLoading}>
+                  <option value="python">Python</option>
+                  <option value="node">Node.js</option>
+                </select>
                 <button className="sbx-btn" onClick={saveFile} disabled={!activeFile}>Save</button>
-                <button className="sbx-btn primary" onClick={runCode} disabled={runLoading || !activeFile}>
+                {runLoading && (
+                  <button className="sbx-btn danger" onClick={killJob}><Square size={14} /> Kill</button>
+                )}
+                <button className="sbx-btn primary" onClick={runCode} disabled={runLoading}>
                   {runLoading ? <><Loader size={14} className="spin" /> Running…</> : <><Play size={14} /> Run</>}
                 </button>
               </div>
@@ -404,7 +444,7 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
               className="sbx-editor"
               value={editorContent}
               onChange={e => setEditorContent(e.target.value)}
-              placeholder="# Write Python code here…"
+              placeholder={lang === 'node' ? '// Write Node.js code here…' : '# Write Python code here…'}
               spellCheck={false}
               disabled={!activeFile}
             />
@@ -464,6 +504,15 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
 .sbx-btn.small { padding: 4px 8px; font-size: 11px; }
 .sbx-btn.attach { margin: 8px 12px; align-self: flex-start; }
 .sbx-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sbx-btn.danger { background: rgba(255,55,95,0.15); border-color: rgba(255,55,95,0.3); color: #ff6b8a; }
+.sbx-btn.danger:hover { background: rgba(255,55,95,0.25); }
+.sbx-lang-select {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px; padding: 5px 8px; color: rgba(255,255,255,0.85);
+  font-size: 12px; cursor: pointer; outline: none;
+}
+.sbx-lang-select:focus { border-color: rgba(168,85,247,0.5); }
+.sbx-killed { color: #ff9500; }
 
 /* Workspace selector */
 .sbx-ws-selector { padding: 8px; }

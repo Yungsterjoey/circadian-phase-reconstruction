@@ -24,6 +24,23 @@ const RUNNER_IMAGE = process.env.SANDBOX_IMAGE || 'kuro-sandbox-runner:latest';
 const MAX_CONCURRENT = parseInt(process.env.SANDBOX_MAX_CONCURRENT || '4', 10);
 const HARD_TIMEOUT_CAP = parseInt(process.env.KURO_SANDBOX_TIMEOUT_SECONDS || '60', 10);
 
+// ── Language config (additive; python is existing default) ──────────────────
+const LANG_MAP = {
+  python: {
+    image: () => RUNNER_IMAGE,
+    dockerCmd:   (ep) => ['python3', '-u', ep || 'main.py'],
+    firejailBin: 'python3',
+    firejailArgs: (wp, ep) => ['python3', '-u', path.join(wp, ep || 'main.py')],
+  },
+  node: {
+    image: () => process.env.SANDBOX_NODE_IMAGE || 'node:18-alpine',
+    dockerCmd:   (ep) => ['node', ep || 'index.js'],
+    firejailBin: 'node',
+    firejailArgs: (wp, ep) => ['node', path.join(wp, ep || 'index.js')],
+  },
+};
+function getLang(lang) { return LANG_MAP[lang] || LANG_MAP.python; }
+
 // Convert seconds → HH:MM:SS for firejail --timeout flag
 function secsToHMS(s) {
   const h = Math.floor(s / 3600).toString().padStart(2, '0');
@@ -103,9 +120,8 @@ function runDocker(job) {
   const { workspacePath, entrypoint, budgets, runDir } = job;
   const memLimit = `${budgets.max_memory_mb}m`;
   const timeout = budgets.max_runtime_seconds;
+  const langCfg = getLang(job.lang);
 
-  // The workspace is mounted read-write at /workspace inside container.
-  // Artifacts dir is mounted at /artifacts.
   const artifactDir = path.join(runDir, 'artifacts');
   fs.mkdirSync(artifactDir, { recursive: true });
 
@@ -124,8 +140,8 @@ function runDocker(job) {
     '-v', `${artifactDir}:/artifacts:rw`,
     '-w', '/workspace',
     '-e', `TIMEOUT=${timeout}`,
-    RUNNER_IMAGE,
-    'python3', '-u', entrypoint || 'main.py',
+    langCfg.image(),
+    ...langCfg.dockerCmd(entrypoint),
   ];
 
   return new Promise(resolve => {
@@ -175,6 +191,7 @@ function runDocker(job) {
 function runFirejail(job) {
   const { workspacePath, entrypoint, budgets, runDir } = job;
   const timeout = budgets.max_runtime_seconds;
+  const langCfg = getLang(job.lang);
   const artifactDir = path.join(runDir, 'artifacts');
   fs.mkdirSync(artifactDir, { recursive: true });
 
@@ -188,7 +205,7 @@ function runFirejail(job) {
     '--read-only=' + workspacePath,
     '--whitelist=' + artifactDir,
     '--',
-    'python3', '-u', path.join(workspacePath, entrypoint || 'main.py'),
+    ...langCfg.firejailArgs(workspacePath, entrypoint),
   ];
 
   return new Promise(resolve => {
@@ -278,7 +295,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/run') {
     try {
       const body = await parseBody(req);
-      const { workspacePath, entrypoint, budgets: userBudgets, runDir } = body;
+      const { workspacePath, entrypoint, budgets: userBudgets, runDir, lang } = body;
 
       if (!workspacePath || !runDir) return respond(res, 400, { error: 'workspacePath and runDir required' });
       if (!fs.existsSync(workspacePath)) return respond(res, 400, { error: 'workspacePath does not exist' });
@@ -287,11 +304,12 @@ const server = http.createServer(async (req, res) => {
 
       const budgets = { ...DEFAULT_BUDGETS, ...userBudgets };
       const runId = genRunId();
+      const safeLang = LANG_MAP[lang] ? lang : 'python';
       fs.mkdirSync(runDir, { recursive: true });
 
       const job = {
-        runId, workspacePath, entrypoint: entrypoint || 'main.py',
-        budgets, runDir,
+        runId, workspacePath, entrypoint: entrypoint || (safeLang === 'node' ? 'index.js' : 'main.py'),
+        budgets, runDir, lang: safeLang,
         status: 'queued', exitCode: null,
         stdout: '', stderr: '', artifacts: [],
         createdAt: Date.now(), startedAt: null, finishedAt: null,
@@ -321,7 +339,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /health
   if (req.method === 'GET' && url.pathname === '/health') {
-    return respond(res, 200, { status: 'ok', docker: useDocker, active: activeCount, maxConcurrent: MAX_CONCURRENT });
+    return respond(res, 200, { status: 'ok', docker: useDocker, active: activeCount, maxConcurrent: MAX_CONCURRENT, langs: Object.keys(LANG_MAP) });
   }
 
   respond(res, 404, { error: 'Not found' });

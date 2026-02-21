@@ -180,7 +180,9 @@ async function executeJob(jobId, db) {
     return;
   }
 
-  activeJobs.set(jobId, { userId: row.user_id, proc, listeners: new Set(), status: 'running' });
+  // Preserve listeners that attached while job was queued
+  const existingJob = activeJobs.get(jobId);
+  activeJobs.set(jobId, { userId: row.user_id, proc, listeners: existingJob?.listeners || new Set(), status: 'running' });
   dispatch(jobId, { t: 'sys', ts: Date.now(), d: `[RUNNER] Job started (${row.lang})\n` });
 
   let totalOut = 0;
@@ -262,7 +264,7 @@ function mountRunnerRoutes(auth, { db }) {
     const check = rateCheck(userId, budgets);
     if (!check.ok) return res.status(429).json({ error: check.reason });
 
-    const { projectId, cmd, cwd, lang = 'python', snapshot = false, env: userEnv } = req.body || {};
+    const { projectId, cmd, cwd, lang = 'python', snapshot = false, env: userEnv, inlineCode } = req.body || {};
     if (!cmd) return res.status(400).json({ error: 'cmd required' });
 
     // Validate lang
@@ -281,6 +283,12 @@ function mountRunnerRoutes(auth, { db }) {
       }
     } catch (e) {
       fs.mkdirSync(workspaceDir, { recursive: true }); // fallback
+    }
+
+    // Write inline code into workspace if provided (direct editor integration)
+    if (inlineCode && typeof inlineCode === 'string') {
+      const safeName = path.basename(cmd || 'main.py');
+      fs.writeFileSync(path.join(workspaceDir, safeName), inlineCode.slice(0, 1048576), 'utf8');
     }
 
     rateRecord(userId);
@@ -425,6 +433,21 @@ function mountRunnerRoutes(auth, { db }) {
     };
     walk(artifactDir, '');
     res.json({ artifacts });
+  });
+
+  // ── GET /artifacts/:jobId/file?path=xxx ─── serve individual artifact file ──
+  router.get('/artifacts/:jobId/file', (req, res) => {
+    const userId = uid(req);
+    if (!userId || userId === 'anon') return res.status(401).end();
+    const row = db.prepare('SELECT job_id FROM runner_jobs WHERE job_id=? AND user_id=?').get(req.params.jobId, userId);
+    if (!row) return res.status(404).end();
+    const relPath = String(req.query.path || '');
+    if (!relPath) return res.status(400).json({ error: 'path required' });
+    const artifactDir = path.join(JOB_DIR, req.params.jobId, 'artifacts');
+    const fullPath = path.resolve(artifactDir, relPath);
+    if (!fullPath.startsWith(artifactDir + path.sep)) return res.status(400).json({ error: 'Invalid path' });
+    if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) return res.status(404).end();
+    res.sendFile(fullPath);
   });
 
   return router;
