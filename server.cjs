@@ -243,11 +243,11 @@ const VECTOR_DIR = path.join(DATA_DIR, 'vectors');
 
 const MODEL_REGISTRY = {
   // ═══ GCP NVIDIA L4 (24GB VRAM) — Router + Brain Architecture ═══
-  // Router: fast intent classification (Gemma3 4B, ~3GB VRAM)
+  // Router: fast intent classification (Gemma3 4B abliterated, ~3GB VRAM)
   // Brain: heavy reasoning (Qwen3-30B-A3B VL abliterated, ~10GB active VRAM)
   // Budget: 3 + 10 + 4 (KV cache) = 17GB used, 7GB headroom
 
-  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'gemma3:4b',                                                      ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Gemma3 4B)', vram: 3 },
+  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'huihui_ai/gemma3-abliterated:4b',                                ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Gemma3 4B Abliterated)', vram: 3 },
   'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 10 },
   'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                                              ctx: 2048,  embedding: true, tier: 'subconscious' }
 };
