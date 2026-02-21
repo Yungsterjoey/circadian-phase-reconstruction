@@ -244,23 +244,13 @@ function GlassDock({ isLocked, onLockedAppClick }) {
             </button>
           </>
         )}
-        <div className="dock-sep" />
-        {user ? (
-          <button className="dock-user" onClick={() => useAuthStore.getState().logout()} title={`${user.name || user.email} · ${user.tier}`}>
-            <span className="dock-user-tier" data-tier={user.tier}>{user.tier[0].toUpperCase()}</span>
-          </button>
-        ) : (
-          <button className="dock-user" onClick={onLockedAppClick} title="Sign in">
-            <span className="dock-user-anon">→</span>
-          </button>
-        )}
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GLASS PANEL (App Launcher) — locked-state aware
+// GLASS PANEL (App Launcher) — locked-state aware, HIG open/close anim
 // ═══════════════════════════════════════════════════════════════════════════
 function GlassPanel({ isLocked, onLockedAppClick }) {
   const { apps, openApp, glassPanelOpen } = useOSStore();
@@ -268,7 +258,22 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
   const userTier = user?.tier || 'free';
   const isAdmin = user?.isAdmin;
 
-  if (!glassPanelOpen) return null;
+  // HIG close animation state machine
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (glassPanelOpen) {
+      setVisible(true);
+      setClosing(false);
+    } else if (visible) {
+      setClosing(true);
+      const t = setTimeout(() => { setVisible(false); setClosing(false); }, 200);
+      return () => clearTimeout(t);
+    }
+  }, [glassPanelOpen]);
+
+  if (!visible) return null;
 
   const handleClick = (app) => {
     if (isLocked) { onLockedAppClick(); return; }
@@ -277,9 +282,11 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
     openApp(app.id);
   };
 
+  const tierLabel = { free: 'Free', pro: 'Pro', sovereign: 'Sovereign' };
+
   return (
-    <div className="glass-panel">
-      <div className="panel-header">KURO OS</div>
+    <div className={`glass-panel${closing ? ' closing' : ''}`}>
+      <div className="panel-header">KURO .OS</div>
       <div className="panel-grid">
         {apps.filter(a => a.id !== 'kuro.admin' || isAdmin).map(app => {
           const locked = isLocked || ((TIER_LEVEL[userTier] || 0) < (TIER_LEVEL[app.minTier] || 0));
@@ -292,6 +299,21 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
           );
         })}
       </div>
+      <div className="panel-divider" />
+      {user ? (
+        <div className="panel-user-section">
+          <div className="panel-user-info">
+            <span className="panel-user-avatar" data-tier={user.tier}>{user.tier[0].toUpperCase()}</span>
+            <div className="panel-user-details">
+              <span className="panel-user-name">{user.name || user.email}</span>
+              <span className="panel-user-tier" data-tier={user.tier}>{tierLabel[user.tier] || user.tier}</span>
+            </div>
+          </div>
+          <button className="panel-signout-btn" onClick={() => useAuthStore.getState().logout()}>Sign Out</button>
+        </div>
+      ) : (
+        <button className="panel-signin-btn" onClick={onLockedAppClick}>Sign In →</button>
+      )}
     </div>
   );
 }
@@ -548,15 +570,20 @@ export default function App() {
   touch-action: manipulation; position: relative;
   background: rgba(28,28,32,0.55);
   backdrop-filter: blur(40px) saturate(1.6); -webkit-backdrop-filter: blur(40px) saturate(1.6);
-  border-radius: var(--lg-radius-lg, 22px); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--lg-radius-xl, 28px); border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10);
+  animation: dockOpen 0.3s cubic-bezier(0.2, 0, 0, 1) both;
 }
 .glass-dock::before {
-  content: ''; position: absolute; inset: -0.5px; border-radius: calc(var(--lg-radius-lg, 22px) + 0.5px);
+  content: ''; position: absolute; inset: -0.5px; border-radius: calc(var(--lg-radius-xl, 28px) + 0.5px);
   background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 55%);
   pointer-events: none; z-index: -1;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude; -webkit-mask-composite: xor; padding: 0.5px;
+}
+@keyframes dockOpen {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .dock-cube {
   width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
@@ -609,49 +636,89 @@ export default function App() {
 }
 .lock-badge[data-tier="pro"] { background: rgba(59,130,246,0.8); }
 .lock-badge[data-tier="sovereign"] { background: linear-gradient(135deg,#9333ea,#6366f1); }
-.dock-user {
-  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04); cursor: pointer; transition: all 0.15s;
-}
-.dock-user:hover { background: rgba(255,255,255,0.08); }
-.dock-user-tier { font-size: 13px; font-weight: 700; color: var(--lg-accent, #a855f7); }
-.dock-user-tier[data-tier="pro"] { color: #3b82f6; }
-.dock-user-tier[data-tier="sovereign"] { color: #d946ef; }
-.dock-user-anon { font-size: 14px; color: rgba(255,255,255,0.4); }
 
 /* ═══ PANEL ═══ */
+@keyframes panelOpen {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes panelClose {
+  from { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.97); }
+}
 .glass-panel {
   position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
   width: 380px; padding: 20px;
-  background: rgba(20,20,24,0.85);
-  backdrop-filter: blur(50px) saturate(1.6); -webkit-backdrop-filter: blur(50px) saturate(1.6);
-  border-radius: var(--lg-radius-xl, 28px); border: 1px solid var(--lg-glass-border, rgba(255,255,255,0.1)); z-index: 9998;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10);
+  background: rgba(20,20,24,0.88);
+  backdrop-filter: blur(50px) saturate(1.8); -webkit-backdrop-filter: blur(50px) saturate(1.8);
+  border-radius: var(--lg-radius-xl, 28px); border: 1px solid rgba(255,255,255,0.10); z-index: 9998;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.10);
+  animation: panelOpen 0.22s cubic-bezier(0.2, 0, 0, 1) both;
 }
-.panel-header { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.5); letter-spacing: 2px; text-align: center; margin-bottom: 16px; }
+.glass-panel.closing {
+  animation: panelClose 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.panel-header { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); letter-spacing: 2.5px; text-align: center; margin-bottom: 16px; text-transform: uppercase; }
 .panel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .panel-app {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  background: none; border: none; cursor: pointer; padding: 12px 4px; border-radius: var(--lg-radius-sm, 12px);
-  transition: background 0.15s; color: #fff; position: relative;
+  background: none; border: none; cursor: pointer; padding: 12px 4px; border-radius: var(--lg-radius-md, 16px);
+  transition: background 0.15s, transform 0.18s cubic-bezier(0.2,0,0,1); color: #fff; position: relative;
 }
-.panel-app:hover { background: rgba(255,255,255,0.08); }
+.panel-app:hover { background: rgba(255,255,255,0.07); transform: scale(1.05); }
+.panel-app:active { transform: scale(0.97); transition-duration: 0.08s; }
 .panel-app.locked { opacity: 0.4; }
+.panel-app.locked:hover { transform: none; }
 .panel-icon { font-size: 28px; }
-.panel-label { font-size: 10px; color: rgba(255,255,255,0.7); }
+.panel-label { font-size: 10px; color: rgba(255,255,255,0.65); letter-spacing: 0.2px; }
+.panel-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 16px 0 14px; }
+.panel-user-section { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.panel-user-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.panel-user-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--lg-accent, #a855f7);
+  background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.25);
+}
+.panel-user-avatar[data-tier="pro"] { color: #3b82f6; background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); }
+.panel-user-avatar[data-tier="sovereign"] { color: #d946ef; background: rgba(217,70,239,0.12); border-color: rgba(217,70,239,0.25); }
+.panel-user-details { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.panel-user-name { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-user-tier { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; }
+.panel-user-tier[data-tier="pro"] { color: rgba(59,130,246,0.7); }
+.panel-user-tier[data-tier="sovereign"] { color: rgba(217,70,239,0.7); }
+.panel-signout-btn {
+  flex-shrink: 0; padding: 6px 12px; border-radius: var(--lg-radius-xs, 8px);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.55); font-size: 12px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.panel-signout-btn:hover { background: rgba(255,80,60,0.18); border-color: rgba(255,80,60,0.3); color: rgba(255,120,100,0.9); }
+.panel-signout-btn:active { background: rgba(255,80,60,0.28); }
+.panel-signin-btn {
+  width: 100%; padding: 10px; border-radius: var(--lg-radius-sm, 12px);
+  background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3);
+  color: rgba(168,85,247,0.9); font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s, color 0.15s; text-align: center;
+}
+.panel-signin-btn:hover { background: rgba(168,85,247,0.25); color: #fff; }
+.panel-signin-btn:active { background: rgba(168,85,247,0.35); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 /* ═══ REDUCED MOTION ═══ */
 @media (prefers-reduced-motion: reduce) {
   .app-window { animation: none !important; }
+  .app-window.closing { animation: none !important; opacity: 0 !important; }
+  .glass-panel { animation: none !important; }
+  .glass-panel.closing { animation: none !important; opacity: 0 !important; }
+  .glass-dock { animation: none !important; }
   .dock-item { transition: background 0.15s !important; }
   .dock-item:hover { transform: none !important; }
   .dock-item:active { transform: none !important; }
   .dock-item.open .dock-icon { animation: none !important; }
-  .glass-dock { transition: none !important; }
-  .glass-panel { transition: none !important; }
+  .panel-app { transition: background 0.15s !important; }
+  .panel-app:hover { transform: none !important; }
   .dock-cube:hover { transform: none !important; }
   .dock-cube:active { transform: none !important; }
   .dock-reveal-tab { animation: none !important; }
@@ -667,7 +734,7 @@ export default function App() {
   .glass-dock { padding: 5px 10px; gap: 3px; }
   .dock-cube, .dock-item { width: 42px; height: 42px; }
   .dock-icon { font-size: 22px; }
-  .glass-panel { width: 360px; bottom: 86px; padding: 18px; }
+  .glass-panel { width: min(360px, calc(100vw - 32px)); bottom: 86px; padding: 18px; }
   .panel-icon { font-size: 26px; }
   .panel-label { font-size: 10px; }
 }
@@ -698,11 +765,13 @@ export default function App() {
   .cube-face.top    { transform: rotateX(90deg) translateZ(9px); }
   .cube-face.bottom { transform: rotateX(-90deg) translateZ(9px); }
   .glass-panel { width: calc(100vw - 24px); bottom: 76px; padding: 16px; }
-  .panel-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .panel-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .panel-app { padding: 10px 4px; gap: 5px; }
   .panel-icon { font-size: 24px; }
   .panel-label { font-size: 9px; }
-  .panel-header { font-size: 12px; margin-bottom: 12px; }
+  .panel-header { margin-bottom: 12px; }
+  .panel-user-name { font-size: 12px; }
+  .panel-signout-btn { font-size: 11px; padding: 5px 10px; }
 }
 
 /* ═══ MOBILE PERFORMANCE — reduce GPU load ═══ */
@@ -726,6 +795,8 @@ export default function App() {
   }
   /* Skip window open animation on phone — already fullscreen */
   .app-window { animation: none !important; }
+  /* Keep panel anim on mobile but simplify */
+  .glass-panel { animation-duration: 0.15s !important; }
   /* Kill dock hover bounce — it's a scrolling cost on touch */
   .dock-item { transition: background 0.1s !important; }
   .dock-item:hover { transform: none !important; }
