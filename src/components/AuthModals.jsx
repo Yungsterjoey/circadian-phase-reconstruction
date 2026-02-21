@@ -37,7 +37,7 @@ export function AuthModal() {
     <div className="kuro-modal-overlay" onClick={closeAuth}>
       <div className="kuro-modal auth-modal" onClick={e => e.stopPropagation()}>
         <div className="auth-logo">
-          <div className="auth-logo-icon">K</div>
+          <img src="/kuro-logo.jpg" className="auth-logo-icon" alt="KURO" />
           <div className="auth-logo-text">KURO OS</div>
         </div>
 
@@ -237,9 +237,8 @@ export function AuthStyles() {
 /* LOGO */
 .auth-logo { text-align: center; margin-bottom: 24px; }
 .auth-logo-icon {
-  display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #9333ea, #6366f1);
-  border-radius: 14px; font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 8px;
+  display: block; width: 48px; height: 48px;
+  border-radius: 14px; margin-bottom: 8px; object-fit: cover;
 }
 .auth-logo-text { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.5); letter-spacing: 2px; }
 

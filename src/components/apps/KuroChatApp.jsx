@@ -155,13 +155,54 @@ const TYPING_PROMPTS = [
 // CYCLING PLACEHOLDER — rotates TYPING_PROMPTS as textarea placeholder
 // ═══════════════════════════════════════════════════════════════════════════
 function useCyclingPlaceholder(active) {
-  const [idx, setIdx] = useState(0);
+  const [display, setDisplay] = useState('');
+
   useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => setIdx(i => (i + 1) % TYPING_PROMPTS.length), 3200);
-    return () => clearInterval(t);
+    if (!active) { setDisplay(''); return; }
+
+    let idx = 0, chars = 0, phase = 'typing', blinkOn = true, blinkTicks = 0;
+    let timer;
+
+    function tick() {
+      const phrase = TYPING_PROMPTS[idx];
+      if (phase === 'typing') {
+        chars++;
+        setDisplay(phrase.slice(0, chars) + '_');
+        if (chars >= phrase.length) {
+          phase = 'wait'; blinkTicks = 0;
+          timer = setTimeout(tick, 420);
+        } else {
+          timer = setTimeout(tick, 58);
+        }
+      } else if (phase === 'wait') {
+        blinkTicks++;
+        blinkOn = !blinkOn;
+        setDisplay(phrase + (blinkOn ? '_' : ''));
+        if (blinkTicks >= 6) {
+          phase = 'erasing';
+          timer = setTimeout(tick, 35);
+        } else {
+          timer = setTimeout(tick, 420);
+        }
+      } else {
+        chars--;
+        if (chars <= 0) {
+          chars = 0;
+          idx = (idx + 1) % TYPING_PROMPTS.length;
+          phase = 'typing';
+          timer = setTimeout(tick, 380);
+        } else {
+          setDisplay(phrase.slice(0, chars) + '_');
+          timer = setTimeout(tick, 30);
+        }
+      }
+    }
+
+    timer = setTimeout(tick, 700);
+    return () => clearTimeout(timer);
   }, [active]);
-  return active ? TYPING_PROMPTS[idx] : 'Message KURO\u2026';
+
+  return active ? display : 'Message KURO\u2026';
 }
 
 
@@ -586,16 +627,32 @@ function parseContent(content) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE — RT-08: Index-based regen, RT-16: per-message redaction
 // ═══════════════════════════════════════════════════════════════════════════
-const Message = ({ msg, msgIndex, isStreaming, onCopy, showThoughts, agents, activeAgent }) => {
+const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, agents, activeAgent }) => {
   const [showActions, setShowActions] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const editRef = useRef(null);
   const parsed = parseContent(msg.content);
   const agent = agents[activeAgent] || Object.values(agents)[0];
   const AgentIcon = resolveIcon(agent?.icon);
 
+  const startEdit = () => {
+    setEditValue(msg.content);
+    setEditing(true);
+    setShowActions(false);
+    setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 30);
+  };
+  const saveEdit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== msg.content) onEdit(msgIndex, trimmed);
+    setEditing(false);
+  };
+  const cancelEdit = () => setEditing(false);
+
   return (
     <div
       className={`message ${msg.role}`}
-      onMouseEnter={() => setShowActions(true)}
+      onMouseEnter={() => !editing && setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
       {msg.role === 'assistant' && (
@@ -608,13 +665,36 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, showThoughts, agents, act
           <ThoughtBlock content={parsed.think} isStreaming={parsed.thinkStreaming} />
         )}
         {parsed.artifact && <ArtifactCard artifact={parsed.artifact} />}
-        <div className="message-text">
-          {msg.role === 'assistant' ? <MarkdownText text={parsed.main} /> : parsed.main}
-          {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor" />}
-        </div>
-        {showActions && !isStreaming && (
+        {editing ? (
+          <div className="message-edit-wrap">
+            <textarea
+              ref={editRef}
+              className="message-edit-area"
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                if (e.key === 'Escape') cancelEdit();
+              }}
+              rows={3}
+            />
+            <div className="message-edit-actions">
+              <button className="message-edit-save" onClick={saveEdit}>Save</button>
+              <button className="message-edit-cancel" onClick={cancelEdit}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div className="message-text">
+            {msg.role === 'assistant' ? <MarkdownText text={parsed.main} /> : parsed.main}
+            {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor" />}
+          </div>
+        )}
+        {showActions && !isStreaming && !editing && (
           <div className="message-actions">
             <button onClick={() => onCopy(msg.content)} title="Copy"><Copy size={14} /></button>
+            {msg.role === 'user' && onEdit && (
+              <button onClick={startEdit} title="Edit"><Edit3 size={14} /></button>
+            )}
           </div>
         )}
       </div>
@@ -783,7 +863,6 @@ export default function KuroChat() {
 
   // UI State
   const [input, setInput] = useState('');
-  const chatPlaceholder = useCyclingPlaceholder(messages.length === 0 && !input);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -804,12 +883,13 @@ export default function KuroChat() {
   const abortRef = useRef(null);
 
   // ── Preempt — speculative pre-computation ──────────────────────────
-  const { onInputChange, getPreemptSession, abortPreempt } = usePreempt(String(activeId), 'main', getToken());
+  const { onInputChange, getPreemptSession, abortPreempt, preemptState } = usePreempt(String(activeId), 'main', getToken());
 
   useEffect(() => () => abortPreempt(), [activeId]);
 
   const activeConv = conversations.find(c => c.id === activeId) || conversations[0];
   const messages = activeConv?.messages || [];
+  const chatPlaceholder = useCyclingPlaceholder(messages.length === 0 && !input);
   const profileDef = profiles[profile] || profiles.lab;
 
   // ── RT-05, RT-10: Fetch server-driven config on mount ──────────────
@@ -884,6 +964,14 @@ export default function KuroChat() {
       c.id === cid ? { ...c, messages: typeof fn === 'function' ? fn(c.messages) : fn } : c
     ));
   }, []);
+
+  const handleEditMessage = useCallback((msgIndex, newContent) => {
+    updateMessages(activeId, msgs => {
+      const updated = [...msgs];
+      updated[msgIndex] = { ...updated[msgIndex], content: newContent };
+      return updated;
+    });
+  }, [activeId, updateMessages]);
 
   const createConv = useCallback(() => {
     const n = { id: String(Date.now()), title: '', messages: [], projectId: activeProject };
@@ -1222,6 +1310,7 @@ export default function KuroChat() {
                     agents={agents}
                     activeAgent={activeAgent}
                     onCopy={c => navigator.clipboard.writeText(c)}
+                    onEdit={handleEditMessage}
                   />
                 ))}
                 <div ref={messagesEndRef} />
@@ -1241,7 +1330,7 @@ export default function KuroChat() {
               <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
               <SpeedIsland value={powerDial} onChange={setPowerDial} />
             </div>
-            <Island className="input-island" floating glow dismissable position="bottom">
+            <Island className={`input-island preempt-${preemptState}`} floating glow dismissable position="bottom">
               <LiveEditBar
                 phrase={liveEdit.correctionPhrase}
                 visible={liveEdit.showBar}
@@ -1320,6 +1409,36 @@ export default function KuroChat() {
 }
 .island.floating { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5); }
 .island.glow { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px -20px var(--accent-glow); }
+/* Preempt awareness — purple glow states */
+.island.preempt-preempting { animation: preemptPulse 1.4s ease-in-out infinite; }
+.island.preempt-loaded { box-shadow: 0 0 0 1px rgba(168,85,247,0.22), 0 8px 32px rgba(0,0,0,0.5), 0 0 40px -8px rgba(168,85,247,0.45); transition: box-shadow 0.5s ease; }
+@keyframes preemptPulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(168,85,247,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 24px -12px rgba(168,85,247,0.18); }
+  50%      { box-shadow: 0 0 0 1px rgba(168,85,247,0.28), 0 8px 32px rgba(0,0,0,0.5), 0 0 52px -6px rgba(168,85,247,0.52); }
+}
+/* Message bubble inline edit — orange */
+.message-edit-wrap { width: 100%; }
+.message-edit-area {
+  width: 100%; background: rgba(255,255,255,0.04); color: var(--text);
+  border: 1px solid rgba(255,159,10,0.35); border-radius: 12px;
+  padding: 10px 12px; font-size: 15px; font-family: inherit; resize: none; outline: none;
+  box-shadow: 0 0 0 3px rgba(255,159,10,0.07), 0 0 24px -8px rgba(255,159,10,0.35);
+  transition: box-shadow 0.2s;
+}
+.message-edit-area:focus { box-shadow: 0 0 0 3px rgba(255,159,10,0.12), 0 0 32px -6px rgba(255,159,10,0.5); }
+.message-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
+.message-edit-save {
+  padding: 5px 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit;
+  background: rgba(255,159,10,0.15); border: 1px solid rgba(255,159,10,0.35); color: rgba(255,159,10,0.9);
+  transition: background 0.15s;
+}
+.message-edit-save:hover { background: rgba(255,159,10,0.25); }
+.message-edit-cancel {
+  padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text-3);
+  transition: background 0.15s;
+}
+.message-edit-cancel:hover { background: rgba(255,255,255,0.08); }
 .island.dismissable { touch-action: none; }
 .island-enter { animation: islandSlideIn 0.38s cubic-bezier(0.22,1,0.36,1) both; }
 @keyframes islandSlideIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }

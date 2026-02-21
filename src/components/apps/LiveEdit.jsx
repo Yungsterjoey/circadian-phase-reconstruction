@@ -267,12 +267,13 @@ export function LiveEditBar({ phrase, visible, adapting, error, onApply, onDismi
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(168, 85, 247, 0.12);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(255, 159, 10, 0.10);
+  border: 1px solid rgba(255, 159, 10, 0.30);
   border-radius: 100px;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   animation: liveeditIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 28px -10px rgba(255,159,10,0.35);
   max-width: calc(100% - 32px);
 }
 @keyframes liveeditIn {
@@ -280,10 +281,10 @@ export function LiveEditBar({ phrase, visible, adapting, error, onApply, onDismi
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.liveedit-icon { display: flex; align-items: center; color: #a855f7; flex-shrink: 0; }
+.liveedit-icon { display: flex; align-items: center; color: #ff9f0a; flex-shrink: 0; }
 .liveedit-content { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
 .liveedit-label {
-  font-size: 11px; font-weight: 600; color: #a855f7;
+  font-size: 11px; font-weight: 600; color: #ff9f0a;
   text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;
 }
 .liveedit-phrase {
@@ -294,13 +295,13 @@ export function LiveEditBar({ phrase, visible, adapting, error, onApply, onDismi
 .liveedit-apply {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 12px;
-  background: rgba(168, 85, 247, 0.25);
-  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: rgba(255, 159, 10, 0.20);
+  border: 1px solid rgba(255, 159, 10, 0.40);
   border-radius: 100px;
-  color: #c084fc; font-size: 12px; font-weight: 500;
+  color: #ffb830; font-size: 12px; font-weight: 500;
   cursor: pointer; flex-shrink: 0; transition: all 0.15s ease;
 }
-.liveedit-apply:hover { background: rgba(168, 85, 247, 0.4); color: white; }
+.liveedit-apply:hover { background: rgba(255, 159, 10, 0.35); color: white; }
 
 .liveedit-dismiss {
   display: flex; align-items: center; padding: 4px;
@@ -313,12 +314,12 @@ export function LiveEditBar({ phrase, visible, adapting, error, onApply, onDismi
 .liveedit-adapting {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 16px;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  background: rgba(255, 159, 10, 0.12);
+  border: 1px solid rgba(255, 159, 10, 0.25);
   border-radius: 100px;
   backdrop-filter: blur(20px);
   animation: liveeditIn 0.2s ease;
-  color: #c084fc; font-size: 13px; font-weight: 500;
+  color: #ffb830; font-size: 13px; font-weight: 500;
 }
 .liveedit-spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
