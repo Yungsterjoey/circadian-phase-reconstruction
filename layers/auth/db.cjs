@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -190,6 +190,52 @@ function migrate() {
 
       CREATE INDEX IF NOT EXISTS idx_vfs_files_user ON vfs_files(user_id);
       CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+    `);
+  }
+
+  if (current < 5) {
+    // v5: Runner job state + log persistence + tool call audit
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS runner_jobs (
+        job_id        TEXT PRIMARY KEY,
+        user_id       TEXT NOT NULL,
+        project_id    TEXT,
+        cwd           TEXT,
+        cmd           TEXT,
+        lang          TEXT DEFAULT 'python',
+        status        TEXT DEFAULT 'queued'
+                        CHECK(status IN ('queued','running','done','failed','killed','timeout')),
+        exit_code     INTEGER,
+        snapshot_id   TEXT,
+        max_seconds   INTEGER DEFAULT 30,
+        max_bytes     INTEGER DEFAULT 524288,
+        created_at    INTEGER NOT NULL,
+        started_at    INTEGER,
+        finished_at   INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS runner_logs (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id  TEXT NOT NULL,
+        ts      INTEGER NOT NULL,
+        stream  TEXT NOT NULL CHECK(stream IN ('stdout','stderr','sys')),
+        chunk   TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS tool_calls (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT,
+        ts          INTEGER NOT NULL,
+        tool        TEXT NOT NULL,
+        input_json  TEXT,
+        output_json TEXT,
+        status      TEXT DEFAULT 'ok',
+        ms          INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runner_jobs_user ON runner_jobs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_runner_logs_job  ON runner_logs(job_id);
+      CREATE INDEX IF NOT EXISTS idx_tool_calls_user  ON tool_calls(user_id, ts);
     `);
   }
 
