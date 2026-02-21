@@ -1838,7 +1838,7 @@ export default function KuroChat() {
 .icon-btn:hover { background: var(--surface); color: var(--text); }
 
 /* ═══ MESSAGES ═══ */
-.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 230px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px max(230px, calc(env(safe-area-inset-bottom, 0px) + 200px)); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .messages { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 .message { display: flex; gap: 12px; animation: msgIn 0.28s cubic-bezier(0.22,1,0.36,1); }
 @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2033,7 +2033,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 /* ═══ INPUT AREA — wrapper for tools row + input island ═══ */
 .input-area {
   position: absolute;
-  bottom: 24px; left: 50%; transform: translateX(-50%);
+  bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  left: 50%; transform: translateX(-50%);
   width: min(calc(100% - 44px), 720px);
   z-index: 50;
   display: flex; flex-direction: column; gap: 7px;
@@ -2148,8 +2149,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 /* Tablet (iPad portrait / landscape) */
 @media (max-width: 1024px) {
   .header-island { top: 12px; left: 14px; right: 14px; padding: 7px 10px; gap: 10px; }
-  .input-area { bottom: 18px; width: min(calc(100% - 32px), 680px); }
-  .messages-scroll { padding: 76px 14px 220px; }
+  .input-area { bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px)); width: min(calc(100% - 32px), 680px); }
+  .messages-scroll { padding: 76px 14px max(220px, calc(env(safe-area-inset-bottom, 0px) + 190px)); }
   .messages { max-width: 680px; gap: 20px; }
   .message-text { font-size: 14.5px; }
   .icon-btn { width: 34px; height: 34px; }
@@ -2168,14 +2169,14 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   .token-badge { display: none; }
 
   /* Input */
-  .input-area { bottom: 10px; width: calc(100% - 20px); }
+  .input-area { bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 8px)); width: calc(100% - 20px); }
   .tool-island { font-size: 11px; padding: 5px 10px; }
   .input-main textarea { font-size: 16px; } /* prevent iOS auto-zoom */
   .icon-btn { width: 32px; height: 32px; }
   .send-btn { width: 34px; height: 34px; }
 
   /* Messages */
-  .messages-scroll { padding: 70px 10px 190px; }
+  .messages-scroll { padding: 70px 10px max(190px, calc(env(safe-area-inset-bottom, 0px) + 160px)); }
   .messages { gap: 16px; }
   .message { gap: 8px; }
   .message-avatar { width: 28px; height: 28px; }
@@ -2200,8 +2201,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 /* Small phone (iPhone SE / Mini / compact) */
 @media (max-width: 430px) {
   .header-island { top: 6px; left: 6px; right: 6px; padding: 5px 6px; gap: 4px; }
-  .input-area { bottom: 8px; width: calc(100% - 16px); }
-  .messages-scroll { padding: 66px 8px 175px; }
+  .input-area { bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) + 6px)); width: calc(100% - 16px); }
+  .messages-scroll { padding: 66px 8px max(175px, calc(env(safe-area-inset-bottom, 0px) + 148px)); }
   .message-text { font-size: 13.5px; }
   .agent-selector { font-size: 12px; }
   .agent-current span { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

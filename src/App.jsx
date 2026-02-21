@@ -123,7 +123,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
   const isClosing = win.isClosing;
 
   const style = win.isMaximized
-    ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: win.zIndex, borderRadius: 0 }
+    ? { position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: win.zIndex, borderRadius: 0 }
     : { position: 'absolute', top: win.y, left: win.x, width: win.width, height: win.height, zIndex: win.zIndex };
 
   // Block interaction during close animation
@@ -912,6 +912,7 @@ export default function App() {
     padding-right: max(12px, env(safe-area-inset-right, 0px));
   }
   .app-window.maximized .window-content {
+    /* viewport-fit=cover: inset is ~34px on iPhone X+, 0 on SE/older */
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
