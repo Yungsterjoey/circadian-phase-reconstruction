@@ -585,7 +585,14 @@ const ArtifactCard = ({ artifact }) => {
           <button onClick={() => { navigator.clipboard.writeText(artifact.content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
-          <button><Download size={14} /></button>
+          <button onClick={() => {
+            const ext = artifact.type === 'react' ? 'jsx' : artifact.type === 'html' ? 'html' : artifact.type === 'svg' ? 'svg' : 'txt';
+            const blob = new Blob([artifact.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${(artifact.title || 'artifact').replace(/\s+/g, '-')}.${ext}`;
+            a.click(); URL.revokeObjectURL(url);
+          }} title="Download"><Download size={14} /></button>
         </div>
       </div>
       {mode === 'preview' && canPreview ? (
@@ -665,6 +672,14 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
           <ThoughtBlock content={parsed.think} isStreaming={parsed.thinkStreaming} />
         )}
         {parsed.artifact && <ArtifactCard artifact={parsed.artifact} />}
+        {/* Image thumbnails for user messages */}
+        {msg.role === 'user' && msg.images?.length > 0 && (
+          <div className="message-images">
+            {msg.images.map((b64, i) => (
+              <img key={i} src={`data:image/jpeg;base64,${b64}`} className="message-img-thumb" alt="attached" />
+            ))}
+          </div>
+        )}
         {editing ? (
           <div className="message-edit-wrap">
             <textarea
@@ -685,7 +700,12 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
           </div>
         ) : (
           <div className="message-text">
-            {msg.role === 'assistant' ? <MarkdownText text={parsed.main} /> : parsed.main}
+            {msg.role === 'assistant'
+              ? <MarkdownText text={parsed.main} />
+              : (msg.images?.length > 0
+                  ? parsed.main.replace(/^\[Image:[^\]]+\]\n?/gm, '').trim() || null
+                  : parsed.main)
+            }
             {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor" />}
           </div>
         )}
@@ -946,9 +966,21 @@ export default function KuroChat() {
   const handleFiles = useCallback((files) => {
     if (!files?.length) return;
     const file = files[0];
+    const isImage = file.type.startsWith('image/');
+    const isText = file.type.startsWith('text/') || /\.(txt|md|json|js|jsx|ts|tsx|py|css|html|csv|sh|yaml|yml|xml|log|cjs|mjs)$/i.test(file.name);
+
+    if (!isImage && !isText) {
+      setConnectionError(`Unsupported file type: ${file.name}`);
+      setTimeout(() => setConnectionError(null), 3000);
+      return;
+    }
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      setConnectionError(`Failed to read: ${file.name}`);
+      setTimeout(() => setConnectionError(null), 3000);
+    };
     reader.onload = (e) => {
-      const isImage = file.type.startsWith('image/');
       const content = isImage
         ? `[Image: ${file.name}]`
         : `[File: ${file.name}]\n\`\`\`\n${e.target.result}\n\`\`\``;
@@ -956,7 +988,7 @@ export default function KuroChat() {
       updateMessages(activeId, prev => [...prev, msg]);
       if (isImage) sendMessage(msg);
     };
-    file.type.startsWith('image/') ? reader.readAsDataURL(file) : reader.readAsText(file);
+    isImage ? reader.readAsDataURL(file) : reader.readAsText(file);
   }, [activeId]);
 
   const updateMessages = useCallback((cid, fn) => {
@@ -1803,6 +1835,15 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   cursor: pointer;
 }
 .message-actions button:hover { background: var(--surface-2); color: var(--text); }
+
+/* ═══ IMAGE ATTACHMENTS ═══ */
+.message-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.message-img-thumb {
+  max-width: 220px; max-height: 160px; border-radius: 10px; object-fit: cover;
+  border: 1px solid var(--border); cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.message-img-thumb:hover { opacity: 0.9; transform: scale(1.02); }
 
 /* ═══ THOUGHT BLOCK ═══ */
 .thought-block {
