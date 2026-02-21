@@ -160,40 +160,61 @@ function useCyclingPlaceholder(active) {
   useEffect(() => {
     if (!active) { setDisplay(''); return; }
 
+    const r = (lo, hi) => lo + Math.random() * (hi - lo);
+
     let idx = 0, chars = 0, phase = 'typing', blinkOn = true, blinkTicks = 0;
+    // erasing state
+    let eraseCount = 0, slowErases = 0;
     let timer;
 
     function tick() {
       const phrase = TYPING_PROMPTS[idx];
+
       if (phase === 'typing') {
         chars++;
         setDisplay(phrase.slice(0, chars) + '_');
         if (chars >= phrase.length) {
           phase = 'wait'; blinkTicks = 0;
-          timer = setTimeout(tick, 420);
+          // random pause before blink starts (600–1400ms)
+          timer = setTimeout(tick, r(600, 1400));
         } else {
-          timer = setTimeout(tick, 58);
+          // human typing: base 45–95ms, occasional micro-pause on space/comma
+          const ch = phrase[chars - 1];
+          const delay = (ch === ' ' || ch === ',')
+            ? r(80, 160)
+            : Math.random() < 0.07 ? r(160, 280)   // rare stumble
+            : r(42, 105);
+          timer = setTimeout(tick, delay);
         }
+
       } else if (phase === 'wait') {
         blinkTicks++;
         blinkOn = !blinkOn;
         setDisplay(phrase + (blinkOn ? '_' : ''));
         if (blinkTicks >= 6) {
           phase = 'erasing';
-          timer = setTimeout(tick, 35);
+          eraseCount = 0;
+          slowErases = 2 + Math.floor(Math.random() * 2); // 2–3 slow backspaces first
+          // random "linger" before first backspace (300–900ms)
+          timer = setTimeout(tick, r(300, 900));
         } else {
           timer = setTimeout(tick, 420);
         }
+
       } else {
         chars--;
+        eraseCount++;
         if (chars <= 0) {
           chars = 0;
+          setDisplay('_');
           idx = (idx + 1) % TYPING_PROMPTS.length;
           phase = 'typing';
-          timer = setTimeout(tick, 380);
+          timer = setTimeout(tick, r(300, 500));
         } else {
           setDisplay(phrase.slice(0, chars) + '_');
-          timer = setTimeout(tick, 30);
+          // first slowErases keystrokes at ~120–180ms (deliberate), then accelerate to 28–55ms
+          const delay = eraseCount <= slowErases ? r(120, 180) : r(28, 55);
+          timer = setTimeout(tick, delay);
         }
       }
     }
@@ -2017,6 +2038,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   min-height: 24px;
   max-height: 150px;
   font-family: inherit;
+  padding: 0;
+  vertical-align: middle;
 }
 .input-main textarea::placeholder { color: var(--text-3); }
 .voice-btn {
