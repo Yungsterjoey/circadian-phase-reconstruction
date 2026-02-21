@@ -15,12 +15,13 @@ import DesktopBackground from './components/DesktopBackground';
 import KuroChatApp from './components/apps/KuroChatApp';
 import AdminApp from './components/apps/AdminApp';
 import AboutApp from './components/apps/AboutApp';
+import FileExplorerApp from './components/apps/FileExplorerApp';
 import KuroIcon from './components/KuroIcon';
 
 const APP_COMPONENTS = {
   KuroChatApp: KuroChatApp,
   PaxSilicaApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Pax Silica — Coming Soon</div>,
-  FileExplorerApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Files — Coming Soon</div>,
+  FileExplorerApp: FileExplorerApp,
   BrowserApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Browser — Coming Soon</div>,
   VisionApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Vision — Coming Soon</div>,
   TerminalApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Terminal — Coming Soon</div>,

@@ -144,6 +144,7 @@ try { createAuthRoutes = require('./layers/auth/auth_routes.cjs'); } catch(e) { 
 let createSandboxRoutes = null;
 try { createSandboxRoutes = require('./layers/sandbox_routes.cjs'); } catch(e) { console.warn('[WARN] Sandbox routes not loaded:', e.message); }
 try { ({ createStripeRoutes, stripeWebhookHandler } = require('./layers/stripe/stripe_routes.cjs')); } catch(e) { createStripeRoutes = null; stripeWebhookHandler = null; console.warn('[WARN] Stripe routes not loaded:', e.message); }
+let mountVfsRoutes = null; try { mountVfsRoutes = require('./layers/vfs/vfs_routes.cjs'); } catch(e) { console.warn('[WARN] VFS routes not loaded:', e.message); }
 
 // Tier gate
 let tierGate;
@@ -431,6 +432,7 @@ if (createSandboxRoutes) {
     console.warn('[SANDBOX] Failed to mount:', e.message);
   }
 }
+if (mountVfsRoutes) { try { const { db: vfsDb } = require('./layers/auth/db.cjs'); app.use('/api/vfs', mountVfsRoutes(auth, { db: vfsDb })); console.log('[VFS] Routes mounted at /api/vfs/*'); } catch(e) { console.warn('[VFS] Failed to mount:', e.message); } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CAPABILITY ROUTER — Adaptive Scaling Endpoints

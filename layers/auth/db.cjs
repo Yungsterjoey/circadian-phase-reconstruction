@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -152,6 +152,45 @@ function migrate() {
   if (current < 3) {
     // v3: Admin flag
     try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0'); } catch(e) {}
+  }
+
+  if (current < 4) {
+    // v4: VFS metadata + quotas + projects
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS vfs_files (
+        id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        path        TEXT NOT NULL,
+        size        INTEGER DEFAULT 0,
+        mime_type   TEXT,
+        backend     TEXT DEFAULT 's3',
+        s3_key      TEXT,
+        is_dir      INTEGER DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, path)
+      );
+
+      CREATE TABLE IF NOT EXISTS vfs_quotas (
+        user_id     TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        limit_bytes INTEGER NOT NULL DEFAULT 104857600,
+        used_bytes  INTEGER NOT NULL DEFAULT 0,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS projects (
+        id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        vfs_path    TEXT,
+        meta        TEXT DEFAULT '{}',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_vfs_files_user ON vfs_files(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+    `);
   }
 
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
