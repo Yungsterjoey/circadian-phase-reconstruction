@@ -152,42 +152,17 @@ const TYPING_PROMPTS = [
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TYPING ANIMATION
+// CYCLING PLACEHOLDER — rotates TYPING_PROMPTS as textarea placeholder
 // ═══════════════════════════════════════════════════════════════════════════
-const TypingAnimation = () => {
-  const [text, setText] = useState('');
-  const [promptIndex, setPromptIndex] = useState(0);
-  const [phase, setPhase] = useState('typing');
-  const [deleteCount, setDeleteCount] = useState(0);
-
+function useCyclingPlaceholder(active) {
+  const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const current = TYPING_PROMPTS[promptIndex];
-    let t;
-    if (phase === 'typing') {
-      if (text.length < current.length) {
-        t = setTimeout(() => setText(current.slice(0, text.length + 1)), 28 + Math.random() * 22);
-      } else { setPhase('paused'); }
-    } else if (phase === 'paused') {
-      t = setTimeout(() => { setPhase('deleting'); setDeleteCount(0); }, 4500);
-    } else if (phase === 'deleting') {
-      if (text.length > 0) {
-        t = setTimeout(() => { setText(text.slice(0, -1)); setDeleteCount(c => c + 1); },
-          deleteCount === 0 ? 90 : 38 + Math.random() * 12);
-      } else { setPhase('thinking'); }
-    } else if (phase === 'thinking') {
-      t = setTimeout(() => { setPromptIndex(i => (i + 1) % TYPING_PROMPTS.length); setPhase('typing'); },
-        800 + Math.random() * 1400);
-    }
-    return () => clearTimeout(t);
-  }, [text, promptIndex, phase, deleteCount]);
-
-  return (
-    <div className="typing-anim">
-      <span>{text}</span>
-      <span className={`cursor ${phase === 'thinking' ? 'thinking' : ''}`} />
-    </div>
-  );
-};
+    if (!active) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % TYPING_PROMPTS.length), 3200);
+    return () => clearInterval(t);
+  }, [active]);
+  return active ? TYPING_PROMPTS[idx] : 'Message KURO\u2026';
+}
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -772,7 +747,6 @@ const EmptyState = () => (
   <div className="empty-state">
     <KuroCube />
     <h1>KURO</h1>
-    <TypingAnimation />
   </div>
 );
 
@@ -809,6 +783,7 @@ export default function KuroChat() {
 
   // UI State
   const [input, setInput] = useState('');
+  const chatPlaceholder = useCyclingPlaceholder(messages.length === 0 && !input);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -1287,7 +1262,7 @@ export default function KuroChat() {
                       else if (!isLoading) sendMessage();
                     }
                   }}
-                  placeholder="Message KURO..."
+                  placeholder={chatPlaceholder}
                   rows={1}
                 />
                 {isLoading ? (

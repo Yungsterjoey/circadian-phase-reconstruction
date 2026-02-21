@@ -810,6 +810,13 @@ export default function App() {
   .dock-cube:active { transform: scale(0.95) !important; }
 }
 
+/* ═══ MAXIMIZED WINDOW — clear OS dock on desktop ═══ */
+@media (min-width: 769px) {
+  .app-window.maximized .window-content {
+    padding-bottom: 90px; /* dock (~56px) + hide-btn (~20px) + margin (12px) */
+  }
+}
+
 /* ═══ MAXIMIZED WINDOW — notch / Dynamic Island safe areas ═══ */
 @media (max-width: 768px) {
   .app-window.maximized .window-titlebar {
