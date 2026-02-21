@@ -32,7 +32,7 @@ export const useOSStore = create((set, get) => ({
 
   // Mode
   modelMode: 'main',
-  powerDial: 'instant',   // ⚡ instant | 🧠 deep | 👑 sovereign
+  powerDial: 'sovereign',   // ⚡ instant | 👑 sovereign
 
   // Tier check helper (returns true if user can access app)
   canAccessApp: (appId, userTier) => {
@@ -63,7 +63,14 @@ export const useOSStore = create((set, get) => ({
     set(s => ({
       windows: {
         ...s.windows,
-        [appId]: { isOpen: true, isMinimized: false, isMaximized: false, x, y, width: w, height: h, zIndex: s.nextZIndex }
+        [appId]: {
+          isOpen: true, isMinimized: false,
+          isMaximized: isMobile,   // auto-fullscreen on phone
+          x, y, width: w, height: h,
+          zIndex: s.nextZIndex,
+          // preserve restore target so un-maximize works on mobile too
+          ...(isMobile ? { _prevX: x, _prevY: y, _prevW: w, _prevH: h } : {})
+        }
       },
       windowOrder: [...s.windowOrder.filter(id => id !== appId), appId],
       nextZIndex: s.nextZIndex + 1,
@@ -71,7 +78,18 @@ export const useOSStore = create((set, get) => ({
     }));
   },
 
-  closeApp: (appId) => set(s => {
+  closeApp: (appId) => {
+    const win = get().windows[appId];
+    if (!win || win.isClosing) return;
+    // Mark closing — CSS animation plays, then finalizeClose removes
+    set(s => ({
+      windows: { ...s.windows, [appId]: { ...s.windows[appId], isClosing: true } }
+    }));
+    // Auto-finalize after animation duration (safety net)
+    setTimeout(() => get().finalizeClose(appId), 220);
+  },
+
+  finalizeClose: (appId) => set(s => {
     const newWindows = { ...s.windows };
     delete newWindows[appId];
     return { windows: newWindows, windowOrder: s.windowOrder.filter(id => id !== appId) };

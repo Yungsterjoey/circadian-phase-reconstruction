@@ -41,7 +41,7 @@ const AUTH_WINDOW_ID = 'kuro.auth';
 function AppWindow({ appId, children, noClose, title, icon }) {
   const win = useOSStore(s => s.windows[appId]);
   const app = useOSStore(s => s.apps.find(a => a.id === appId));
-  const { closeApp, minimizeApp, maximizeApp, focusWindow, updateWindowPosition, updateWindowSize } = useOSStore();
+  const { closeApp, finalizeClose, minimizeApp, maximizeApp, focusWindow, updateWindowPosition, updateWindowSize } = useOSStore();
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
   const windowRef = useRef(null);
@@ -51,18 +51,22 @@ function AppWindow({ appId, children, noClose, title, icon }) {
     e.preventDefault();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    dragRef.current = { startX: clientX - (win?.x || 0), startY: clientY - (win?.y || 0), lastX: win?.x || 0, lastY: win?.y || 0 };
+    const baseX = win?.x || 0;
+    const baseY = win?.y || 0;
+    dragRef.current = { startMouseX: clientX, startMouseY: clientY, baseX, baseY, lastX: baseX, lastY: baseY };
     focusWindow(appId);
     const el = windowRef.current;
+    // Promote to compositor layer — no layout reflow during drag
+    if (el) { el.style.willChange = 'transform'; el.style.transition = 'none'; }
     const onMove = (ev) => {
       ev.preventDefault();
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      const nx = cx - dragRef.current.startX;
-      const ny = cy - dragRef.current.startY;
-      dragRef.current.lastX = nx;
-      dragRef.current.lastY = ny;
-      if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+      const dx = cx - dragRef.current.startMouseX;
+      const dy = cy - dragRef.current.startMouseY;
+      dragRef.current.lastX = dragRef.current.baseX + dx;
+      dragRef.current.lastY = dragRef.current.baseY + dy;
+      if (el) el.style.transform = `translate3d(${dx}px,${dy}px,0)`;
     };
     const onEnd = () => {
       document.removeEventListener('mousemove', onMove);
@@ -70,6 +74,8 @@ function AppWindow({ appId, children, noClose, title, icon }) {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
       document.documentElement.classList.remove('is-dragging');
+      // Clear GPU hint + commit new absolute position
+      if (el) { el.style.transform = ''; el.style.willChange = ''; el.style.transition = ''; }
       updateWindowPosition(appId, dragRef.current.lastX, dragRef.current.lastY);
     };
     document.documentElement.classList.add('is-dragging');
@@ -114,15 +120,20 @@ function AppWindow({ appId, children, noClose, title, icon }) {
 
   if (!win || !win.isOpen || win.isMinimized) return null;
 
+  const isClosing = win.isClosing;
+
   const style = win.isMaximized
     ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: win.zIndex, borderRadius: 0 }
     : { position: 'absolute', top: win.y, left: win.x, width: win.width, height: win.height, zIndex: win.zIndex };
+
+  // Block interaction during close animation
+  if (isClosing) style.pointerEvents = 'none';
 
   const displayIcon = icon || app?.icon || '';
   const displayTitle = title || app?.name || appId;
 
   return (
-    <div ref={windowRef} className="app-window" style={style} onMouseDown={() => focusWindow(appId)} onTouchStart={() => focusWindow(appId)}>
+    <div ref={windowRef} className={`app-window${win.isMaximized ? ' maximized' : ''}${isClosing ? ' closing' : ''}`} style={style} onMouseDown={() => !isClosing && focusWindow(appId)} onTouchStart={() => !isClosing && focusWindow(appId)} onAnimationEnd={(e) => { if (isClosing && e.animationName === 'winClose') finalizeClose(appId); }}>
       <div className="window-titlebar" onMouseDown={onDragStart} onTouchStart={onDragStart}>
         <div className="traffic-lights">
           {!noClose && <button className="tl tl-close" onClick={(e) => { e.stopPropagation(); closeApp(appId); }} aria-label="Close" />}
@@ -299,17 +310,18 @@ export default function App() {
   // Auto-open AuthGate window when locked
   useEffect(() => {
     if (isLocked && !windows[AUTH_WINDOW_ID]?.isOpen) {
-      // Open auth window centered — always windowed, never maximized
+      // Open auth window centered — auto-maximize on mobile
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const w = Math.min(420, vw - 32);
-      const h = Math.min(580, vh - 80);
-      const x = Math.max(16, (vw - w) / 2);
-      const y = Math.max(16, (vh - h) / 2);
+      const isMobile = vw < 768;
+      const w = isMobile ? vw : Math.min(420, vw - 32);
+      const h = isMobile ? vh : Math.min(580, vh - 80);
+      const x = isMobile ? 0 : Math.max(16, (vw - w) / 2);
+      const y = isMobile ? 0 : Math.max(16, (vh - h) / 2);
       useOSStore.setState(s => ({
         windows: {
           ...s.windows,
-          [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: false, x, y, width: w, height: h, zIndex: s.nextZIndex }
+          [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex, ...(isMobile ? { _prevX: x, _prevY: y, _prevW: w, _prevH: h } : {}) }
         },
         windowOrder: [...s.windowOrder.filter(id => id !== AUTH_WINDOW_ID), AUTH_WINDOW_ID],
         nextZIndex: s.nextZIndex + 1,
@@ -391,10 +403,14 @@ export default function App() {
   background: var(--lg-surface-0, #000); color: var(--lg-text-primary, #fff);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 }
-/* macOS-style enter/exit animations */
+/* macOS HIG window animations — fast, subtle, no bounce */
 @keyframes winOpen {
-  from { opacity: 0; transform: scale(0.88) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes winClose {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.94); }
 }
 @keyframes winMinimize {
   from { opacity: 1; transform: scale(1) translateY(0); }
@@ -411,7 +427,7 @@ export default function App() {
 }
 
 .app-window {
-  border-radius: var(--lg-radius-lg, 22px); overflow: hidden; display: flex; flex-direction: column;
+  border-radius: var(--lg-radius-xl, 28px); overflow: hidden; display: flex; flex-direction: column;
   background: var(--lg-surface-1, rgba(18,18,22,0.85));
   backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
   -webkit-backdrop-filter: blur(var(--lg-blur-standard, 40px)) saturate(var(--lg-saturate, 1.6));
@@ -421,8 +437,11 @@ export default function App() {
     0 4px 16px rgba(0,0,0,0.4),
     0 24px 60px rgba(0,0,0,0.45),
     inset 0 1px 0 rgba(255,255,255,0.10);
-  animation: winOpen 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  animation: winOpen 0.2s cubic-bezier(0.2, 0, 0, 1) both;
   will-change: transform, opacity;
+}
+.app-window.closing {
+  animation: winClose 0.18s cubic-bezier(0.4, 0, 1, 1) both;
 }
 .window-titlebar {
   height: 42px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0 12px;
@@ -470,7 +489,7 @@ export default function App() {
 .tl-min { background: #ffbd2e; }
 .tl-max { background: #28c840; }
 .window-title { font-size: 13px; color: var(--lg-text-secondary, rgba(255,255,255,0.7)); flex: 1; text-align: center; }
-.window-content { flex: 1; overflow: auto; position: relative; }
+.window-content { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .resize-handle {
   position: absolute; bottom: 0; right: 0; width: 28px; height: 28px; cursor: nwse-resize; z-index: 10;
   background: transparent;
@@ -640,7 +659,7 @@ export default function App() {
 
 /* ═══ TABLET (iPad portrait & landscape) ═══ */
 @media (max-width: 1024px) {
-  .app-window { border-radius: var(--lg-radius-lg, 22px); }
+  .app-window { border-radius: var(--lg-radius-xl, 28px); }
   .window-titlebar { height: 40px; padding: 0 10px; }
   .tl { width: 12px; height: 12px; }
   .window-title { font-size: 12px; }
@@ -655,7 +674,7 @@ export default function App() {
 
 /* ═══ PHONE (iPhone / small tablets) ═══ */
 @media (max-width: 768px) {
-  .app-window { border-radius: var(--lg-radius-lg, 22px); }
+  .app-window { border-radius: var(--lg-radius-xl, 28px); }
   .window-titlebar { height: 38px; padding: 0 8px; }
   .tl { width: 11px; height: 11px; }
   .tl-close-disabled { width: 11px; height: 11px; }
@@ -686,9 +705,50 @@ export default function App() {
   .panel-header { font-size: 12px; margin-bottom: 12px; }
 }
 
+/* ═══ MOBILE PERFORMANCE — reduce GPU load ═══ */
+@media (max-width: 768px) {
+  /* Halve all hardcoded blur values */
+  .window-titlebar {
+    backdrop-filter: blur(20px) saturate(1.4) brightness(1.02) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.4) brightness(1.02) !important;
+  }
+  .glass-dock {
+    backdrop-filter: blur(14px) saturate(1.3) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(1.3) !important;
+  }
+  .glass-panel {
+    backdrop-filter: blur(18px) saturate(1.3) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.3) !important;
+  }
+  .dock-chevron-btn, .dock-hide-btn {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  /* Skip window open animation on phone — already fullscreen */
+  .app-window { animation: none !important; }
+  /* Kill dock hover bounce — it's a scrolling cost on touch */
+  .dock-item { transition: background 0.1s !important; }
+  .dock-item:hover { transform: none !important; }
+  .dock-cube:hover { transform: none !important; }
+  .dock-cube:active { transform: scale(0.95) !important; }
+}
+
+/* ═══ MAXIMIZED WINDOW — notch / Dynamic Island safe areas ═══ */
+@media (max-width: 768px) {
+  .app-window.maximized .window-titlebar {
+    height: calc(38px + env(safe-area-inset-top, 0px));
+    padding-top: calc(4px + env(safe-area-inset-top, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  .app-window.maximized .window-content {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 /* ═══ SMALL PHONE (iPhone SE / Mini) ═══ */
 @media (max-width: 430px) {
-  .app-window { border-radius: var(--lg-radius-md, 16px); }
+  .app-window { border-radius: var(--lg-radius-xl, 28px); }
   .dock-outer { bottom: max(14px, calc(env(safe-area-inset-bottom) + 6px)); }
   .glass-dock { padding: 3px 6px; gap: 1px; border-radius: var(--lg-radius-sm, 12px); }
   .dock-cube, .dock-item { width: 34px; height: 34px; }
