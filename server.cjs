@@ -800,6 +800,26 @@ app.get('/api/profile', guestOrAuth(resolveUser), (_, res) => { res.json({ activ
 app.get('/api/guest/quota', (_req, res) => { const q = checkGuestQuota(_req); res.json(q); });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SHADOW NET — Server-wide VPN / network privacy toggle
+// ═══════════════════════════════════════════════════════════════════════════
+const SHADOW_STATE_FILE = path.join(DATA_DIR, 'shadow_state.json');
+let _shadowEnabled = false;
+try { _shadowEnabled = JSON.parse(fs.readFileSync(SHADOW_STATE_FILE, 'utf8')).enabled; } catch {}
+function isShadowActive() { try { return fs.existsSync('/sys/class/net/wg0'); } catch { return false; } }
+app.get('/api/shadow/status', auth.required, (_req, res) => {
+  res.json({ enabled: _shadowEnabled, active: isShadowActive(), protocol: 'WireGuard' });
+});
+app.post('/api/shadow/toggle', auth.required, (req, res) => {
+  _shadowEnabled = !_shadowEnabled;
+  try { fs.writeFileSync(SHADOW_STATE_FILE, JSON.stringify({ enabled: _shadowEnabled, updated: Date.now() })); } catch {}
+  logEvent({ agent: 'system', action: _shadowEnabled ? 'shadow_enable' : 'shadow_disable', userId: req.user.userId, requestId: req.requestId });
+  const { execFile } = require('child_process');
+  execFile('/usr/bin/wg-quick', [_shadowEnabled ? 'up' : 'down', 'wg0'], { timeout: 8000 }, (err) => {
+    res.json({ enabled: _shadowEnabled, active: isShadowActive(), applied: !err, error: err ? err.message.split('\n')[0] : null });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // LIVEEDIT + VISION + PREEMPT ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 try { mountLiveEditRoutes(app, logEvent); } catch(e) { console.warn('[WARN] LiveEdit routes:', e.message); }

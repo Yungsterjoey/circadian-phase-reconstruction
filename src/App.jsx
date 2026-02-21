@@ -252,6 +252,50 @@ function GlassDock({ isLocked, onLockedAppClick }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // GLASS PANEL (App Launcher) — locked-state aware, HIG open/close anim
 // ═══════════════════════════════════════════════════════════════════════════
+function ShadowNetToggle() {
+  const [vpn, setVpn] = useState({ enabled: false, active: false });
+  const [busy, setBusy] = useState(false);
+  const token = () => localStorage.getItem('kuro_token') || '';
+
+  useEffect(() => {
+    let live = true;
+    const poll = () => {
+      fetch('/api/shadow/status', { headers: { 'x-kuro-token': token() } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (live && d) setVpn({ enabled: d.enabled, active: d.active }); })
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 20000);
+    return () => { live = false; clearInterval(id); };
+  }, []);
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    setVpn(v => ({ ...v, enabled: !v.enabled })); // optimistic
+    try {
+      const r = await fetch('/api/shadow/toggle', { method: 'POST', headers: { 'x-kuro-token': token() } });
+      const d = await r.json();
+      setVpn({ enabled: d.enabled, active: d.active });
+    } catch {}
+    setBusy(false);
+  };
+
+  return (
+    <button className={`shadow-net-row${vpn.enabled ? ' on' : ''}`} onClick={toggle} disabled={busy}>
+      <span className="sn-label">
+        <span className="sn-icon">🛡</span>
+        <span className="sn-text">
+          <span className="sn-name">Shadow Net</span>
+          <span className="sn-sub">{vpn.active ? 'WireGuard active' : vpn.enabled ? 'Connecting…' : 'Off'}</span>
+        </span>
+      </span>
+      <span className={`sn-pill${vpn.enabled ? ' on' : ''}`}>{vpn.enabled ? 'ON' : 'OFF'}</span>
+    </button>
+  );
+}
+
 function GlassPanel({ isLocked, onLockedAppClick }) {
   const { apps, openApp, glassPanelOpen } = useOSStore();
   const { user } = useAuthStore();
@@ -299,6 +343,7 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
           );
         })}
       </div>
+      {user && <ShadowNetToggle />}
       <div className="panel-divider" />
       {user ? (
         <div className="panel-user-section">
@@ -677,6 +722,33 @@ export default function App() {
 .panel-app.locked:hover { transform: none; }
 .panel-icon { font-size: 28px; }
 .panel-label { font-size: 10px; color: rgba(255,255,255,0.65); letter-spacing: 0.2px; }
+.shadow-net-row {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; margin-top: 12px; padding: 10px 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--lg-radius-sm, 12px); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.shadow-net-row:hover { background: rgba(255,255,255,0.07); }
+.shadow-net-row.on { background: rgba(34,197,94,0.07); border-color: rgba(34,197,94,0.2); }
+.shadow-net-row.on:hover { background: rgba(34,197,94,0.12); }
+.shadow-net-row:active { transform: scale(0.98); transition-duration: 0.06s; }
+.sn-label { display: flex; align-items: center; gap: 8px; }
+.sn-icon { font-size: 18px; }
+.sn-text { display: flex; flex-direction: column; gap: 1px; text-align: left; }
+.sn-name { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.8); }
+.sn-sub { font-size: 10px; color: rgba(255,255,255,0.35); }
+.shadow-net-row.on .sn-sub { color: rgba(34,197,94,0.7); }
+.sn-pill {
+  padding: 3px 9px; border-radius: var(--lg-radius-pill, 9999px);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+  color: rgba(239,68,68,0.85); transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.sn-pill.on {
+  background: rgba(34,197,94,0.18); border-color: rgba(34,197,94,0.35);
+  color: rgba(34,197,94,0.9);
+}
 .panel-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 16px 0 14px; }
 .panel-user-section { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .panel-user-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
