@@ -910,6 +910,7 @@ const EmptyState = () => (
   <div className="empty-state">
     <KuroCube />
     <h1>KURO</h1>
+    <p className="empty-tagline">Chat, code, or execute.</p>
   </div>
 );
 
@@ -1993,7 +1994,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 .kc-rt { transform: rotateY(90deg) translateZ(26px); } .kc-lt { transform: rotateY(-90deg) translateZ(26px); }
 .kc-tp { transform: rotateX(90deg) translateZ(26px); } .kc-bt { transform: rotateX(-90deg) translateZ(26px); }
 @media (prefers-reduced-motion: reduce) { .kuro-cube { animation: none; transform: rotateX(-20deg) rotateY(-30deg); } }
-.empty-state h1 { font-size: 32px; font-weight: 600; margin: 0 0 8px; }
+.empty-state h1 { font-size: 32px; font-weight: 600; margin: 0 0 6px; }
+.empty-tagline { margin: 0 0 20px; font-size: 14px; font-weight: 400; color: var(--text-3); letter-spacing: 0.02em; }
 .empty-profile {
   display: flex; align-items: center; gap: 6px;
   margin-bottom: 24px;
