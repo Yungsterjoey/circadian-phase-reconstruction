@@ -33,7 +33,7 @@ import {
   Send, Plus, Image, FileText, Settings, ChevronDown, ChevronUp, Brain, Folder,
   MessageSquare, X, Square, Sparkles, Trash2, Globe, ShoppingBag, Code, Search,
   Lightbulb, FileCode, ExternalLink, Copy, Check, Zap, Target, Atom, Lock,
-  AlertTriangle, Eye, Mic, MicOff, Paperclip, RotateCcw, Play, Edit3, GitBranch,
+  AlertTriangle, Eye, Paperclip, RotateCcw, Play, Edit3, GitBranch,
   Hash, Command, CornerDownLeft, FolderPlus, ChevronRight, MoreHorizontal,
   Bookmark, Pin, Archive, Clock, Cpu, ArrowUp, User, Bot, Download, Share2,
   Volume2, VolumeX, Pause, Moon, Sun, Maximize2, Minimize2, PanelLeft, Menu,
@@ -44,6 +44,8 @@ import {
 } from 'lucide-react';
 
 import SandboxPanel from './SandboxPanel';
+import usePreempt from '../../hooks/usePreempt';
+import { useLiveEdit, LiveEditBar } from './LiveEdit';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONTEXT
@@ -328,6 +330,22 @@ const Island = ({ children, className = '', floating = false, glow = false, dism
 };
 
 
+// Fast ↔ Sovereign — standalone pill island
+const SpeedIsland = ({ value, onChange }) => {
+  const isFast = value !== 'sovereign';
+  return (
+    <button
+      type="button"
+      className={`tool-island speed-island ${isFast ? 'fast' : 'sov'}`}
+      onClick={() => onChange(isFast ? 'sovereign' : 'instant')}
+      title={isFast ? 'Fast mode — click for Sovereign' : 'Sovereign mode — click for Fast'}
+    >
+      {isFast ? <><Zap size={13} /><span>Fast</span></> : <><Crown size={13} /><span>Sov</span></>}
+    </button>
+  );
+};
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PILL
 // ═══════════════════════════════════════════════════════════════════════════
@@ -593,7 +611,7 @@ function parseContent(content) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE — RT-08: Index-based regen, RT-16: per-message redaction
 // ═══════════════════════════════════════════════════════════════════════════
-const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, onRegen, onFork, showThoughts, agents, activeAgent }) => {
+const Message = ({ msg, msgIndex, isStreaming, onCopy, showThoughts, agents, activeAgent }) => {
   const [showActions, setShowActions] = useState(false);
   const parsed = parseContent(msg.content);
   const agent = agents[activeAgent] || Object.values(agents)[0];
@@ -617,76 +635,16 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, onRegen, onFork, 
         {parsed.artifact && <ArtifactCard artifact={parsed.artifact} />}
         <div className="message-text">
           {msg.role === 'assistant' ? <MarkdownText text={parsed.main} /> : parsed.main}
-          {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor">{'\u258C'}</span>}
+          {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor" />}
         </div>
-        {msg.role === 'assistant' && <RedactionNotice count={msg.redactionCount} />}
         {showActions && !isStreaming && (
           <div className="message-actions">
             <button onClick={() => onCopy(msg.content)} title="Copy"><Copy size={14} /></button>
-            {msg.role === 'user' && <button onClick={() => onEdit(msg)} title="Edit"><Edit3 size={14} /></button>}
-            {msg.role === 'assistant' && <button onClick={() => onRegen(msgIndex)} title="Regenerate"><RotateCcw size={14} /></button>}
-            <button onClick={() => onFork(msgIndex)} title="Branch"><GitBranch size={14} /></button>
           </div>
         )}
       </div>
       {msg.role === 'user' && <div className="message-avatar user"><User size={18} /></div>}
     </div>
-  );
-};
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// VOICE INPUT — RT-12: Debounced, explicit stop only
-// ═══════════════════════════════════════════════════════════════════════════
-const VoiceInput = ({ onTranscript, isListening, setIsListening }) => {
-  const recognition = useRef(null);
-  const finalTranscript = useRef('');
-
-  useEffect(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    recognition.current = new SR();
-    recognition.current.continuous = true;
-    recognition.current.interimResults = true;
-    recognition.current.onresult = (e) => {
-      let interim = '';
-      let final = '';
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
-        else interim += e.results[i][0].transcript;
-      }
-      finalTranscript.current = final;
-      // Show interim in input but do NOT auto-send
-      onTranscript(final + interim, false);
-    };
-    recognition.current.onerror = () => setIsListening(false);
-    recognition.current.onend = () => {
-      if (isListening) {
-        // Send final transcript on explicit stop
-        onTranscript(finalTranscript.current, true);
-      }
-      setIsListening(false);
-    };
-  }, []);
-
-  const toggle = () => {
-    if (!recognition.current) return;
-    if (isListening) {
-      recognition.current.stop(); // triggers onend → sends final
-    } else {
-      finalTranscript.current = '';
-      recognition.current.start();
-      setIsListening(true);
-    }
-  };
-
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return null;
-
-  return (
-    <button className={`voice-btn ${isListening ? 'listening' : ''}`} onClick={toggle}>
-      {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-      {isListening && <span className="voice-pulse" />}
-    </button>
   );
 };
 
@@ -731,7 +689,8 @@ const ConnectionStatus = ({ error }) => {
 const Sidebar = ({
   visible, onClose, projects, activeProject, setActiveProject, createProject,
   conversations, activeId, setActiveId, createConv, deleteConv,
-  search, setSearch, profileDef, auditStatus
+  search, setSearch, profileDef, auditStatus,
+  activeSkill, onSkillChange
 }) => {
   const filteredConvs = useMemo(() => {
     let list = conversations;
@@ -749,6 +708,12 @@ const Sidebar = ({
       <aside className={`sidebar ${visible ? 'open' : ''}`}>
         <div className="sidebar-top">
           <button className="new-chat" onClick={createConv}><Plus size={18} /><span>New chat</span></button>
+          <div className="sidebar-skills">
+            {Object.values(SKILLS).map(s => (
+              <Pill key={s.id} icon={s.icon} label={s.name} color={s.color} compact
+                active={activeSkill === s.id} onClick={() => onSkillChange(activeSkill === s.id ? 'chat' : s.id)} />
+            ))}
+          </div>
         </div>
         <div className="sidebar-search">
           <Search size={14} />
@@ -803,29 +768,13 @@ const KuroCube = () => (
   </div>
 );
 
-const EmptyState = ({ onSuggestion, agents, activeAgent, profileDef }) => {
-  return (
-    <div className="empty-state">
-      <KuroCube />
-      <h1>KURO</h1>
-      <TypingAnimation />
-      {profileDef && (
-        <div className="empty-profile">
-          {React.createElement(resolveIcon(profileDef.icon), { size: 14 })}
-          <span>{profileDef.name} Profile</span>
-          {profileDef.safety && <ShieldCheck size={12} />}
-        </div>
-      )}
-      <div className="quick-actions">
-        {Object.values(SKILLS).slice(0, 4).map(skill => (
-          <button key={skill.id} className="quick-action" onClick={() => onSuggestion('', skill.id)}>
-            <skill.icon size={18} /><span>{skill.name}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
+const EmptyState = () => (
+  <div className="empty-state">
+    <KuroCube />
+    <h1>KURO</h1>
+    <TypingAnimation />
+  </div>
+);
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -866,18 +815,23 @@ export default function KuroChat() {
   const [activeSkill, setActiveSkill] = useState('chat');
   const [tokenCount, setTokenCount] = useState(0);
   const [streamStart, setStreamStart] = useState(0);
-  const [isListening, setIsListening] = useState(false);
+
   const [isDragging, setIsDragging] = useState(false);
 
   // Settings
   const [settings] = useState({ temperature: 70, showThinking: true });
-  const [powerDial, setPowerDial] = useState('instant'); // ⚡ instant | 🧠 deep | 👑 sovereign
+  const [powerDial, setPowerDial] = useState('sovereign'); // ⚡ instant | 👑 sovereign
 
   // Refs
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
+
+  // ── Preempt — speculative pre-computation ──────────────────────────
+  const { onInputChange, getPreemptSession, abortPreempt } = usePreempt(String(activeId), 'main', getToken());
+
+  useEffect(() => () => abortPreempt(), [activeId]);
 
   const activeConv = conversations.find(c => c.id === activeId) || conversations[0];
   const messages = activeConv?.messages || [];
@@ -1019,12 +973,34 @@ export default function KuroChat() {
       thinking: settings.showThinking,
       sessionId: activeId,
       powerDial,
+      preemptSessionId: getPreemptSession(),
       // RT-05: Profile NOT sent — server resolves from token
     };
 
     let retries = 0;
     const MAX_RETRIES = 2;
     const RETRY_DELAY = [1000, 3000];
+
+    // ── Smooth streaming: buffer tokens, flush on rAF (~60fps) ──────────
+    let tokenBuffer = '';
+    let rafId = null;
+    const flushTokenBuffer = () => {
+      rafId = null;
+      if (!tokenBuffer) return;
+      const chunk = tokenBuffer;
+      tokenBuffer = '';
+      updateMessages(cid, prev => {
+        const u = [...prev];
+        const last = u[u.length - 1];
+        if (last?.role === 'assistant') {
+          u[u.length - 1] = { ...last, content: last.content + chunk };
+        }
+        return u;
+      });
+    };
+    const scheduleFlush = () => {
+      if (!rafId) rafId = requestAnimationFrame(flushTokenBuffer);
+    };
 
     const attemptStream = async () => {
       try {
@@ -1084,14 +1060,8 @@ export default function KuroChat() {
             if (d.type === 'token') {
               tokens++;
               setTokenCount(tokens);
-              updateMessages(cid, prev => {
-                const u = [...prev];
-                const last = u[u.length - 1];
-                if (last?.role === 'assistant') {
-                  u[u.length - 1] = { ...last, content: last.content + d.content };
-                }
-                return u;
-              });
+              tokenBuffer += d.content;
+              scheduleFlush();
             } else if (d.type === 'policy_notice') {
               setPolicyNotice(d);
             } else if (d.type === 'capability') {
@@ -1123,10 +1093,17 @@ export default function KuroChat() {
               setIsLoading(false);
               clearTimeout(staleTimer);
               return;
+            } else if (d.type === 'preempt_start' || d.type === 'preempt_end') {
+              // Preempt cache — tokens arrive via normal 'token' events
+            } else if (d.type === 'aborted_for_correction') {
+              setIsLoading(false);
+              return;
             } else if (d.type === 'error') {
               setConnectionError(d.message || 'Stream error');
             } else if (d.type === 'done') {
               clearTimeout(staleTimer);
+              if (rafId) cancelAnimationFrame(rafId);
+              flushTokenBuffer();
               setIsLoading(false);
               setConnectionError(null);
               return; // Success — no retry
@@ -1135,7 +1112,11 @@ export default function KuroChat() {
         }
 
         clearTimeout(staleTimer);
+        if (rafId) cancelAnimationFrame(rafId);
+        flushTokenBuffer();
       } catch (err) {
+        if (rafId) cancelAnimationFrame(rafId);
+        flushTokenBuffer();
         if (err.name === 'AbortError') {
           // Check if it was a stale abort (retry) vs user abort (stop)
           if (retries < MAX_RETRIES && isLoading) {
@@ -1162,15 +1143,6 @@ export default function KuroChat() {
     await attemptStream();
   }, [input, activeId, activeAgent, activeSkill, messages, settings, isLoading]);
 
-  // ── RT-12: Voice — only set input, send on explicit isFinal ────────
-  const handleVoiceTranscript = useCallback((text, isFinal) => {
-    setInput(text);
-    if (isFinal && text.trim()) {
-      // Small delay so user sees final text before send
-      setTimeout(() => sendMessage(), 150);
-    }
-  }, [sendMessage]);
-
   // ── RT-08: Index-based regen ───────────────────────────────────────
   const handleRegen = useCallback((msgIndex) => {
     if (msgIndex < 1) return;
@@ -1188,6 +1160,21 @@ export default function KuroChat() {
     setConversations(prev => [f, ...prev]);
     setActiveId(f.id);
   }, [messages, activeProject]);
+
+  // ── LiveEdit — mid-stream corrections ──────────────────────────────
+  const liveEdit = useLiveEdit({
+    isStreaming: isLoading,
+    sessionId: activeId,
+    activeId,
+    messages,
+    input,
+    abortRef,
+    sendMessage,
+    updateMessages,
+    setInput,
+    setIsLoading,
+    authHeaders: () => authHeaders(),
+  });
 
   // Context
   const contextValue = useMemo(() => ({
@@ -1213,6 +1200,8 @@ export default function KuroChat() {
           setSearch={setSearch}
           profileDef={profileDef}
           auditStatus={auditStatus}
+          activeSkill={activeSkill}
+          onSkillChange={setActiveSkill}
         />
 
         <main className="main">
@@ -1227,20 +1216,8 @@ export default function KuroChat() {
               agents={agents}
               maxTier={profileDef?.maxAgentTier || 3}
             />
-            <div className="header-center">
-              <Pill icon={SKILLS[activeSkill]?.icon} label={SKILLS[activeSkill]?.name}
-                color={SKILLS[activeSkill]?.color} active
-                onClick={activeSkill !== 'chat' ? () => setActiveSkill('chat') : undefined} compact />
-              {activeProject && (
-                <Pill icon={Folder} label={projects.find(p => p.id === activeProject)?.name}
-                  color={projects.find(p => p.id === activeProject)?.color} compact />
-              )}
-            </div>
-            <div className="header-right">
-              <ScopeIndicator agent={activeAgent} agents={agents} />
-              {tokenCount > 0 && <span className="token-badge">{tokenCount} tok</span>}
-              <button className="icon-btn" onClick={createConv}><Plus size={18} /></button>
-            </div>
+            <div className="header-spacer" />
+            <button className="icon-btn" onClick={createConv}><Plus size={18} /></button>
           </Island>
 
           {/* Messages or Sandbox Panel */}
@@ -1257,10 +1234,7 @@ export default function KuroChat() {
           ) : (
           <div className="messages-scroll">
             {messages.length === 0 ? (
-              <EmptyState
-                onSuggestion={(t, s) => { setActiveSkill(s); setInput(t); }}
-                agents={agents} activeAgent={activeAgent} profileDef={profileDef}
-              />
+              <EmptyState />
             ) : (
               <div className="messages">
                 {messages.map((m, i) => (
@@ -1273,9 +1247,6 @@ export default function KuroChat() {
                     agents={agents}
                     activeAgent={activeAgent}
                     onCopy={c => navigator.clipboard.writeText(c)}
-                    onEdit={m => setInput(m.content)}
-                    onRegen={handleRegen}
-                    onFork={handleFork}
                   />
                 ))}
                 <div ref={messagesEndRef} />
@@ -1286,57 +1257,47 @@ export default function KuroChat() {
 
           <ConnectionStatus error={connectionError} />
 
-          {/* Input */}
-          <Island className="input-island" floating glow dismissable position="bottom">
-            <div className="input-main">
-              <button className="icon-btn" onClick={() => fileInputRef.current?.click()}><Paperclip size={18} /></button>
+          {/* Input area — tools row + input island */}
+          <div className="input-area">
+            <div className="input-tools-row">
+              <button className="tool-island attach-island" type="button" onClick={() => fileInputRef.current?.click()} title="Attach file">
+                <Paperclip size={13} /><span>Attach</span>
+              </button>
               <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Message KURO..."
-                rows={1}
+              <SpeedIsland value={powerDial} onChange={setPowerDial} />
+            </div>
+            <Island className="input-island" floating glow dismissable position="bottom">
+              <LiveEditBar
+                phrase={liveEdit.correctionPhrase}
+                visible={liveEdit.showBar}
+                adapting={liveEdit.adapting}
+                error={liveEdit.error}
+                onApply={liveEdit.applyCorrection}
+                onDismiss={liveEdit.dismiss}
               />
-              <VoiceInput onTranscript={handleVoiceTranscript} isListening={isListening} setIsListening={setIsListening} />
-              {isLoading ? (
-                <button className="send-btn stop" onClick={() => { abortRef.current?.abort(); setIsLoading(false); }}><Square size={16} /></button>
-              ) : (
-                <button className="send-btn" onClick={() => sendMessage()} disabled={!input.trim()}><ArrowUp size={18} /></button>
-              )}
-            </div>
-            <div className="input-tools">
-              <div className="power-dial">
-                {[
-                  { key: 'instant', icon: '⚡', label: 'Instant' },
-                  { key: 'deep', icon: '🧠', label: 'Deep' },
-                  { key: 'sovereign', icon: '👑', label: 'Sovereign' }
-                ].map(p => (
-                  <button key={p.key} className={`pd-btn ${powerDial === p.key ? 'active' : ''}`}
-                    onClick={() => setPowerDial(p.key)} title={p.label}>
-                    <span className="pd-icon">{p.icon}</span>
-                    <span className="pd-label">{p.label}</span>
-                  </button>
-                ))}
+              <div className="input-main">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={e => { setInput(e.target.value); onInputChange(e.target.value); }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (liveEdit.showBar) liveEdit.applyCorrection();
+                      else if (!isLoading) sendMessage();
+                    }
+                  }}
+                  placeholder="Message KURO..."
+                  rows={1}
+                />
+                {isLoading ? (
+                  <button className="send-btn stop" onClick={() => { abortRef.current?.abort(); setIsLoading(false); }}><Square size={16} /></button>
+                ) : (
+                  <button className="send-btn" onClick={() => sendMessage()} disabled={!input.trim()}><ArrowUp size={18} /></button>
+                )}
               </div>
-              <div className="skill-pills">
-                {Object.values(SKILLS).map(s => (
-                  <Pill key={s.id} icon={s.icon} label={s.name} color={s.color} compact
-                    active={activeSkill === s.id} onClick={() => setActiveSkill(activeSkill === s.id ? 'chat' : s.id)} />
-                ))}
-              </div>
-              <div className="input-meta">
-                <span className="hint"><Command size={10} />K</span>
-              </div>
-            </div>
-            <StreamProgress tokens={tokenCount} startTime={streamStart} isStreaming={isLoading} />
-          </Island>
+            </Island>
+          </div>
         </main>
 
         {isDragging && <div className="drop-zone"><Paperclip size={48} /><span>Drop to upload</span></div>}
@@ -1365,7 +1326,7 @@ export default function KuroChat() {
   --radius-md: 20px;
   --radius-lg: 28px;
   position: relative;
-  width: 100%; height: 100%;
+  flex: 1; min-height: 0;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
@@ -1647,6 +1608,12 @@ export default function KuroChat() {
   cursor: pointer;
 }
 .sidebar-link:hover { background: var(--surface); color: var(--text); }
+.sidebar-skills {
+  display: flex; gap: 6px; padding: 8px 12px 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.sidebar-skills::-webkit-scrollbar { display: none; }
 
 /* ═══ MAIN ═══ */
 .main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
@@ -1654,11 +1621,12 @@ export default function KuroChat() {
 /* ═══ HEADER ═══ */
 .header-island {
   position: absolute;
-  top: 12px; left: 12px; right: 12px;
+  top: 14px; left: 18px; right: 18px;
   z-index: 50;
   display: flex; align-items: center; gap: 12px;
   padding: 8px 12px;
 }
+.header-spacer { flex: 1; }
 .header-center { display: flex; gap: 6px; flex: 1; min-width: 0; }
 .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .token-badge {
@@ -1680,7 +1648,7 @@ export default function KuroChat() {
 .icon-btn:hover { background: var(--surface); color: var(--text); }
 
 /* ═══ MESSAGES ═══ */
-.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 200px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.messages-scroll { flex: 1; overflow-y: auto; padding: 80px 16px 230px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .messages { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 .message { display: flex; gap: 12px; animation: msgIn 0.28s cubic-bezier(0.22,1,0.36,1); }
 @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -1703,8 +1671,20 @@ export default function KuroChat() {
 }
 .message-text { font-size: 15px; line-height: 1.65; word-break: break-word; }
 .message.user .message-text { white-space: pre-wrap; }
-.stream-cursor { color: var(--accent); animation: blink 1s infinite; }
-@keyframes blink { 50% { opacity: 0; } }
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--accent);
+  border-radius: 1px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursorFade 0.9s ease-in-out infinite;
+}
+@keyframes cursorFade {
+  0%, 100% { opacity: 1; }
+  45%, 55% { opacity: 0; }
+}
 
 /* ═══ MARKDOWN ═══ */
 .md-codeblock { position: relative; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; font-size: 13px; line-height: 1.5; font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace; }
@@ -1852,13 +1832,42 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 .quick-action:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent); }
 .quick-action svg { color: var(--accent); }
 
+/* ═══ INPUT AREA — wrapper for tools row + input island ═══ */
+.input-area {
+  position: absolute;
+  bottom: 24px; left: 50%; transform: translateX(-50%);
+  width: min(calc(100% - 44px), 720px);
+  z-index: 50;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.input-tools-row {
+  display: flex; gap: 6px; align-items: center;
+  padding: 0 4px;
+}
+/* Shared pill island style — upload, speed, etc. */
+.tool-island {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px;
+  background: rgba(22,22,26,0.88);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 16px rgba(0,0,0,0.35);
+  color: var(--text-2); font-size: 12px; font-weight: 500;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, transform 0.13s cubic-bezier(0.2,0,0,1);
+  -webkit-tap-highlight-color: transparent;
+}
+.tool-island:hover { background: rgba(35,35,42,0.92); color: var(--text); }
+.tool-island:active { transform: scale(0.95); transition-duration: 0.07s; }
+/* Speed island modes */
+.speed-island.fast { color: rgba(255,214,10,0.75); border-color: rgba(255,214,10,0.15); }
+.speed-island.fast:hover { background: rgba(255,214,10,0.07); color: rgba(255,230,80,0.95); border-color: rgba(255,214,10,0.3); }
+.speed-island.sov { color: rgba(168,85,247,0.85); border-color: rgba(168,85,247,0.22); }
+.speed-island.sov:hover { background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.4); }
+
 /* ═══ INPUT ISLAND ═══ */
 .input-island {
-  position: absolute;
-  bottom: 16px; left: 16px; right: 16px;
-  max-width: 720px;
-  margin: 0 auto;
-  z-index: 50;
   padding: 12px;
 }
 .input-main { display: flex; align-items: flex-end; gap: 8px; }
@@ -1911,18 +1920,6 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   margin-top: 10px; padding-top: 10px;
   border-top: 1px solid var(--border);
 }
-.power-dial {
-  display: flex; gap: 2px; background: var(--surface); border-radius: 8px; padding: 2px; flex-shrink: 0;
-}
-.pd-btn {
-  display: flex; align-items: center; gap: 3px; padding: 3px 8px; border: none; border-radius: 6px;
-  background: transparent; color: var(--text-3); cursor: pointer; font-size: 11px;
-  transition: all 0.15s; white-space: nowrap;
-}
-.pd-btn:hover { background: var(--surface-2); color: var(--text-2); }
-.pd-btn.active { background: rgba(168,85,247,0.15); color: #a855f7; }
-.pd-icon { font-size: 12px; line-height: 1; }
-.pd-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
 .skill-pills { display: flex; gap: 6px; flex-wrap: wrap; }
 .input-meta { display: flex; gap: 10px; flex-shrink: 0; }
 .hint { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3); }
@@ -1950,9 +1947,9 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 
 /* Tablet (iPad portrait / landscape) */
 @media (max-width: 1024px) {
-  .header-island { top: 10px; left: 10px; right: 10px; padding: 7px 10px; gap: 10px; }
-  .input-island { bottom: 12px; left: 12px; right: 12px; padding: 11px; max-width: 680px; }
-  .messages-scroll { padding: 76px 14px 190px; }
+  .header-island { top: 12px; left: 14px; right: 14px; padding: 7px 10px; gap: 10px; }
+  .input-area { bottom: 18px; width: min(calc(100% - 32px), 680px); }
+  .messages-scroll { padding: 76px 14px 220px; }
   .messages { max-width: 680px; gap: 20px; }
   .message-text { font-size: 14.5px; }
   .icon-btn { width: 34px; height: 34px; }
@@ -1962,32 +1959,34 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   .typing-anim { font-size: 15px; }
 }
 
-/* Phone (iPhone / Android) — RT-17: Scope stays visible */
+/* Phone (iPhone / Android) */
 @media (max-width: 768px) {
-  .header-island { top: 6px; left: 6px; right: 6px; padding: 6px 8px; gap: 6px; }
-  .input-island { bottom: 6px; left: 6px; right: 6px; padding: 10px; max-width: none; }
-  .messages-scroll { padding: 82px 10px 170px; }
+  /* Header: strip down to menu + agent + new-chat only */
+  .header-island { top: 8px; left: 8px; right: 8px; padding: 6px 8px; gap: 6px; }
+  .header-center { display: none; }   /* skill/project pills live in input area */
+  .scope-indicator { display: none; } /* too dense for phone */
+  .token-badge { display: none; }
+
+  /* Input */
+  .input-area { bottom: 10px; width: calc(100% - 20px); }
+  .tool-island { font-size: 11px; padding: 5px 10px; }
+  .input-main textarea { font-size: 16px; } /* prevent iOS auto-zoom */
+  .icon-btn { width: 32px; height: 32px; }
+  .send-btn { width: 34px; height: 34px; }
+
+  /* Messages */
+  .messages-scroll { padding: 70px 10px 190px; }
   .messages { gap: 16px; }
   .message { gap: 8px; }
   .message-avatar { width: 28px; height: 28px; }
   .message-text { font-size: 14px; line-height: 1.55; }
-  .input-main textarea { font-size: 16px; }
-  .icon-btn { width: 32px; height: 32px; }
-  .send-btn { width: 34px; height: 34px; }
+  .md-codeblock { font-size: 12px; padding: 10px 12px; }
+
+  /* Misc */
   .quick-actions { flex-direction: column; }
   .quick-action { font-size: 13px; }
-  .skill-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-  .input-meta { display: none; }
-  .pd-label { display: none; }
-  .pd-btn { padding: 4px 6px; font-size: 11px; }
-  .power-dial { gap: 1px; }
-  .scope-indicator .scope-label { display: none; }
-  .scope-indicator { gap: 2px; }
-  .scope-badge { font-size: 9px; padding: 1px 4px; }
-  .agent-current span { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .policy-banner { left: 6px; right: 6px; transform: none; flex-wrap: wrap; }
   .connection-error { left: 6px; right: 6px; transform: none; }
-  .token-badge { display: none; }
   .empty-state h1 { font-size: 24px; }
   .empty-state { padding: 40px 16px; min-height: 50vh; }
   .kuro-cube-wrap { width: 64px; height: 64px; }
@@ -1996,17 +1995,16 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   .kc-ft { transform: translateZ(21px); } .kc-bk { transform: rotateY(180deg) translateZ(21px); }
   .kc-rt { transform: rotateY(90deg) translateZ(21px); } .kc-lt { transform: rotateY(-90deg) translateZ(21px); }
   .kc-tp { transform: rotateX(90deg) translateZ(21px); } .kc-bt { transform: rotateX(-90deg) translateZ(21px); }
-  .md-codeblock { font-size: 12px; padding: 10px 12px; }
 }
 
 /* Small phone (iPhone SE / Mini / compact) */
 @media (max-width: 430px) {
-  .header-island { top: 4px; left: 4px; right: 4px; padding: 5px 6px; gap: 4px; }
-  .input-island { bottom: 4px; left: 4px; right: 4px; padding: 8px; }
-  .messages-scroll { padding: 74px 8px 160px; }
+  .header-island { top: 6px; left: 6px; right: 6px; padding: 5px 6px; gap: 4px; }
+  .input-area { bottom: 8px; width: calc(100% - 16px); }
+  .messages-scroll { padding: 66px 8px 175px; }
   .message-text { font-size: 13.5px; }
   .agent-selector { font-size: 12px; }
-  .agent-current span { max-width: 48px; }
+  .agent-current span { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pill { padding: 5px 10px; font-size: 11px; }
   .pill.compact { padding: 3px 8px; font-size: 10px; }
   .empty-state h1 { font-size: 22px; }
