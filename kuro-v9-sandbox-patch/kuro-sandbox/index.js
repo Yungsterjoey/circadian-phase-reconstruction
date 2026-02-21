@@ -22,6 +22,15 @@ const crypto = require('crypto');
 const PORT = parseInt(process.env.SANDBOX_PORT || '3101', 10);
 const RUNNER_IMAGE = process.env.SANDBOX_IMAGE || 'kuro-sandbox-runner:latest';
 const MAX_CONCURRENT = parseInt(process.env.SANDBOX_MAX_CONCURRENT || '4', 10);
+const HARD_TIMEOUT_CAP = parseInt(process.env.KURO_SANDBOX_TIMEOUT_SECONDS || '60', 10);
+
+// Convert seconds → HH:MM:SS for firejail --timeout flag
+function secsToHMS(s) {
+  const h = Math.floor(s / 3600).toString().padStart(2, '0');
+  const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+  const sec = (s % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${sec}`;
+}
 
 // In-memory job store (ephemeral — survives only for this process lifetime)
 const jobs = new Map();
@@ -126,10 +135,15 @@ function runDocker(job) {
 
     const proc = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
+    const hardCap = Math.min(timeout, HARD_TIMEOUT_CAP);
     const timer = setTimeout(() => {
-      proc.kill('SIGKILL');
-      stderrChunks.push(Buffer.from('\n[SANDBOX] Killed: exceeded max_runtime_seconds\n'));
-    }, (timeout + 5) * 1000);
+      if (!proc.killed) {
+        proc.kill('SIGKILL');
+        console.error(`[SECURITY] ${new Date().toISOString()} SANDBOX_TIMEOUT_KILL`, JSON.stringify({ runId: job.runId, timeoutSeconds: hardCap, runner: 'docker' }));
+        stderrChunks.push(Buffer.from(`\n[SANDBOX] Killed: exceeded ${hardCap}s hard cap\n`));
+      }
+    }, (hardCap + 5) * 1000);
+    proc.on('exit', () => clearTimeout(timer));
 
     proc.stdout.on('data', d => {
       totalOut += d.length;
@@ -170,7 +184,7 @@ function runFirejail(job) {
     '--net=none',
     '--noroot',
     '--rlimit-as=' + (budgets.max_memory_mb * 1024 * 1024),
-    '--timeout=' + (timeout + 2) + ':00:00',
+    '--timeout=' + secsToHMS(Math.min(timeout + 2, HARD_TIMEOUT_CAP + 2)),
     '--read-only=' + workspacePath,
     '--whitelist=' + artifactDir,
     '--',
@@ -188,10 +202,15 @@ function runFirejail(job) {
       cwd: workspacePath,
     });
 
+    const hardCap = Math.min(timeout, HARD_TIMEOUT_CAP);
     const timer = setTimeout(() => {
-      proc.kill('SIGKILL');
-      stderrChunks.push(Buffer.from('\n[SANDBOX] Killed: exceeded max_runtime_seconds\n'));
-    }, (timeout + 5) * 1000);
+      if (!proc.killed) {
+        proc.kill('SIGKILL');
+        console.error(`[SECURITY] ${new Date().toISOString()} SANDBOX_TIMEOUT_KILL`, JSON.stringify({ runId: job.runId, timeoutSeconds: hardCap, runner: 'firejail' }));
+        stderrChunks.push(Buffer.from(`\n[SANDBOX] Killed: exceeded ${hardCap}s hard cap\n`));
+      }
+    }, (hardCap + 2) * 1000);
+    proc.on('exit', () => clearTimeout(timer));
 
     proc.stdout.on('data', d => { totalOut += d.length; if (totalOut <= budgets.max_output_bytes) stdoutChunks.push(d); });
     proc.stderr.on('data', d => { totalOut += d.length; if (totalOut <= budgets.max_output_bytes) stderrChunks.push(d); });

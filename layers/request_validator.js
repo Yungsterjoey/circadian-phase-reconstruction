@@ -175,9 +175,20 @@ function securityHeaders(req, res, next) {
   if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
-  // CSP for the frontend
+  // CSP — applied to all HTML responses (GET non-API routes serve the SPA)
   if (req.method === 'GET' && !req.path.startsWith('/api/')) {
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'");
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self'",                    // no unsafe-inline — Vite bundles are external files
+      "style-src 'self' 'unsafe-inline'",     // inline styles required (React JSX style props)
+      "img-src 'self' data: blob:",
+      "connect-src 'self' wss: blob:",        // wss: for future WebSocket; blob: for artifact download
+      "worker-src blob:",                     // blob: workers (Monaco future)
+      "frame-src blob: data:",               // ArtifactCard previews use blob: URLs in iframes
+      "frame-ancestors 'none'",              // prevents clickjacking
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; '));
   }
   next();
 }

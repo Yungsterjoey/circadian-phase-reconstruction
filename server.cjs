@@ -23,6 +23,15 @@ const axios = require('axios');
 const cookieParser = require('cookie-parser');
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SECURITY AUDIT LOG — strips sensitive fields before writing
+// ═══════════════════════════════════════════════════════════════════════════
+function securityLog(event, details = {}) {
+  const safe = { ...details };
+  delete safe.token; delete safe.password; delete safe.sessionId; delete safe.cookie;
+  console.error(`[SECURITY] ${new Date().toISOString()} ${event}`, JSON.stringify(safe));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DEPLOYMENT PROFILE
 // ═══════════════════════════════════════════════════════════════════════════
 const PROFILES = {
@@ -70,10 +79,25 @@ catch(e) {
   // Fallback: try flat layers/ path (backwards compat)
   try { const am=require('./layers/auth_middleware.js'); auth=am.auth; resolveUser=am.resolveUser; fingerprint=am.fingerprint; }
   catch(e2) {
-    console.warn('[WARN] auth_middleware not loaded — open auth (LAB ONLY)');
-    const ou={userId:'operator',name:'Operator',role:'operator',devAllowed:true,level:3,skills:['read','write','exec','compute','aggregate'],canAdmin:true,canSealAudit:true,canClearRAG:true,maxAgentTier:3};
-    resolveUser=()=>ou; fingerprint=()=>'no-auth';
-    const pt=(q,s,n)=>{q.user=ou;n();}; auth={required:pt,optional:pt,operator:pt,analyst:pt,dev:pt,admin:pt};
+    const isDevMode = (process.env.KURO_PROFILE === 'dev' || process.env.NODE_ENV === 'development');
+    if (!isDevMode) {
+      // FAIL HARD in non-dev environments — never silently grant elevated access
+      securityLog('AUTH_MIDDLEWARE_LOAD_FAILURE', { error: e2.message, profile: process.env.KURO_PROFILE });
+      console.error('[FATAL] Auth middleware failed to load in non-dev mode. Refusing to start with open auth.');
+      process.exit(1);
+    }
+    // DEV MODE ONLY: log loud warning and install 503 blocker for all non-health routes
+    console.error('\n\n' + '!'.repeat(70));
+    console.error('[WARN][DEV] auth_middleware not loaded — ALL routes blocked except /health');
+    console.error('[WARN][DEV] Error:', e2.message);
+    console.error('!'.repeat(70) + '\n');
+    resolveUser = () => null;
+    fingerprint = () => 'no-auth';
+    const devBlock = (req, res, next) => {
+      if (req.path === '/health' || req.path === '/api/health') return next();
+      res.status(503).json({ error: 'Service unavailable: auth module failed to load', dev: true });
+    };
+    auth = { required: devBlock, optional: devBlock, operator: devBlock, analyst: devBlock, dev: devBlock, admin: devBlock };
   }
 }
 
@@ -312,10 +336,17 @@ const GHOST_PROTOCOLS = { thinking: '\n[THINKING] Wrap reasoning in <think>...</
 const LAYERS = { 0: 'Threat Filter', 1: 'Rate Limiter', 2: 'Knowledge Retrieval', 3: 'Intent Router', 4: 'Context Engine', 5: 'Agent Orchestrator', 6: 'Confidence Engine', 7: 'Prompt Builder', 8: 'Quality Filter', 9: 'Output Enhancer', 10: 'Stream Controller', 11: 'Response Cache' };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VECTOR STORE
+// VECTOR STORE — per-user namespaced (Phase 0 security hardening)
+// Path: vectors/{userId}/{namespace}.json
 // ═══════════════════════════════════════════════════════════════════════════
 class VectorStore {
-  constructor(ns) { this.ns = ns; this.fp = path.join(VECTOR_DIR, `${ns}.json`); this.data = this._load(); }
+  constructor(relPath) {
+    this.fp = path.join(VECTOR_DIR, `${relPath}.json`);
+    // Ensure parent directory exists
+    const dir = path.dirname(this.fp);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    this.data = this._load();
+  }
   _load() { try { if (fs.existsSync(this.fp)) return JSON.parse(fs.readFileSync(this.fp, 'utf8')); } catch(e) {} return { documents: [], embeddings: [], metadata: [] }; }
   _save() { try { fs.writeFileSync(this.fp, JSON.stringify(this.data)); } catch(e) {} }
   async add(d, e, m = []) { for (let i = 0; i < d.length; i++) { this.data.documents.push(d[i]); this.data.embeddings.push(e[i]); this.data.metadata.push(m[i] || { timestamp: Date.now() }); } this._save(); return { added: d.length }; }
@@ -324,8 +355,31 @@ class VectorStore {
   clear() { this.data = { documents: [], embeddings: [], metadata: [] }; this._save(); }
   count() { return this.data.documents.length; }
 }
-const edubbaStore = new VectorStore('edubba');
-const mnemosyneStore = new VectorStore('mnemosyne');
+
+// Per-user store cache — keyed by `userId:namespace`
+const _userVectorStores = new Map();
+function getUserVectorStore(userId, namespace = 'edubba') {
+  const VALID_NS = ['edubba', 'mnemosyne'];
+  const ns = VALID_NS.includes(namespace) ? namespace : 'edubba';
+  if (!userId || typeof userId !== 'string' || userId === 'anon' || userId === 'guest') {
+    securityLog('VECTOR_NAMESPACE_VIOLATION', { reason: 'missing_or_anonymous_userId', namespace: ns });
+    throw new Error('Vector store requires authenticated userId');
+  }
+  // Prevent path traversal in userId
+  const safeUserId = userId.replace(/[^a-zA-Z0-9\-_]/g, '_').slice(0, 64);
+  if (safeUserId !== userId) {
+    securityLog('VECTOR_NAMESPACE_VIOLATION', { reason: 'unsafe_userId', userId: userId.slice(0, 32), namespace: ns });
+  }
+  const key = `${safeUserId}:${ns}`;
+  if (!_userVectorStores.has(key)) {
+    _userVectorStores.set(key, new VectorStore(path.join(safeUserId, ns)));
+  }
+  return _userVectorStores.get(key);
+}
+
+// System-level stores (admin RAG clear, health stats) — not user-queryable
+const _systemEdubba = new VectorStore(path.join('_system', 'edubba'));
+const _systemMnemosyne = new VectorStore(path.join('_system', 'mnemosyne'));
 
 async function getEmbedding(t) { try { const r = await axios.post(`${OLLAMA_URL}/api/embeddings`, { model: MODEL_REGISTRY['kuro-embed'].ollama, prompt: t.slice(0, 8000) }, { timeout: 30000 }); return r.data.embedding; } catch(e) { return null; } }
 async function getEmbeddings(ts) { const r = []; for (const t of ts) r.push(await getEmbedding(t)); return r; }
@@ -432,19 +486,29 @@ app.get('/api/capability/profiles', guestOrAuth(resolveUser), (req, res) => {
 // RAG ENDPOINTS (auth required — no guest access)
 // ═══════════════════════════════════════════════════════════════════════════
 app.post('/api/embed', auth.required, async (req, res) => { const { text, texts } = req.body; logEvent({ agent: 'system', action: 'embed', userId: req.user.userId, requestId: req.requestId }); try { if (texts && Array.isArray(texts)) { const e = await getEmbeddings(texts); return res.json({ embeddings: e, count: e.filter(x => x).length }); } if (text) { const e = await getEmbedding(text); return res.json({ embedding: e, dimensions: e?.length || 0 }); } res.status(400).json({ error: 'Provide text or texts[]' }); } catch(e) { res.status(500).json({ error: e.message }); } });
-app.post('/api/ingest', auth.analyst, async (req, res) => { const { filePath, content, namespace: ns = 'edubba', metadata = {} } = req.body; const namespace = validateNamespace(ns); logEvent({ agent: 'system', action: 'ingest', target: filePath || 'inline', userId: req.user.userId, requestId: req.requestId }); try { let t = content; if (filePath && !content) { t = fileConn.read ? fileConn.read(filePath, req.user.userId, 'analysis') : null; if (!t) return res.status(404).json({ error: 'Not found or access denied' }); } if (!t) return res.status(400).json({ error: 'No content' }); const ch = chunkText(t); const em = await getEmbeddings(ch); const vc = ch.filter((_, i) => em[i]); const ve = em.filter(e => e); const st = namespace === 'mnemosyne' ? mnemosyneStore : edubbaStore; await st.add(vc, ve, vc.map((_, i) => ({ ...metadata, chunkIndex: i, timestamp: Date.now() }))); res.json({ success: true, chunks: vc.length, namespace, total: st.count() }); } catch(e) { res.status(500).json({ error: e.message }); } });
-app.post('/api/rag/query', auth.required, async (req, res) => { const v = validateBody(req.body, 'ragQuery'); if (!v.valid) return res.status(400).json({ error: 'Validation failed', details: v.errors }); const { query, namespace: ns = 'edubba', topK = 5, threshold = 0.7 } = req.body; try { const qe = await getEmbedding(query); if (!qe) return res.status(500).json({ error: 'Embed failed' }); const st = validateNamespace(ns) === 'mnemosyne' ? mnemosyneStore : edubbaStore; res.json({ results: st.query(qe, topK, threshold), namespace: ns }); } catch(e) { res.status(500).json({ error: e.message }); } });
-app.get('/api/rag/stats', auth.required, (_, res) => { res.json({ edubba: { documents: edubbaStore.count() }, mnemosyne: { documents: mnemosyneStore.count() } }); });
-app.post('/api/rag/clear', auth.admin, (req, res) => { const { namespace } = req.body; logEvent({ agent: 'system', action: 'rag_clear', target: namespace || 'all', userId: req.user.userId, requestId: req.requestId }); if (namespace === 'edubba') edubbaStore.clear(); else if (namespace === 'mnemosyne') mnemosyneStore.clear(); else { edubbaStore.clear(); mnemosyneStore.clear(); } res.json({ success: true, cleared: namespace || 'all' }); });
+app.post('/api/ingest', auth.analyst, async (req, res) => { const { filePath, content, namespace: ns = 'edubba', metadata = {} } = req.body; const namespace = validateNamespace(ns); logEvent({ agent: 'system', action: 'ingest', target: filePath || 'inline', userId: req.user.userId, requestId: req.requestId }); try { let t = content; if (filePath && !content) { t = fileConn.read ? fileConn.read(filePath, req.user.userId, 'analysis') : null; if (!t) return res.status(404).json({ error: 'Not found or access denied' }); } if (!t) return res.status(400).json({ error: 'No content' }); const ch = chunkText(t); const em = await getEmbeddings(ch); const vc = ch.filter((_, i) => em[i]); const ve = em.filter(e => e); const st = getUserVectorStore(req.user.userId, namespace); await st.add(vc, ve, vc.map((_, i) => ({ ...metadata, chunkIndex: i, timestamp: Date.now() }))); res.json({ success: true, chunks: vc.length, namespace, total: st.count() }); } catch(e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/rag/query', auth.required, async (req, res) => { const v = validateBody(req.body, 'ragQuery'); if (!v.valid) return res.status(400).json({ error: 'Validation failed', details: v.errors }); const { query, namespace: ns = 'edubba', topK = 5, threshold = 0.7 } = req.body; try { const qe = await getEmbedding(query); if (!qe) return res.status(500).json({ error: 'Embed failed' }); const st = getUserVectorStore(req.user.userId, validateNamespace(ns)); res.json({ results: st.query(qe, topK, threshold), namespace: ns }); } catch(e) { res.status(500).json({ error: e.message }); } });
+app.get('/api/rag/stats', auth.required, (req, res) => { try { const ed = getUserVectorStore(req.user.userId, 'edubba'); const mn = getUserVectorStore(req.user.userId, 'mnemosyne'); res.json({ edubba: { documents: ed.count() }, mnemosyne: { documents: mn.count() } }); } catch(e) { res.json({ edubba: { documents: 0 }, mnemosyne: { documents: 0 } }); } });
+app.post('/api/rag/clear', auth.admin, (req, res) => { const { namespace, userId: targetUserId } = req.body; logEvent({ agent: 'system', action: 'rag_clear', target: `${targetUserId || 'self'}:${namespace || 'all'}`, userId: req.user.userId, requestId: req.requestId }); const uid = targetUserId || req.user.userId; try { if (namespace === 'edubba') getUserVectorStore(uid, 'edubba').clear(); else if (namespace === 'mnemosyne') getUserVectorStore(uid, 'mnemosyne').clear(); else { getUserVectorStore(uid, 'edubba').clear(); getUserVectorStore(uid, 'mnemosyne').clear(); } res.json({ success: true, cleared: namespace || 'all', userId: uid }); } catch(e) { res.status(500).json({ error: e.message }); } });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FILE UPLOAD + INGEST (in-chat upload → RAG)
 // ═══════════════════════════════════════════════════════════════════════════
 app.post('/api/files/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
   const fn = sanitizeFilename(req.headers['x-filename']);
-  const up = path.join(DATA_DIR, 'uploads', fn);
-  if (!path.resolve(up).startsWith(path.join(DATA_DIR, 'uploads'))) return res.status(400).json({ error: 'Invalid filename' });
-  logEvent({ agent: 'system', action: 'upload', target: fn, userId: req.user.userId, requestId: req.requestId });
+  const userId = req.user.userId;
+  const uploadsBase = path.join(DATA_DIR, 'uploads');
+  // Per-user subdirectory
+  const userUploadDir = path.join(uploadsBase, userId);
+  fs.mkdirSync(userUploadDir, { recursive: true });
+  const up = path.join(userUploadDir, fn);
+  // Traversal check: resolved path must stay inside uploads root
+  const resolvedUp = path.resolve(up);
+  if (!resolvedUp.startsWith(path.resolve(uploadsBase))) {
+    securityLog('UPLOAD_TRAVERSAL', { userId, path: fn, ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown' });
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  logEvent({ agent: 'system', action: 'upload', target: fn, userId, requestId: req.requestId });
   try {
     fs.writeFileSync(up, req.body);
     const fileId = crypto.randomBytes(8).toString('hex');
@@ -458,7 +522,7 @@ app.post('/api/files/upload', auth.required, express.raw({ type: '*/*', limit: '
         const vc = ch.filter((_, i) => em[i]);
         const ve = em.filter(e => e);
         if (vc.length) {
-          await edubbaStore.add(vc, ve, vc.map((_, i) => ({ fileId, filename: fn, chunkIndex: i, timestamp: Date.now() })));
+          await getUserVectorStore(userId, 'edubba').add(vc, ve, vc.map((_, i) => ({ fileId, filename: fn, chunkIndex: i, timestamp: Date.now() })));
           chunks = vc.length;
         }
       }
@@ -540,24 +604,28 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     if (iff.rateLimited) { sendLayer(res, 1, 'complete', { status: 'THROTTLED' }, clientType); sendSSE(res, { type: 'blocked', layer: 1, reason: 'Rate limited' }); clearInterval(ka); return res.end(); }
     sendLayer(res, 1, 'complete', { clientId: iff.clientId, requests: iff.requestCount }, clientType);
 
-    // L2: KNOWLEDGE RETRIEVAL (+ file context injection)
+    // L2: KNOWLEDGE RETRIEVAL (+ file context injection) — per-user namespace only
     let ragCtx = []; sendLayer(res, 2, 'active', null, clientType);
     const edubbaRecall = recall(lastMsg);
-    if (useRAG && edubbaStore.count() > 0) {
+    if (useRAG && !req.isGuest && user.userId && user.userId !== 'anon') {
       try {
-        const qe = await getEmbedding(lastMsg);
-        if (qe) ragCtx = (ragNamespace === 'mnemosyne' ? mnemosyneStore : edubbaStore).query(qe, capCfg.ragTopK || ragTopK, 0.65);
-      } catch(e) {}
-    }
-    // Inject file-specific context if fileIds provided
-    if (fileIds.length && edubbaStore.count() > 0) {
-      try {
-        const qe = await getEmbedding(lastMsg);
-        if (qe) {
-          const fileResults = edubbaStore.query(qe, 5, 0.5).filter(r => fileIds.includes(r.metadata?.fileId));
-          ragCtx = [...ragCtx, ...fileResults].slice(0, (capCfg.ragTopK || ragTopK) + 3);
+        const userEdubba = getUserVectorStore(user.userId, 'edubba');
+        const userMnemosyne = getUserVectorStore(user.userId, 'mnemosyne');
+        const activeStore = ragNamespace === 'mnemosyne' ? userMnemosyne : userEdubba;
+        if (activeStore.count() > 0) {
+          const qe = await getEmbedding(lastMsg);
+          if (qe) ragCtx = activeStore.query(qe, capCfg.ragTopK || ragTopK, 0.65);
         }
-      } catch(e) {}
+        // Inject file-specific context if fileIds provided
+        if (fileIds.length && userEdubba.count() > 0) {
+          const qe = ragCtx.length ? null : await getEmbedding(lastMsg); // reuse if already fetched
+          const eq = qe || await getEmbedding(lastMsg);
+          if (eq) {
+            const fileResults = userEdubba.query(eq, 5, 0.5).filter(r => fileIds.includes(r.metadata?.fileId));
+            ragCtx = [...ragCtx, ...fileResults].slice(0, (capCfg.ragTopK || ragTopK) + 3);
+          }
+        }
+      } catch(e) { /* RAG failure is non-fatal */ }
     }
     sendLayer(res, 2, 'complete', { patterns: edubbaRecall.found ? edubbaRecall.patterns?.length : 0, ragResults: ragCtx.length }, clientType);
 
@@ -744,7 +812,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     if (full) {
       full = enhanceOutput(full); const cleanFull = stripThinkBlocks(full);
       sendLayer(res, 11, 'active', null, clientType);
-      try { const re = await getEmbedding(cleanFull.slice(0, 2000)); if (re) await mnemosyneStore.add([cleanFull.slice(0, 2000)], [re], [{ sessionId: sid, agent: ar.agentId, timestamp: Date.now(), query: lastMsg.slice(0, 200), requestId: req.requestId }]); } catch(e) {}
+      try { if (!req.isGuest && user.userId && user.userId !== 'anon') { const re = await getEmbedding(cleanFull.slice(0, 2000)); if (re) await getUserVectorStore(user.userId, 'mnemosyne').add([cleanFull.slice(0, 2000)], [re], [{ sessionId: sid, agent: ar.agentId, timestamp: Date.now(), query: lastMsg.slice(0, 200), requestId: req.requestId }]); } } catch(e) {}
       sendLayer(res, 11, 'complete', { cached: true }, clientType);
       inscribe(lastMsg, cleanFull);
     }
@@ -790,9 +858,24 @@ app.get('/api/patches', auth.analyst, (_, res) => { const pd = path.join(DATA_DI
 // ═══════════════════════════════════════════════════════════════════════════
 app.get('/api/models', guestOrAuth(resolveUser), async (req, res) => { const conf = Object.entries(MODEL_REGISTRY).map(([id, c]) => ({ id, name: c.name, desc: c.desc || '', ctx: c.ctx, thinking: !!c.thinking, embedding: !!c.embedding, vision: !!c.vision, tier: c.tier, minTier: MODEL_TIER_ACCESS[id] || 'sovereign', available: true })); try { const { data } = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 }); const av = new Set((data.models || []).map(m => m.name)); conf.forEach(m => { const c = MODEL_REGISTRY[m.id]; m.available = av.has(c.ollama) || av.has(c.ollama.split(':')[0]); }); } catch(e) {} res.json({ configured: conf, default: 'kuro-core', skillRouting: SKILL_MODELS, architecture: 'SOVEREIGN_AGENT_v7.0.3', agents: AGENTS, profile: { active: ACTIVE_PROFILE, ...PROFILE }, isGuest: !!req.isGuest }); });
 
-app.get('/api/health', (_, res) => { res.json({ status: 'ok', version: 'v9.0', architecture: 'SOVEREIGN_AGENT', profile: ACTIVE_PROFILE, model: 'kuro-core', ollama: ollamaHealth.healthy ? 'connected' : 'degraded', stores: { edubba: edubbaStore.count(), mnemosyne: mnemosyneStore.count() }, audit: { chainValid: verifyAll().allValid }, fusion: { frontier: getActiveProvider().configured, webSearch: !!webSearch, lab: typeof mountLabRoutes === 'function', artifacts: typeof mountArtifactRoutes === 'function', contextReactor: !!ingestFile, synthesis: !!synthesize, telemetry: typeof mountTelemetryRoutes === 'function', sovereignty: typeof mountSovereigntyRoutes === 'function', snapshots: typeof mountSnapshotRoutes === 'function', warmer: typeof predictiveWarm === 'function', selfHeal: !!selfHeal }, guests: guestStats(), uptime: Math.floor(process.uptime()), timestamp: Date.now() }); });
+app.get('/api/health', (_, res) => { res.json({ status: 'ok', version: 'v9.0', architecture: 'SOVEREIGN_AGENT', profile: ACTIVE_PROFILE, model: 'kuro-core', ollama: ollamaHealth.healthy ? 'connected' : 'degraded', stores: { namespaced: true, userCount: _userVectorStores.size }, audit: { chainValid: verifyAll().allValid }, fusion: { frontier: getActiveProvider().configured, webSearch: !!webSearch, lab: typeof mountLabRoutes === 'function', artifacts: typeof mountArtifactRoutes === 'function', contextReactor: !!ingestFile, synthesis: !!synthesize, telemetry: typeof mountTelemetryRoutes === 'function', sovereignty: typeof mountSovereigntyRoutes === 'function', snapshots: typeof mountSnapshotRoutes === 'function', warmer: typeof predictiveWarm === 'function', selfHeal: !!selfHeal }, guests: guestStats(), uptime: Math.floor(process.uptime()), timestamp: Date.now() }); });
 
-app.post('/api/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' }), (req, res) => { const fn = sanitizeFilename(req.headers['x-filename']); const up = path.join(DATA_DIR, 'uploads', fn); if (!path.resolve(up).startsWith(path.join(DATA_DIR, 'uploads'))) return res.status(400).json({ error: 'Invalid filename' }); logEvent({ agent: 'system', action: 'upload', target: fn, userId: req.user.userId, requestId: req.requestId }); try { fs.writeFileSync(up, req.body); res.json({ success: true, path: up, size: req.body.length }); } catch(e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
+  const fn = sanitizeFilename(req.headers['x-filename']);
+  const userId = req.user.userId;
+  const uploadsBase = path.join(DATA_DIR, 'uploads');
+  const userUploadDir = path.join(uploadsBase, userId);
+  fs.mkdirSync(userUploadDir, { recursive: true });
+  const up = path.join(userUploadDir, fn);
+  const resolvedUp = path.resolve(up);
+  if (!resolvedUp.startsWith(path.resolve(uploadsBase))) {
+    securityLog('UPLOAD_TRAVERSAL', { userId, path: fn, ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown' });
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  logEvent({ agent: 'system', action: 'upload', target: fn, userId, requestId: req.requestId });
+  try { fs.writeFileSync(up, req.body); res.json({ success: true, path: up, size: req.body.length }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 app.get('/api/files', auth.required, (req, res) => { const dp = req.query.path || DATA_DIR; const resolved = path.resolve(dp); if (!resolved.startsWith(path.resolve(DATA_DIR)) && !resolved.startsWith(path.resolve(CODE_DIR))) return res.status(403).json({ error: 'Path outside allowed scope' }); const scope = req.user.devAllowed ? 'actions' : (req.user.level >= 2 ? 'analysis' : 'insights'); try { const f = fileConn.list ? fileConn.list(dp, req.user.userId, scope) : []; res.json({ files: f, path: dp }); } catch(e) { res.status(404).json({ error: e.message }); } });
 app.get('/api/sessions', auth.analyst, (req, res) => { try { res.json(sessionConn.aggregate ? sessionConn.aggregate(req.user.userId) : { totalSessions: 0, sessions: [] }); } catch(e) { res.json({ totalSessions: 0, sessions: [] }); } });
@@ -858,7 +941,7 @@ app.post('/api/files/ingest', auth.required, express.raw({ type: '*/*', limit: '
     const fn = sanitizeFilename(req.headers['x-filename'] || `upload_${Date.now()}`);
     const userId = req.user?.userId || 'anonymous';
     const upload = handleUpload(req.body, fn, userId);
-    const result = await ingestFile(upload.filePath, upload.fileId, userId, getEmbedding, edubbaStore);
+    const result = await ingestFile(upload.filePath, upload.fileId, userId, getEmbedding, getUserVectorStore(userId, 'edubba'));
     logEvent({ agent: 'context_reactor', action: 'ingest', userId, requestId: req.requestId, meta: { fileId: upload.fileId, chunks: result.chunks, embedded: result.embedded } });
     res.json({ ...result, upload: { fileId: upload.fileId, fileName: upload.fileName, size: upload.size } });
   } catch(e) { res.status(500).json({ error: e.message }); }

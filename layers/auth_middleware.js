@@ -95,28 +95,48 @@ function watchTokenFile() {
 /**
  * Resolve user from request
  * Checks: Authorization header (Bearer), X-KURO-Token header, query param ?token=
+ *
+ * X-KURO-Token header auth is controlled by KURO_ENABLE_LEGACY_TOKEN env var.
+ * Default is disabled (false). Set to 'true' to allow legacy header-based auth.
  */
 function resolveUser(req) {
+  const legacyEnabled = process.env.KURO_ENABLE_LEGACY_TOKEN === 'true';
   let token = null;
 
-  // Bearer token
+  // Bearer token (always honoured — feeds the kuro_tokens DB table path)
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7).trim();
   }
 
-  // X-KURO-Token header
-  if (!token) token = req.headers['x-kuro-token'];
+  // X-KURO-Token header — only when legacy auth is explicitly enabled
+  if (!token) {
+    if (req.headers['x-kuro-token']) {
+      if (legacyEnabled) {
+        token = req.headers['x-kuro-token'];
+      } else {
+        // Audit event: legacy header present but feature disabled
+        console.error(`[SECURITY] ${new Date().toISOString()} LEGACY_TOKEN_HEADER_REJECTED`, JSON.stringify({
+          ip: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown',
+          path: req.path, method: req.method
+        }));
+      }
+    }
+  }
 
-  // Query param (GET requests only)
-  if (!token && req.method === 'GET') token = req.query.token;
+  // Query param (GET requests only) — also subject to legacy gate
+  if (!token && req.method === 'GET' && req.query.token) {
+    if (legacyEnabled) {
+      token = req.query.token;
+    }
+  }
 
   if (!token) return null;
 
   // Hash token for lookup (tokens stored as SHA-256 hashes)
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-  // Check plain token first, then hash
+  // tokens.json read is only reached here when legacyEnabled (token was set above)
   const entry = tokenStore.tokens?.[token] || tokenStore.tokens?.[tokenHash];
   if (!entry) return null;
 
@@ -217,8 +237,12 @@ function fingerprint(req) {
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
 }
 
-// Init
-loadTokens();
-watchTokenFile();
+// Init — only load tokens.json when legacy token auth is explicitly enabled
+if (process.env.KURO_ENABLE_LEGACY_TOKEN === 'true') {
+  loadTokens();
+  watchTokenFile();
+} else {
+  console.log('[AUTH] Legacy token auth disabled (KURO_ENABLE_LEGACY_TOKEN not set to true)');
+}
 
 module.exports = { resolveUser, authMiddleware, auth, generateTokenFile, fingerprint, ROLES, loadTokens };
