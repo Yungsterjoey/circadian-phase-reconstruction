@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["path", "content"],
+  "additionalProperties": false,
+  "properties": {
+    "path":     { "type": "string", "maxLength": 1024 },
+    "content":  { "type": "string", "maxLength": 10485760 },
+    "mimeType": { "type": "string", "maxLength": 128 }
+  }
+}

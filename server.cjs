@@ -147,6 +147,17 @@ try { ({ createStripeRoutes, stripeWebhookHandler } = require('./layers/stripe/s
 let mountVfsRoutes = null; try { mountVfsRoutes = require('./layers/vfs/vfs_routes.cjs'); } catch(e) { console.warn('[WARN] VFS routes not loaded:', e.message); }
 let mountRunnerRoutes = null; try { mountRunnerRoutes = require('./layers/runner/runner_routes.cjs'); } catch(e) { console.warn('[WARN] Runner routes not loaded:', e.message); }
 
+// Phase 3: JSON Tool Protocol
+const KURO_JSON_TOOLS_ENABLED = (process.env.KURO_JSON_TOOLS_ENABLED ?? 'true').toLowerCase() !== 'false';
+const KURO_JSON_TOOLS_ONLY    = (process.env.KURO_JSON_TOOLS_ONLY    ?? 'false').toLowerCase() === 'true';
+let toolExecutor = null;
+let toolXmlCompat = null;
+try {
+  toolExecutor  = require('./layers/tools/executor.cjs');
+  toolXmlCompat = require('./layers/tools/xml_compat.cjs');
+  console.log(`[TOOLS] JSON protocol loaded (enabled=${KURO_JSON_TOOLS_ENABLED}, only=${KURO_JSON_TOOLS_ONLY})`);
+} catch(e) { console.warn('[WARN] Tool executor not loaded:', e.message); }
+
 // Tier gate
 let tierGate;
 try { tierGate = require('./layers/auth/tier_gate.cjs'); } catch(e) { tierGate = null; }
@@ -435,6 +446,56 @@ if (createSandboxRoutes) {
 }
 if (mountVfsRoutes) { try { const { db: vfsDb } = require('./layers/auth/db.cjs'); app.use('/api/vfs', mountVfsRoutes(auth, { db: vfsDb })); console.log('[VFS] Routes mounted at /api/vfs/*'); } catch(e) { console.warn('[VFS] Failed to mount:', e.message); } }
 if (mountRunnerRoutes) { try { const { db: runnerDb } = require('./layers/auth/db.cjs'); app.use('/api/runner', mountRunnerRoutes(auth, { db: runnerDb })); console.log('[RUNNER] Routes mounted at /api/runner/*'); } catch(e) { console.warn('[RUNNER] Failed to mount:', e.message); } }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 3 — JSON TOOL PROTOCOL  POST /api/tools/invoke
+// ═══════════════════════════════════════════════════════════════════════════
+if (toolExecutor) {
+  app.post('/api/tools/invoke', auth.required, async (req, res) => {
+    if (!KURO_JSON_TOOLS_ENABLED) {
+      return res.status(503).json({ error: 'JSON tool protocol disabled (KURO_JSON_TOOLS_ENABLED=false)' });
+    }
+
+    const envelope = req.body;
+    if (!envelope || !envelope.kuro_tool_call) {
+      return res.status(400).json({ error: 'Invalid request: expected { kuro_tool_call: { id, name, args } }' });
+    }
+
+    try {
+      const { db } = require('./layers/auth/db.cjs');
+      const result = await toolExecutor.invoke(envelope, req.user.userId, db);
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({
+        kuro_tool_result: {
+          id: envelope.kuro_tool_call?.id || null,
+          name: envelope.kuro_tool_call?.name || null,
+          ok: false, result: null, error: e.message, truncated: false,
+        },
+      });
+    }
+  });
+
+  // Legacy XML conversion endpoint (for testing / agent pipelines that POST raw XML)
+  app.post('/api/tools/convert_xml', auth.required, (req, res) => {
+    if (!toolXmlCompat) return res.status(503).json({ error: 'XML compat not loaded' });
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') return res.status(400).json({ error: 'Missing text' });
+    const blocks = toolXmlCompat.extractXmlBlocks(text);
+    res.json({
+      blocks: blocks.map(b => ({
+        tag:           b.tag,
+        passThrough:   !!b.passThrough,
+        blocked:       !!b.blocked,
+        error:         b.error || null,
+        callEnvelope:  b.callEnvelope || null,
+      })),
+      json_tools_only: KURO_JSON_TOOLS_ONLY,
+    });
+  });
+
+  console.log('[TOOLS] Routes mounted at /api/tools/* (invoke, convert_xml)');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CAPABILITY ROUTER — Adaptive Scaling Endpoints

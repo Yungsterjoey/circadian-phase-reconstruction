@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["cmd"],
+  "additionalProperties": false,
+  "properties": {
+    "cmd":       { "type": "string", "maxLength": 256 },
+    "lang":      { "type": "string", "enum": ["python", "node"] },
+    "projectId": { "type": "string", "maxLength": 64 },
+    "snapshot":  { "type": "boolean" }
+  }
+}
