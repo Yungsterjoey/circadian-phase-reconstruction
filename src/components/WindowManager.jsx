@@ -5,6 +5,7 @@
  */
 import { useRef, useCallback, useState, lazy, Suspense } from 'react';
 import { useOSStore } from '../stores/osStore';
+import KuroIcon from './KuroIcon';
 
 // Lazy-load app components
 const KuroChatApp = lazy(() => import('./apps/KuroChatApp'));
@@ -100,7 +101,7 @@ function AppWindow({ appId, app, win }) {
           </Suspense>
         ) : (
           <div className="aw-placeholder">
-            <span className="aw-placeholder-icon">{app.icon}</span>
+            <span className="aw-placeholder-icon"><KuroIcon name={app.id} size={32} /></span>
             <span className="aw-placeholder-name">{app.name}</span>
             <span className="aw-placeholder-soon">Coming Soon</span>
           </div>

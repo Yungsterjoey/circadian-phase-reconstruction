@@ -5,6 +5,7 @@
  * KURO/Sony PS1 UX aesthetic — dark, monochrome base, purple accent.
  */
 import { useState } from 'react';
+import KuroIcon from '../KuroIcon';
 
 /* ─── 3D Cube (matches AuthGate cube) ──────────────────────────────── */
 const GlassCube = ({ size = 64 }) => (
@@ -21,12 +22,12 @@ const GlassCube = ({ size = 64 }) => (
 const TABS = ['ABOUT', 'FEATURES', 'PRICING', 'LEGAL'];
 
 const FEATURES = [
-  { icon: '⚡', color: '#a855f7', title: '12-Layer Cognitive Pipeline', desc: 'Iron Dome threat detection, IFF gate, Edubba knowledge retrieval, semantic routing, memory engine, orchestrator, fire control, reasoning, Maat refiner, enhancer, streaming, feedback — every message.' },
-  { icon: '🖥', color: '#3b82f6',  title: 'Full Desktop Environment',   desc: 'Windowed OS in your browser. Draggable windows, glass dock, app launcher, file explorer, terminal, browser. Not a chat window — a workspace.' },
-  { icon: '🤖', color: '#22c55e',  title: 'Specialised AI Agents',       desc: 'Insights for analysis, Actions for execution, Analysis for research — each with scoped permissions and signed audit trails.' },
-  { icon: '🔐', color: '#f59e0b',  title: 'Ed25519 Audit Chain',         desc: 'Every interaction cryptographically signed. Tamper-evident logs for compliance. Provable, verifiable interaction history.' },
-  { icon: '🎨', color: '#ef4444',  title: 'KURO::VISION Image Gen',      desc: 'Intent detection, quality evaluation, and local GPU inference — no external API calls. Generated on dedicated hardware.' },
-  { icon: '📚', color: '#06b6d4',  title: 'Private Knowledge Engine',    desc: 'Upload documents, build a private knowledge base, query it in conversation. Vector embeddings stored locally on inference servers.' },
+  { icon: 'bolt',    color: '#a855f7', title: '12-Layer Cognitive Pipeline', desc: 'Iron Dome threat detection, IFF gate, Edubba knowledge retrieval, semantic routing, memory engine, orchestrator, fire control, reasoning, Maat refiner, enhancer, streaming, feedback — every message.' },
+  { icon: 'desktop', color: '#3b82f6', title: 'Full Desktop Environment',   desc: 'Windowed OS in your browser. Draggable windows, glass dock, app launcher, file explorer, terminal, browser. Not a chat window — a workspace.' },
+  { icon: 'agent',   color: '#22c55e', title: 'Specialised AI Agents',       desc: 'Insights for analysis, Actions for execution, Analysis for research — each with scoped permissions and signed audit trails.' },
+  { icon: 'auth',    color: '#f59e0b', title: 'Ed25519 Audit Chain',         desc: 'Every interaction cryptographically signed. Tamper-evident logs for compliance. Provable, verifiable interaction history.' },
+  { icon: 'vision',  color: '#ef4444', title: 'KURO::VISION Image Gen',      desc: 'Intent detection, quality evaluation, and local GPU inference — no external API calls. Generated on dedicated hardware.' },
+  { icon: 'library', color: '#06b6d4', title: 'Private Knowledge Engine',    desc: 'Upload documents, build a private knowledge base, query it in conversation. Vector embeddings stored locally on inference servers.' },
 ];
 
 const PIPELINE = [
@@ -214,7 +215,7 @@ function FeaturesSection() {
       <div className="abt-feat-grid">
         {FEATURES.map((f, i) => (
           <div key={i} className="abt-feat-card">
-            <div className="abt-feat-icon" style={{ background: `${f.color}18`, color: f.color }}>{f.icon}</div>
+            <div className="abt-feat-icon" style={{ background: `${f.color}18`, color: f.color }}><KuroIcon name={f.icon} size={18} color={f.color} /></div>
             <h3>{f.title}</h3>
             <p>{f.desc}</p>
           </div>
@@ -381,7 +382,7 @@ export default function AboutApp() {
 .abt-feat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
 @media (max-width: 500px) { .abt-feat-grid { grid-template-columns: 1fr; } }
 .abt-feat-card { padding: 16px; border-radius: var(--lg-radius-md,16px); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
-.abt-feat-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 10px; }
+.abt-feat-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
 .abt-feat-card h3 { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); margin: 0 0 5px; }
 .abt-feat-card p { font-size: 11px; color: rgba(255,255,255,0.4); line-height: 1.6; margin: 0; }
 

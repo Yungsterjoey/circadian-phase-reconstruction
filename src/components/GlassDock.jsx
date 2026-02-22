@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { useOSStore } from '../stores/osStore';
 import { useAuthStore } from '../stores/authStore';
+import KuroIcon from './KuroIcon';
 
 export default function GlassDock() {
   const { apps, windows, pinnedApps, openApp, toggleGlassPanel, canAccessApp } = useOSStore();
@@ -55,7 +56,7 @@ export default function GlassDock() {
               }}
               title={app.name}
             >
-              <span className="gd-emoji">{app.icon}</span>
+              <KuroIcon name={app.id} size={22} />
               {isOpen && <div className="gd-dot" />}
               {!canAccess && <div className="gd-lock-badge">PRO</div>}
             </button>
@@ -79,7 +80,7 @@ export default function GlassDock() {
 .gd-icon:hover{background:var(--k-bg-surface-hover,rgba(255,255,255,.08))}
 .gd-icon:active{transform:scale(.92)!important}
 .gd-icon.locked{opacity:.35;cursor:not-allowed}
-.gd-emoji{font-size:22px;line-height:1}
+.gd-icon svg{color:rgba(255,255,255,0.78)}
 .gd-dot{position:absolute;bottom:-4px;width:4px;height:4px;background:rgba(255,255,255,.5);border-radius:50%}
 .gd-lock-badge{position:absolute;top:-2px;right:-2px;padding:1px 3px;font-size:7px;font-weight:700;background:rgba(168,85,247,.3);color:var(--k-accent,#a855f7);border-radius:4px;letter-spacing:.3px}
 .gd-sep{width:1px;height:28px;background:var(--k-glass-border);margin:0 4px;flex-shrink:0;align-self:center}
@@ -87,7 +88,7 @@ export default function GlassDock() {
 .gd-grid-icon{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:20px;height:20px}
 .gd-grid-dot{width:4px;height:4px;background:rgba(255,255,255,.4);border-radius:50%;transition:background .15s}
 .gd-launcher:hover .gd-grid-dot{background:rgba(255,255,255,.6)}
-@media(max-width:768px){.gd-wrap{bottom:6px}.gd{padding:4px 8px;gap:2px}.gd-icon{width:40px;height:40px}.gd-emoji{font-size:20px}}
+@media(max-width:768px){.gd-wrap{bottom:6px}.gd{padding:4px 8px;gap:2px}.gd-icon{width:40px;height:40px}}
       `}</style>
     </div>
   );

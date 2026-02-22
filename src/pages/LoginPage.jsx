@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import DesktopBackground from '../components/DesktopBackground';
 import CookieBanner from '../components/CookieBanner';
+import KuroIcon from '../components/KuroIcon';
 
 /* ─── Icons ─────────────────────────────────────────────────────────── */
 const GoogleIcon = () => (
@@ -186,7 +187,7 @@ export default function LoginPage() {
           {authError && (
             <div className="lp-oauth-error">
               {authError === 'oauth_not_configured' ? 'Social login not enabled — use email.' : `Auth failed: ${authError.replace(/_/g, ' ')}`}
-              <button onClick={clearAuthError}>✕</button>
+              <button onClick={clearAuthError}><KuroIcon name="close" size={13} /></button>
             </div>
           )}
 
@@ -199,7 +200,7 @@ export default function LoginPage() {
                   <p className="lp-hint">Email delivery unavailable — copy your token now:</p>
                   <div className="lp-token-display">
                     <span className="lp-token-value">{accessToken}</span>
-                    <button className="lp-token-copy" onClick={() => navigator.clipboard?.writeText(accessToken)} title="Copy">⌘</button>
+                    <button className="lp-token-copy" onClick={() => navigator.clipboard?.writeText(accessToken)} title="Copy"><KuroIcon name="copy" size={14} /></button>
                   </div>
                   <button className="lp-submit" onClick={() => { upd('token', accessToken); switchMode('token'); }}>Sign in with this token →</button>
                 </>

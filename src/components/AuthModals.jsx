@@ -5,6 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import KuroIcon from './KuroIcon';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTH MODAL — Login / Signup
@@ -62,7 +63,7 @@ export function AuthModal() {
           </button>
         </form>
 
-        <button className="auth-close" onClick={closeAuth}>✕</button>
+        <button className="auth-close" onClick={closeAuth}><KuroIcon name="close" size={14} /></button>
       </div>
     </div>
   );
@@ -102,7 +103,7 @@ export function VerifyModal() {
     <div className="kuro-modal-overlay" onClick={closeVerify}>
       <div className="kuro-modal verify-modal" onClick={e => e.stopPropagation()}>
         <div className="auth-logo">
-          <div className="auth-logo-icon">✉</div>
+          <div className="auth-logo-icon" style={{ display:'flex', alignItems:'center', justifyContent:'center' }}><KuroIcon name="mail" size={28} /></div>
           <div className="auth-logo-text">Verify Email</div>
         </div>
 
@@ -122,7 +123,7 @@ export function VerifyModal() {
           {resent ? 'Code sent!' : 'Resend code'}
         </button>
 
-        <button className="auth-close" onClick={closeVerify}>✕</button>
+        <button className="auth-close" onClick={closeVerify}><KuroIcon name="close" size={14} /></button>
       </div>
     </div>
   );
@@ -164,7 +165,7 @@ export function UpgradeModal() {
     <div className="kuro-modal-overlay" onClick={closeUpgrade}>
       <div className="kuro-modal upgrade-modal" onClick={e => e.stopPropagation()}>
         <div className="upgrade-header">
-          <div className="upgrade-lock">🔒</div>
+          <div className="upgrade-lock"><KuroIcon name="lock" size={36} /></div>
           <h2 className="upgrade-title">{featureName} requires {requiredTier === 'sovereign' ? 'Sovereign' : 'Pro'}</h2>
           <p className="upgrade-subtitle">Upgrade to unlock the full KURO experience</p>
         </div>
@@ -192,7 +193,7 @@ export function UpgradeModal() {
           })}
         </div>
 
-        <button className="auth-close" onClick={closeUpgrade}>✕</button>
+        <button className="auth-close" onClick={closeUpgrade}><KuroIcon name="close" size={14} /></button>
       </div>
     </div>
   );
@@ -294,7 +295,7 @@ export function AuthStyles() {
 
 /* UPGRADE MODAL */
 .upgrade-header { text-align: center; margin-bottom: 24px; }
-.upgrade-lock { font-size: 36px; margin-bottom: 8px; }
+.upgrade-lock { display:flex; align-items:center; justify-content:center; margin-bottom: 8px; color:rgba(255,255,255,0.7); }
 .upgrade-title { font-size: 18px; font-weight: 600; color: #fff; margin: 0 0 4px; }
 .upgrade-subtitle { font-size: 13px; color: rgba(255,255,255,0.4); margin: 0; }
 

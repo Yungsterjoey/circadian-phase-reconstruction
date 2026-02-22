@@ -5,6 +5,7 @@
  */
 import { useOSStore } from '../stores/osStore';
 import { useAuthStore } from '../stores/authStore';
+import KuroIcon from './KuroIcon';
 
 export default function GlassPanel() {
   const { apps, openApp, toggleGlassPanel, canAccessApp } = useOSStore();
@@ -22,7 +23,7 @@ export default function GlassPanel() {
               <button key={app.id}
                 className={`gp-app ${!canAccess ? 'locked' : ''}`}
                 onClick={() => { if (canAccess) { openApp(app.id); toggleGlassPanel(); } }}>
-                <div className="gp-icon">{app.icon}</div>
+                <div className="gp-icon"><KuroIcon name={app.id} size={26} /></div>
                 <span className="gp-name">{app.name}</span>
                 {!canAccess && <span className="gp-lock">PRO</span>}
               </button>
@@ -41,7 +42,7 @@ export default function GlassPanel() {
 .gp-app:hover{background:var(--k-bg-surface,rgba(255,255,255,.04))}
 .gp-app:active{transform:scale(.92)}
 .gp-app.locked{opacity:.4;cursor:not-allowed}
-.gp-icon{width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:var(--k-bg-surface);border:1px solid rgba(255,255,255,.06);border-radius:var(--k-radius-window,14px);font-size:24px;transition:all .15s}
+.gp-icon{width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:var(--k-bg-surface);border:1px solid rgba(255,255,255,.06);border-radius:var(--k-radius-window,14px);transition:all .15s;color:rgba(255,255,255,0.75)}
 .gp-app:hover .gp-icon{background:var(--k-bg-surface-hover);border-color:rgba(255,255,255,.1)}
 .gp-name{font-size:11px;color:rgba(255,255,255,.6);text-align:center}
 .gp-lock{position:absolute;top:8px;right:4px;padding:2px 5px;background:rgba(168,85,247,.2);border-radius:4px;font-size:9px;font-weight:600;color:var(--k-accent,#a855f7)}
