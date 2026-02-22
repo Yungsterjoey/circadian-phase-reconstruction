@@ -89,6 +89,33 @@
 }
 
 
+/* ─── PUBLIC ENTRY TOKENS (/, /login) ──────────────────────────────── */
+/* Separate accent from OS purple — steel-blue for public surfaces      */
+:root {
+  --kuro-entry-accent:        #78909c;
+  --kuro-entry-accent-glass:  rgba(120, 144, 156, 0.25);
+  --kuro-entry-accent-border: rgba(120, 144, 156, 0.20);
+  --kuro-entry-accent-hover:  rgba(120, 144, 156, 0.35);
+  --kuro-entry-accent-muted:  rgba(120, 144, 156, 0.45);
+  --kuro-entry-accent-link:   rgba(120, 144, 156, 0.85);
+  --kuro-entry-accent-focus:  rgba(120, 144, 156, 0.50);
+  --kuro-entry-accent-glow:   rgba(120, 144, 156, 0.06);
+
+  /* Hero glass plane (single, LOCK 1) */
+  --kuro-hero-bg:        rgba(255, 255, 255, 0.08);
+  --kuro-hero-border:    rgba(255, 255, 255, 0.08);
+  --kuro-hero-highlight: rgba(255, 255, 255, 0.12);
+  --kuro-hero-blur:      40px;
+
+  /* Slab cards — no blur, radius 0 (LOCK 2) */
+  --kuro-slab-bg:     rgba(255, 255, 255, 0.04);
+  --kuro-slab-border: rgba(255, 255, 255, 0.06);
+
+  /* Placard / metadata mono text */
+  --kuro-placard-color:   rgba(255, 255, 255, 0.18);
+  --kuro-auth-line-color: rgba(255, 255, 255, 0.12);
+}
+
 /* ─── LIGHT MODE ───────────────────────────────────────────────────── */
 :root[data-theme="light"],
 .lg-light {

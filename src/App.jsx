@@ -9,7 +9,7 @@ import { LiquidGlassProvider } from './components/LiquidGlassEngine';
 import { useOSStore } from './stores/osStore';
 import { useAuthStore } from './stores/authStore';
 import { AuthModal, VerifyModal, UpgradeModal, AuthStyles } from './components/AuthModals';
-import AuthGate from './components/AuthGate';
+// AuthGate removed — login handled by /login route
 import CookieBanner from './components/CookieBanner';
 import DesktopBackground from './components/DesktopBackground';
 import KuroChatApp from './components/apps/KuroChatApp';
@@ -439,38 +439,9 @@ export default function App() {
   const { windows, apps, openApp, focusWindow, restoreApp } = useOSStore();
   const { init, loading, user } = useAuthStore();
 
-  const isLocked = !user && !loading;
+  // Auth init is handled by main.jsx before render; router guards protect /app.
 
   useEffect(() => { init(); }, []);
-
-  // Open AuthGate window as soon as we know user is not authenticated.
-  // Fire on mount (!user, covers both loading=true and loading=false states)
-  // so there's no black screen gap during the session check.
-  useEffect(() => {
-    if (user || windows[AUTH_WINDOW_ID]?.isOpen) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const isMobile = vw < 768;
-    const w = isMobile ? vw : Math.min(420, vw - 32);
-    const h = isMobile ? vh : Math.min(580, vh - 80);
-    const x = isMobile ? 0 : Math.max(16, (vw - w) / 2);
-    const y = isMobile ? 0 : Math.max(16, (vh - h) / 2);
-    useOSStore.setState(s => ({
-      windows: {
-        ...s.windows,
-        [AUTH_WINDOW_ID]: { isOpen: true, isMinimized: false, isMaximized: isMobile, x, y, width: w, height: h, zIndex: s.nextZIndex, ...(isMobile ? { _prevX: x, _prevY: y, _prevW: w, _prevH: h } : {}) }
-      },
-      windowOrder: [...s.windowOrder.filter(id => id !== AUTH_WINDOW_ID), AUTH_WINDOW_ID],
-      nextZIndex: s.nextZIndex + 1,
-    }));
-  }, []);
-
-  // Close AuthGate window when user authenticates
-  useEffect(() => {
-    if (user && windows[AUTH_WINDOW_ID]?.isOpen) {
-      useOSStore.getState().closeApp(AUTH_WINDOW_ID);
-    }
-  }, [user]);
 
   // Auto-open KuroChat after auth
   useEffect(() => {
@@ -488,32 +459,14 @@ export default function App() {
     }
   }, []);
 
-  // Focus/restore AuthGate window (used by locked dock clicks)
-  const focusAuthWindow = useCallback(() => {
-    const authWin = useOSStore.getState().windows[AUTH_WINDOW_ID];
-    if (authWin?.isOpen) {
-      if (authWin.isMinimized) restoreApp(AUTH_WINDOW_ID);
-      else focusWindow(AUTH_WINDOW_ID);
-    }
-  }, [focusWindow, restoreApp]);
-
   return (
     <LiquidGlassProvider defaultTheme="dark">
       <div className="kuro-desktop">
         <DesktopBackground />
         <CookieBanner />
 
-        {/* AuthGate as OS window — no close button, minimize+maximize allowed.
-            Rendered via window state only (not isLocked) so the close animation
-            plays on login instead of the window being hard-unmounted. */}
-        {windows[AUTH_WINDOW_ID]?.isOpen && (
-          <AppWindow appId={AUTH_WINDOW_ID} noClose title="KURO .OS" icon="🔐">
-            <AuthGate />
-          </AppWindow>
-        )}
-
-        {/* App windows — only render when authenticated */}
-        {user && Object.entries(windows).map(([appId, win]) => {
+        {/* App windows — user is guaranteed authenticated by router guard */}
+        {Object.entries(windows).map(([appId, win]) => {
           if (appId === AUTH_WINDOW_ID) return null;
           if (!win.isOpen) return null;
           const app = apps.find(a => a.id === appId);
@@ -527,8 +480,8 @@ export default function App() {
           );
         })}
 
-        <GlassPanel isLocked={isLocked} onLockedAppClick={focusAuthWindow} />
-        <GlassDock isLocked={isLocked} onLockedAppClick={focusAuthWindow} />
+        <GlassPanel isLocked={false} />
+        <GlassDock isLocked={false} />
         <InstallPrompt />
 
         <AuthModal />

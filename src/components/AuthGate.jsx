@@ -1,5 +1,9 @@
 /**
- * KURO :: AUTH GATE v9.2 — Integrated Landing + Auth
+ * KURO :: AUTH GATE v9.2 — DEPRECATED
+ * Superseded by /login route (src/pages/LoginPage.jsx) and
+ * /    route (src/pages/HomePage.jsx). No longer imported by App.jsx.
+ * Retained for reference only — do not use.
+ *
  * stage: 'landing' → marketing hero with auth CTAs (KURO/PS1 aesthetic)
  *        'auth'    → signup / login / token / forgot / reset / otp
  *        'legal'   → inline Terms or Privacy (compact)

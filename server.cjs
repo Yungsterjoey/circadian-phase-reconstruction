@@ -1133,12 +1133,13 @@ app.get('/', (req, res) => {
   res.status(200).send('<html><body><h1>KURO OS v9.0</h1><p>Run npm run build.</p></body></html>');
 });
 
-// Marketing landing page (optional, preserved at /landing)
-app.get('/landing', (req, res) => {
+// Legacy marketing landing page (deprecated — new homepage at /)
+app.get('/landing-legacy', (req, res) => {
   const lp = path.join(__dirname, 'landing.html');
   if (fs.existsSync(lp)) return res.sendFile(lp);
   res.redirect('/');
 });
+app.get('/landing', (req, res) => res.redirect('/'));
 
 // React OS SPA (all /app routes)
 app.use((req, res, next) => {
@@ -1196,7 +1197,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Lab:       ${typeof mountLabRoutes === 'function' ? 'wired' : 'fallback'}`);
   console.log(`  Artifacts: ${typeof mountArtifactRoutes === 'function' ? 'wired' : 'fallback'}`);
   console.log(`  CtxReact:  ${ingestFile ? 'wired' : 'fallback'}`);
-  console.log(`  Vectors:   Edubba(${edubbaStore.count()}) Mnemosyne(${mnemosyneStore.count()})`);
+  console.log(`  Vectors:   Edubba(${typeof edubbaStore !== 'undefined' ? edubbaStore.count() : '-'}) Mnemosyne(${typeof mnemosyneStore !== 'undefined' ? mnemosyneStore.count() : '-'})`);
   console.log('  ' + '═'.repeat(50) + '\n');
 });
 process.on('SIGTERM', () => { logEvent({ agent: 'system', action: 'shutdown', meta: { signal: 'SIGTERM' } }); sealDay(); server.close(() => process.exit(0)); });
