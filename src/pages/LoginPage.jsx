@@ -261,6 +261,7 @@ export default function LoginPage() {
               {mode === 'forgot' && <p className="lp-hint">We'll send a reset code to your email.</p>}
               {mode === 'reset' && (
                 <>
+                  {form.email && <p className="lp-hint">Code sent to <strong>{form.email}</strong></p>}
                   <input type="text" placeholder="Reset code" value={form.code} maxLength={6} ref={inputRef}
                     onChange={e => upd('code', e.target.value.replace(/\D/g, ''))} className="lp-input" onKeyDown={onKey} />
                   <input type="password" placeholder="New password (8+ chars)" value={form.newPassword}
@@ -281,12 +282,18 @@ export default function LoginPage() {
               )}
 
               <button className="lp-submit" onClick={submit} disabled={busy}>
-                {busy ? <span className="lp-spinner" /> :
-                  mode === 'signup'  ? 'Create Account' :
-                  mode === 'login'   ? 'Sign In' :
-                  mode === 'token'   ? 'Launch KURO' :
-                  mode === 'otp'     ? 'Verify Email' :
-                  mode === 'forgot'  ? 'Send Reset Code' : 'Reset Password'}
+                {busy
+                  ? <><span className="lp-spinner" /><span className="lp-busy-label">{
+                      mode === 'signup' ? 'Creating account…' :
+                      mode === 'reset'  ? 'Updating credentials…' :
+                      mode === 'forgot' ? 'Sending code…' : ''
+                    }</span></>
+                  : mode === 'signup'  ? 'Create Account'
+                  : mode === 'login'   ? 'Sign In'
+                  : mode === 'token'   ? 'Launch KURO'
+                  : mode === 'otp'     ? 'Verify Email'
+                  : mode === 'forgot'  ? 'Send Reset Code'
+                  :                     'Reset Password'}
               </button>
 
               {error   && <div className="lp-error">{error}</div>}
@@ -434,8 +441,9 @@ function LoginStyles() {
 .lp-submit:hover { background: var(--kuro-entry-accent-hover); transform: translateY(-1px); }
 .lp-submit:active { transform: scale(0.985); }
 .lp-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.lp-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: lpSpin 0.7s linear infinite; }
+.lp-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: lpSpin 0.7s linear infinite; vertical-align: middle; }
 @keyframes lpSpin { to { transform: rotate(360deg); } }
+.lp-busy-label { margin-left: 8px; font-size: 13px; vertical-align: middle; opacity: 0.7; }
 
 /* Error / success */
 .lp-error { padding: 8px 12px; background: rgba(255,55,95,0.05); border: 1px solid rgba(255,55,95,0.1); border-radius: 8px; color: #ff375f; font-size: 12px; text-align: center; }

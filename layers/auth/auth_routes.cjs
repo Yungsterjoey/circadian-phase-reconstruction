@@ -307,13 +307,23 @@ function createAuthRoutes(authMiddleware) {
       const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
       stmts.createUser.get(userId, email.toLowerCase().trim(), name || null, hash);
       const accessToken = await storeAccessToken(userId, 'free');
-      const tokenResult = await sendAccessTokenEmail(email.toLowerCase().trim(), name, accessToken);
+      // Fire email async when SMTP is configured to avoid blocking the response.
+      // Fall back to awaiting when SMTP is absent (dev) so devToken is returned.
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      let devToken;
+      if (smtpConfigured) {
+        sendAccessTokenEmail(email.toLowerCase().trim(), name, accessToken)
+          .catch(e => console.error('[AUTH] Token email send failed:', e.message));
+      } else {
+        const tokenResult = await sendAccessTokenEmail(email.toLowerCase().trim(), name, accessToken);
+        devToken = tokenResult.devToken;
+      }
       // Don't create session yet — user must activate with token
 
       res.status(201).json({
         success: true,
-        tokenSent: tokenResult.success,
-        devToken: tokenResult.devToken, // only in dev
+        tokenSent: smtpConfigured,
+        devToken, // only present when no SMTP (dev/staging)
         message: 'Account created. Check your email for your access token.'
       });
     } catch (e) {
@@ -352,7 +362,13 @@ function createAuthRoutes(authMiddleware) {
       const sid = createSession(user.id, req);
       setSessionCookie(res, sid);
       logAuthEvent(user.id, 'login', ip, (req.headers['user-agent'] || '').slice(0, 256), { tier: user.tier });
-      res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: !!user.email_verified } });
+      const sub = stmts.getActiveSubscription.get(user.id);
+      res.json({
+        success: true,
+        user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: !!user.email_verified, isAdmin: !!user.is_admin },
+        subscription: sub ? { status: sub.status, tier: sub.tier, periodEnd: sub.current_period_end, cancelAtPeriodEnd: !!sub.cancel_at_period_end } : null,
+        authMethod: 'password'
+      });
     } catch (e) {
       console.error('[AUTH] Login error:', e.message);
       res.status(500).json({ error: 'Login failed' });
@@ -409,8 +425,10 @@ function createAuthRoutes(authMiddleware) {
     // Always return success to prevent email enumeration
     if (!user) return res.json({ success: true, message: 'If that email exists, a code was sent' });
 
-    const result = await sendOTP(user.id, user.email, ip);
-    res.json({ success: true, message: 'If that email exists, a code was sent', devCode: result.devCode });
+    // sendOTP stores the code in DB synchronously before the email send,
+    // so we can fire it without awaiting and respond immediately.
+    sendOTP(user.id, user.email, ip).catch(e => console.error('[AUTH] OTP send error:', e.message));
+    res.json({ success: true, message: 'If that email exists, a code was sent' });
   });
 
   // ─── RESET PASSWORD (RT-05) ──────────────────────────

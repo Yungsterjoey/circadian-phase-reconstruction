@@ -85,7 +85,7 @@ export const useAuthStore = create((set, get) => ({
       });
       const d = await r.json();
       if (d.success) {
-        set({ user: d.user, authenticated: true, loading: false });
+        set({ user: d.user, subscription: d.subscription || null, authenticated: true, loading: false, authMethod: d.authMethod || 'password' });
         return { success: true };
       }
       return { success: false, error: d.error || 'Invalid credentials' };

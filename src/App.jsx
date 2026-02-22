@@ -440,8 +440,9 @@ export default function App() {
   const { init, loading, user } = useAuthStore();
 
   // Auth init is handled by main.jsx before render; router guards protect /app.
-
-  useEffect(() => { init(); }, []);
+  // Re-run init only if subscription is missing (token-login or session-restore path).
+  const { subscription } = useAuthStore();
+  useEffect(() => { if (!subscription) init(); }, []);
 
   // Auto-open KuroChat after auth
   useEffect(() => {
