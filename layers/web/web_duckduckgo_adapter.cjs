@@ -40,7 +40,7 @@ function stripHtml(html) {
  * Fetch a URL with a timeout, byte cap, and no auth header forwarding.
  * Rejects non-http(s) schemes and non-https redirects.
  */
-function safeFetch(url, timeoutMs) {
+function safeFetch(url, timeoutMs, _redirectDepth = 0) {
   return new Promise((resolve, reject) => {
     let resolved = false;
     const finish = (v, isErr) => {
@@ -78,8 +78,11 @@ function safeFetch(url, timeoutMs) {
         } catch {
           return finish(new WebAdapterError('INVALID_REDIRECT', `Bad redirect URL: ${dest}`), true);
         }
-        // Only one redirect level
-        safeFetch(dest, timeoutMs).then(r => finish(r, false)).catch(e => finish(e, true));
+        // Only one redirect level — depth guard prevents infinite recursion
+        if (_redirectDepth >= 1) {
+          return finish(new WebAdapterError('TOO_MANY_REDIRECTS', 'Max 1 redirect followed'), true);
+        }
+        safeFetch(dest, timeoutMs, _redirectDepth + 1).then(r => finish(r, false)).catch(e => finish(e, true));
         return;
       }
 

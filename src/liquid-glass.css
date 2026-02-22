@@ -730,3 +730,216 @@
     --lg-glass-shadow: rgba(0, 0, 0, 0.7);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 3.6 — KuroCubeSpinner
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kcs {
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 22%;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1.5px solid rgba(168, 85, 247, 0.45);
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.25),
+              inset 0 0 4px rgba(168, 85, 247, 0.1);
+  animation: kcs-spin 0.6s linear infinite;
+}
+.kcs-xs { width: 14px; height: 14px; }
+.kcs-sm { width: 22px; height: 22px; }
+.kcs-md { width: 40px; height: 40px; border-width: 2px; }
+
+@keyframes kcs-spin {
+  0%   { transform: rotate(0deg)   scale(1);    box-shadow: 0 0 6px  rgba(168, 85, 247, 0.25); }
+  50%  { transform: rotate(180deg) scale(0.88); box-shadow: 0 0 12px rgba(168, 85, 247, 0.45); }
+  100% { transform: rotate(360deg) scale(1);    box-shadow: 0 0 6px  rgba(168, 85, 247, 0.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kcs {
+    animation: kcs-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes kcs-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 1;   }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 3.6 — ReasoningPanel
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rp {
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(168, 85, 247, 0.05);
+  border: 1px solid rgba(168, 85, 247, 0.14);
+  overflow: hidden;
+}
+
+.rp-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(168, 85, 247, 0.85);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.15s;
+  user-select: none;
+}
+.rp-header:hover {
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.rp-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.rp-label {
+  flex: 1;
+  line-height: 1;
+}
+
+.rp-body {
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(168, 85, 247, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Steps */
+.rp-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.4;
+}
+.rp-step-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(168, 85, 247, 0.6);
+  flex-shrink: 0;
+}
+
+/* Section header */
+.rp-section { display: flex; flex-direction: column; gap: 4px; }
+.rp-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.28);
+  margin-bottom: 2px;
+}
+
+/* Tools */
+.rp-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 0;
+  color: rgba(255, 255, 255, 0.55);
+}
+.rp-tool-ok      { color: rgba(134, 239, 172, 0.9); }
+.rp-tool-error   { color: rgba(252, 165, 165, 0.9); }
+.rp-tool-pending { color: rgba(168, 85,  247, 0.75); }
+
+.rp-tool-name {
+  flex: 1;
+  font-family: var(--lg-font-mono, monospace);
+  font-size: 11px;
+}
+.rp-tool-dur {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+/* Sources */
+.rp-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rp-source-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  transition: background 0.15s;
+  overflow: hidden;
+}
+.rp-source-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+.rp-source-num {
+  font-size: 10px;
+  color: rgba(168, 85, 247, 0.65);
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 12px;
+}
+.rp-source-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Runner */
+.rp-runner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.65);
+}
+.rp-runner-cmd {
+  flex: 1;
+  font-family: var(--lg-font-mono, monospace);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-runner-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.14);
+  color: rgba(168, 85, 247, 0.85);
+  flex-shrink: 0;
+}
+.rp-runner-running .rp-runner-badge { background: rgba(251,191,36,0.14); color: rgba(251,191,36,0.9); }
+.rp-runner-ok      .rp-runner-badge { background: rgba(134,239,172,0.14); color: rgba(134,239,172,0.9); }
+.rp-runner-error   .rp-runner-badge { background: rgba(252,165,165,0.14); color: rgba(252,165,165,0.9); }

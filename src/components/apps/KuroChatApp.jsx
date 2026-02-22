@@ -46,6 +46,8 @@ import {
 import SandboxPanel from './SandboxPanel';
 import usePreempt from '../../hooks/usePreempt';
 import { useLiveEdit, LiveEditBar } from './LiveEdit';
+import KuroCubeSpinner from '../ui/KuroCubeSpinner';
+import ReasoningPanel from '../ui/ReasoningPanel';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONTEXT
@@ -634,8 +636,7 @@ const ThoughtBlock = ({ content, isStreaming }) => {
     <div className={`thought-block ${expanded ? 'expanded' : ''}`}>
       <button className="thought-toggle" onClick={() => setExpanded(!expanded)}>
         <div className="thought-icon">
-          <Brain size={14} />
-          {isStreaming && <span className="streaming-dot" />}
+          {isStreaming ? <KuroCubeSpinner size="xs" /> : <Brain size={14} />}
         </div>
         <span className="thought-label">Thinking</span>
         {!expanded && <span className="thought-preview">{preview}</span>}
@@ -810,6 +811,9 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
         </div>
       )}
       <div className="message-content">
+        {msg.role === 'assistant' && (
+          <ReasoningPanel meta={msg.meta} isStreaming={isStreaming} />
+        )}
         {msg.role === 'assistant' && showThoughts && parsed.think && (
           <ThoughtBlock content={parsed.think} isStreaming={parsed.thinkStreaming} />
         )}

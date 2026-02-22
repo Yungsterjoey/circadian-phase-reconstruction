@@ -110,7 +110,18 @@ async function invoke(envelope, userId, db) {
 
   // ── Schema validation ─────────────────────────────────────────────────────
   const validate = VALIDATORS[name];
-  if (validate && !validate(argsObj)) {
+  if (!validate) {
+    // Schema failed to compile at startup — deny rather than skip validation
+    auditRecord(db, userId, name, argsObj, null, 'schema_error', 0, 'validator unavailable');
+    return {
+      kuro_tool_result: {
+        id, name, ok: false, result: null,
+        error: 'Tool unavailable: schema failed to compile at startup',
+        truncated: false,
+      },
+    };
+  }
+  if (!validate(argsObj)) {
     const errMsg = ajv.errorsText(validate.errors);
     auditRecord(db, userId, name, argsObj, null, 'schema_error', 0, errMsg);
     return {
@@ -150,7 +161,10 @@ async function invoke(envelope, userId, db) {
     result = await Promise.race([
       entry.handler(argsObj, userId, db),
       new Promise((_, rej) =>
-        setTimeout(() => rej(new Error('TOOL_TIMEOUT')), timeoutMs),
+        setTimeout(() => {
+          console.warn(`[TOOLS] Timeout: ${name} for user ${userId} — handler may still be running in background`);
+          rej(new Error('TOOL_TIMEOUT'));
+        }, timeoutMs),
       ),
     ]);
 

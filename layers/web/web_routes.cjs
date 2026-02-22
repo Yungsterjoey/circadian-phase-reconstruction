@@ -28,6 +28,9 @@ function mountWebRoutes(auth, { db }) {
     if (!query || typeof query !== 'string' || !query.trim()) {
       return res.status(400).json({ error: 'query is required' });
     }
+    if (query.length > 500) {
+      return res.status(400).json({ error: 'query too long (max 500 chars)' });
+    }
 
     try {
       const { results, context, truncated } = await webSearch(query.trim(), req.user.userId, db);
@@ -35,7 +38,8 @@ function mountWebRoutes(auth, { db }) {
     } catch (e) {
       if (e.code === 'RATE_LIMIT') return res.status(429).json({ error: e.message });
       if (e.code === 'DISABLED')   return res.status(503).json({ error: e.message });
-      res.status(502).json({ error: `Web search failed: ${e.message}` });
+      console.error('[WEB] Search error:', e.message);
+      res.status(502).json({ error: 'Web search temporarily unavailable' });
     }
   });
 
