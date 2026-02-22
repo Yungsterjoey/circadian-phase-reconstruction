@@ -943,3 +943,218 @@
 .rp-runner-running .rp-runner-badge { background: rgba(251,191,36,0.14); color: rgba(251,191,36,0.9); }
 .rp-runner-ok      .rp-runner-badge { background: rgba(134,239,172,0.14); color: rgba(134,239,172,0.9); }
 .rp-runner-error   .rp-runner-badge { background: rgba(252,165,165,0.14); color: rgba(252,165,165,0.9); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 4 — MonacoEditor toolbar
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mce-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  min-height: 34px;
+}
+.mce-path {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mce-dirty {
+  color: rgba(168,85,247,0.9);
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.mce-err {
+  font-size: 11px;
+  color: rgba(252,165,165,0.9);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mce-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.mce-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.mce-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.mce-save-active {
+  background: rgba(168,85,247,0.2);
+  border-color: rgba(168,85,247,0.4);
+  color: #c084fc;
+}
+.mce-save-active:hover:not(:disabled) { background: rgba(168,85,247,0.32); }
+.mce-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 4 — DiffViewer
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dv-wrap {
+  background: #09090e;
+  overflow: hidden;
+}
+.dv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  min-height: 36px;
+}
+.dv-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+.dv-filename {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  flex-shrink: 0;
+}
+.dv-delta {
+  font-family: monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.dv-add { background: rgba(22,101,52,0.3); color: rgba(134,239,172,0.9); }
+.dv-rm  { background: rgba(127,29,29,0.3); color: rgba(252,165,165,0.9); }
+.dv-eq  { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.35); }
+
+.dv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.dv-accept-btn {
+  background: rgba(22,101,52,0.25);
+  border-color: rgba(134,239,172,0.3);
+  color: rgba(134,239,172,0.9);
+}
+.dv-accept-btn:hover { background: rgba(22,101,52,0.4); }
+.dv-reject-btn {
+  background: rgba(127,29,29,0.2);
+  border-color: rgba(252,165,165,0.3);
+  color: rgba(252,165,165,0.85);
+}
+.dv-reject-btn:hover { background: rgba(127,29,29,0.35); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 4 — StackTrace
+   ═══════════════════════════════════════════════════════════════════════════ */
+.st-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.st-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: rgba(167,139,250,0.9);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.st-link:hover {
+  color: #c4b5fd;
+  text-decoration-style: solid;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KURO Phase 4 — FileExplorerApp editor pane
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fe-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.fe-files {
+  width: 220px;
+  min-width: 160px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.fe-editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.fe-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.2);
+  user-select: none;
+}
+.fe-diff-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.fe-open-btn {
+  background: rgba(168,85,247,0.12);
+  border: 1px solid rgba(168,85,247,0.25);
+  border-radius: 4px;
+  color: rgba(168,85,247,0.85);
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+.fe-open-btn:hover { background: rgba(168,85,247,0.22); }

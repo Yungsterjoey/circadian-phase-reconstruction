@@ -1,10 +1,18 @@
 /**
- * KURO FileExplorerApp v1.0
- * Minimal VFS file browser: list, navigate, mkdir, text-upload, delete.
+ * KURO FileExplorerApp v2.0
+ * VFS file browser + Monaco editor + DiffViewer.
  * Backend: /api/vfs/*
+ *
+ * Phase 4 additions:
+ *  - Click a file to open it in Monaco editor (right pane)
+ *  - Save via toolbar button or Ctrl/Cmd+S
+ *  - Diff button compares original (on-disk) vs current (editor)
+ *  - Accept (save + dismiss diff) / Reject (revert + dismiss diff)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import MonacoEditor, { detectLang } from '../ui/MonacoEditor';
+import DiffViewer from '../ui/DiffViewer';
 
 const API = '/api/vfs';
 
@@ -30,7 +38,8 @@ const S = {
   pathBar: { flex:1, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12 },
   btn:     { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, color:'rgba(255,255,255,0.7)', cursor:'pointer', padding:'4px 10px', fontSize:12 },
   input:   { flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, padding:'4px 8px', color:'rgba(255,255,255,0.88)', fontSize:13 },
-  row:     { display:'flex', alignItems:'center', padding:'6px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)' },
+  row:     { display:'flex', alignItems:'center', padding:'6px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor:'pointer' },
+  rowAct:  { background:'rgba(168,85,247,0.1)' },
   name:    { flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
   meta:    { color:'rgba(255,255,255,0.3)', fontSize:11, marginRight:10, whiteSpace:'nowrap' },
   err:     { padding:'8px 12px', background:'rgba(255,50,50,0.1)', color:'#ff6060', fontSize:12, flexShrink:0 },
@@ -39,13 +48,20 @@ const S = {
 };
 
 export default function FileExplorerApp() {
-  const [path,        setPath]        = useState('/');
-  const [entries,     setEntries]     = useState([]);
-  const [quota,       setQuota]       = useState(null);
-  const [error,       setError]       = useState('');
-  const [loading,     setLoading]     = useState(false);
-  const [newDir,      setNewDir]      = useState('');
-  const [showMkdir,   setShowMkdir]   = useState(false);
+  const [path,       setPath]       = useState('/');
+  const [entries,    setEntries]    = useState([]);
+  const [quota,      setQuota]      = useState(null);
+  const [error,      setError]      = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [newDir,     setNewDir]     = useState('');
+  const [showMkdir,  setShowMkdir]  = useState(false);
+
+  // Editor state
+  const [openFile,   setOpenFile]   = useState(null);   // full VFS path
+  const [origContent, setOrigContent] = useState('');   // content at open time
+  const [showDiff,   setShowDiff]   = useState(false);
+  const [editorKey,  setEditorKey]  = useState(0);      // force remount on new file
+  const editorRef = useRef(null);                       // { revealLine, format, save, getValue, getOriginal }
 
   const normPath = (p) => ('/' + p).replace(/\/\/+/g, '/').replace(/\/$/, '') || '/';
 
@@ -70,15 +86,64 @@ export default function FileExplorerApp() {
 
   const navigate = (dir) => {
     const next = normPath((path === '/' ? '' : path) + '/' + dir);
-    setPath(next);
-    load(next);
+    setPath(next); load(next);
   };
 
   const goUp = () => {
     const parts = path.split('/').filter(Boolean);
     const up = parts.length > 0 ? '/' + parts.slice(0, -1).join('/') : '/';
-    setPath(up);
-    load(up);
+    setPath(up); load(up);
+  };
+
+  // Open file in Monaco
+  const openInEditor = async (name) => {
+    const full = normPath((path === '/' ? '' : path) + '/' + name);
+    try {
+      // Fetch original content for diff comparison
+      const r = await fetch(`${API}/read?path=${encodeURIComponent(full)}`, {
+        credentials: 'include',
+        headers: { 'X-KURO-Token': localStorage.getItem('kuro_token') || '' },
+      });
+      const text = r.ok ? await r.text() : '';
+      setOrigContent(text);
+      setOpenFile(full);
+      setShowDiff(false);
+      setEditorKey(k => k + 1); // remount Monaco with new file
+    } catch { /* load error handled inside MonacoEditor */ }
+  };
+
+  const handleSave = useCallback((newContent) => {
+    // After VFS save, update origContent so diff reflects the saved baseline
+    setOrigContent(newContent);
+    setShowDiff(false);
+  }, []);
+
+  // Diff: compare origContent vs current editor value
+  const handleShowDiff = () => {
+    setShowDiff(v => !v);
+  };
+
+  // Accept diff → save the current content, dismiss diff
+  const handleAccept = async () => {
+    const current = editorRef.current?.getValue() ?? '';
+    try {
+      const r = await fetch(`${API}/write`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-KURO-Token': localStorage.getItem('kuro_token') || '',
+        },
+        body: JSON.stringify({ path: openFile, content: current }),
+      });
+      if (r.ok) { setOrigContent(current); setShowDiff(false); }
+    } catch (e) { setError(e.message); }
+  };
+
+  // Reject diff → revert editor to origContent
+  const handleReject = () => {
+    setEditorKey(k => k + 1); // remount MonacoEditor — it will reload vfsPath
+    setShowDiff(false);
   };
 
   const doMkdir = async () => {
@@ -91,8 +156,7 @@ export default function FileExplorerApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: full }),
       });
-      setNewDir(''); setShowMkdir(false);
-      load();
+      setNewDir(''); setShowMkdir(false); load();
     } catch (e) { setError(e.message); }
   };
 
@@ -103,6 +167,7 @@ export default function FileExplorerApp() {
       await fetch(`${API}/rm?path=${encodeURIComponent(full)}&recursive=${type === 'dir'}`, {
         method: 'DELETE', credentials: 'include',
       });
+      if (openFile === full) { setOpenFile(null); setShowDiff(false); }
       load();
     } catch (e) { setError(e.message); }
   };
@@ -129,6 +194,9 @@ export default function FileExplorerApp() {
 
   const quotaPct = quota ? Math.min(100, Math.round(quota.used / quota.limit * 100)) : 0;
 
+  // Current editor value for diff (only available after Monaco mounts)
+  const currentEditorValue = editorRef.current?.getValue?.() ?? '';
+
   return (
     <div style={S.root}>
       {/* Toolbar */}
@@ -137,22 +205,26 @@ export default function FileExplorerApp() {
         <span style={S.pathBar}>{path || '/'}</span>
         <button style={S.btn} onClick={() => setShowMkdir(v => !v)}>+ Folder</button>
         <label style={S.btn}>
-          Upload<input type="file" style={{ display: 'none' }} onChange={doUpload} />
+          Upload<input type="file" style={{ display:'none' }} onChange={doUpload} />
         </label>
         <button style={S.btn} onClick={() => load()} title="Refresh">↻</button>
+        {openFile && !showDiff && (
+          <button style={{ ...S.btn, color:'rgba(168,85,247,0.85)', borderColor:'rgba(168,85,247,0.3)' }}
+            onClick={handleShowDiff} title="Show diff vs saved">
+            Diff
+          </button>
+        )}
+        {openFile && showDiff && (
+          <button style={S.btn} onClick={() => setShowDiff(false)}>← Editor</button>
+        )}
       </div>
 
       {/* New folder row */}
       {showMkdir && (
         <div style={{ display:'flex', gap:6, padding:'7px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)', flexShrink:0 }}>
-          <input
-            value={newDir}
-            onChange={e => setNewDir(e.target.value)}
+          <input value={newDir} onChange={e => setNewDir(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && doMkdir()}
-            placeholder="Folder name"
-            style={S.input}
-            autoFocus
-          />
+            placeholder="Folder name" style={S.input} autoFocus />
           <button style={S.btn} onClick={doMkdir}>Create</button>
           <button style={S.btn} onClick={() => setShowMkdir(false)}>✕</button>
         </div>
@@ -160,28 +232,65 @@ export default function FileExplorerApp() {
 
       {error && <div style={S.err}>{error}</div>}
 
-      {/* File list */}
-      <div style={{ flex:1, overflowY:'auto' }}>
-        {loading && <div style={S.empty}>Loading…</div>}
-        {!loading && entries.length === 0 && <div style={S.empty}>Empty directory</div>}
-        {entries.map(e => (
-          <div
-            key={e.name}
-            style={{ ...S.row, cursor: e.type === 'dir' ? 'pointer' : 'default' }}
-            onDoubleClick={() => e.type === 'dir' && navigate(e.name)}
-          >
-            <span style={{ width: 22, color: 'rgba(255,255,255,0.4)', userSelect: 'none' }}>
-              {e.type === 'dir' ? '📁' : '📄'}
-            </span>
-            <span style={S.name}>{e.name}</span>
-            {e.size > 0 && <span style={S.meta}>{fmtSize(e.size)}</span>}
-            {e.modified && <span style={{ ...S.meta, display: window.innerWidth > 500 ? undefined : 'none' }}>{e.modified.slice(0, 10)}</span>}
-            <button
-              style={{ ...S.btn, padding:'2px 6px', fontSize:11, color:'rgba(255,80,80,0.65)' }}
-              onClick={() => doDelete(e.name, e.type)}
-            >✕</button>
+      {/* Split: file list | editor/diff */}
+      <div className="fe-split">
+        {/* File list */}
+        <div className={`fe-files ${openFile ? '' : ''}`} style={openFile ? {} : { width: '100%' }}>
+          {loading && <div style={S.empty}>Loading…</div>}
+          {!loading && entries.length === 0 && <div style={S.empty}>Empty directory</div>}
+          {entries.map(e => (
+            <div
+              key={e.name}
+              style={{
+                ...S.row,
+                ...(openFile === normPath((path==='/'?'':path)+'/'+e.name) ? S.rowAct : {}),
+              }}
+              onDoubleClick={() => e.type === 'dir' && navigate(e.name)}
+              onClick={() => e.type === 'file' && openInEditor(e.name)}
+            >
+              <span style={{ width:22, color:'rgba(255,255,255,0.4)', userSelect:'none' }}>
+                {e.type === 'dir' ? '📁' : '📄'}
+              </span>
+              <span style={S.name}>{e.name}</span>
+              {e.size > 0 && <span style={S.meta}>{fmtSize(e.size)}</span>}
+              <button
+                style={{ ...S.btn, padding:'2px 6px', fontSize:11, color:'rgba(255,80,80,0.65)' }}
+                onClick={ev => { ev.stopPropagation(); doDelete(e.name, e.type); }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+
+        {/* Editor / Diff pane */}
+        {openFile && (
+          <div className="fe-editor-pane">
+            {showDiff ? (
+              <div className="fe-diff-pane">
+                <DiffViewer
+                  filename={openFile}
+                  language={detectLang(openFile)}
+                  original={origContent}
+                  modified={currentEditorValue}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
+                  height="100%"
+                />
+              </div>
+            ) : (
+              <MonacoEditor
+                key={editorKey}
+                vfsPath={openFile}
+                height="100%"
+                onSave={handleSave}
+                editorRef={editorRef}
+              />
+            )}
           </div>
-        ))}
+        )}
+
+        {!openFile && (
+          <div className="fe-editor-empty" style={{ display: entries.length > 0 ? 'none' : 'none' }} />
+        )}
       </div>
 
       {/* Quota bar */}
@@ -192,7 +301,11 @@ export default function FileExplorerApp() {
             <span>{fmtSize(quota.used)} / {fmtSize(quota.limit)} ({quota.tier})</span>
           </div>
           <div style={{ height:3, background:'rgba(255,255,255,0.07)', borderRadius:2, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${quotaPct}%`, background: quotaPct > 90 ? 'rgba(255,100,80,0.6)' : 'rgba(100,180,255,0.5)', borderRadius:2, transition:'width 0.4s' }} />
+            <div style={{
+              height:'100%', width:`${quotaPct}%`,
+              background: quotaPct > 90 ? 'rgba(255,100,80,0.6)' : 'rgba(100,180,255,0.5)',
+              borderRadius:2, transition:'width 0.4s',
+            }} />
           </div>
         </div>
       )}

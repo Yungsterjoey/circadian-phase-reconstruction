@@ -347,6 +347,32 @@ function createSandboxRoutes(auth, db) {
     }
   });
 
+  // ─── GET /files/read — read file content ──────────────────────────────────
+  router.get('/files/read', requireSandboxTier, (req, res) => {
+    try {
+      const { workspaceId, filePath } = req.query;
+      if (!workspaceId || !filePath) {
+        return res.status(400).json({ error: 'workspaceId and filePath required' });
+      }
+      const ws = stmts.getWorkspace.get(workspaceId, req.user.userId);
+      if (!ws) return res.status(404).json({ error: 'Workspace not found' });
+
+      const wsFilesDir = path.join(SANDBOX_BASE, req.user.userId, workspaceId, 'files');
+      const sanitized  = safeName(path.basename(filePath));
+      const subdir     = path.dirname(filePath).split('/').filter(Boolean).map(safeName).join('/');
+      const target     = subdir
+        ? path.join(wsFilesDir, subdir, sanitized)
+        : path.join(wsFilesDir, sanitized);
+      enforceBase(wsFilesDir, path.relative(wsFilesDir, target));
+
+      if (!fs.existsSync(target)) return res.status(404).json({ error: 'File not found' });
+      const content = fs.readFileSync(target, 'utf8');
+      res.json({ content, path: filePath, size: content.length });
+    } catch (e) {
+      res.status(e.message.includes('traversal') ? 400 : 500).json({ error: e.message });
+    }
+  });
+
   // ─── POST /run — submit execution job ─────────────────────────────────────
   router.post('/run', requireSandboxTier, async (req, res) => {
     try {

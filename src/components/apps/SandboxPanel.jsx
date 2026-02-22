@@ -12,6 +12,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import MonacoEditor from '../ui/MonacoEditor';
+import StackTrace from '../ui/StackTrace';
 import {
   FolderPlus, Play, File, FileText, Image, Code, X, Plus, Square,
   ChevronRight, ChevronDown, RefreshCw, Paperclip, Terminal,
@@ -120,7 +122,7 @@ function FileTree({ files, activeFile, onSelect, onCreate }) {
   );
 }
 
-function OutputConsole({ stdout, stderr, status, exitCode }) {
+function OutputConsole({ stdout, stderr, status, exitCode, lang, onNavigate }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [stdout, stderr]);
 
@@ -135,12 +137,12 @@ function OutputConsole({ stdout, stderr, status, exitCode }) {
         {['done','failed'].includes(status) && <span className="sbx-exit">exit {exitCode}</span>}
         {['killed','timeout'].includes(status) && <span className="sbx-exit sbx-killed">{status}</span>}
       </div>
-      <pre className="sbx-console-body" ref={ref}>
-        {stdout && <span className="sbx-stdout">{stdout}</span>}
-        {stderr && <span className="sbx-stderr">{stderr}</span>}
+      <div className="sbx-console-body" ref={ref}>
+        {stdout && <pre className="sbx-stdout">{stdout}</pre>}
+        {stderr && <StackTrace text={stderr} lang={lang} onNavigate={onNavigate} className="sbx-stderr" />}
         {!stdout && !stderr && status !== 'running' && <span className="sbx-muted">No output</span>}
         {status === 'running' && !stdout && !stderr && <span className="sbx-muted">Running…</span>}
-      </pre>
+      </div>
     </div>
   );
 }
@@ -216,7 +218,8 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
   const [wsLoading, setWsLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
   const [error, setError] = useState(null);
-  const evsRef = useRef(null);
+  const evsRef    = useRef(null);
+  const editorRef = useRef(null);
 
   // ─── Load workspaces ──────────────────────────────────────────────────────
   const loadWorkspaces = useCallback(async () => {
@@ -287,11 +290,19 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
   };
 
   // ─── Load file content ────────────────────────────────────────────────────
-  const loadFileContent = async (filePath) => {
-    // Use the files/tree data (we don't have a read endpoint, so we save first)
-    // For v1, just set active and let user edit
+  const loadFileContent = useCallback(async (filePath) => {
+    if (!activeWs) return;
     setActiveFile(filePath);
-  };
+    try {
+      const r = await authFetch(
+        `/api/sandbox/files/read?workspaceId=${encodeURIComponent(activeWs.id)}&filePath=${encodeURIComponent(filePath)}`
+      );
+      if (r.ok) {
+        const data = await r.json();
+        setEditorContent(data.content ?? '');
+      }
+    } catch (e) { setError(e.message); }
+  }, [activeWs]);
 
   // ─── Connect SSE stream ────────────────────────────────────────────────────
   const connectSSE = useCallback((jobId) => {
@@ -380,6 +391,14 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
   // Cleanup SSE on unmount
   useEffect(() => () => { if (evsRef.current) evsRef.current.abort(); }, []);
 
+  // ─── Navigate to file + line from StackTrace click ───────────────────────
+  const handleNavigate = useCallback(async (fileName, line) => {
+    const match = files.find(f => f.path === fileName || f.path.endsWith('/' + fileName));
+    if (!match) return;
+    await loadFileContent(match.path);
+    setTimeout(() => editorRef.current?.revealLine(line), 80);
+  }, [files, loadFileContent]);
+
   // ─── Attach to chat ───────────────────────────────────────────────────────
   const handleAttach = () => {
     if (onAttachArtifact && artifacts.length && runId) {
@@ -440,14 +459,16 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
               </div>
             </div>
 
-            <textarea
-              className="sbx-editor"
-              value={editorContent}
-              onChange={e => setEditorContent(e.target.value)}
-              placeholder={lang === 'node' ? '// Write Node.js code here…' : '# Write Python code here…'}
-              spellCheck={false}
-              disabled={!activeFile}
-            />
+            <div className="sbx-editor">
+              <MonacoEditor
+                value={editorContent}
+                onChange={setEditorContent}
+                language={lang === 'node' ? 'javascript' : 'python'}
+                height="100%"
+                disabled={!activeFile}
+                editorRef={editorRef}
+              />
+            </div>
 
             {error && (
               <div className="sbx-error">
@@ -456,7 +477,7 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
               </div>
             )}
 
-            <OutputConsole stdout={stdout} stderr={stderr} status={runStatus} exitCode={exitCode} />
+            <OutputConsole stdout={stdout} stderr={stderr} status={runStatus} exitCode={exitCode} lang={lang} onNavigate={handleNavigate} />
 
             <ArtifactPreview runId={runId} artifacts={artifacts} workspaceId={activeWs?.id} />
 
@@ -562,12 +583,8 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
 .sbx-file-name { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.6); font-size: 12px; }
 .sbx-editor-actions { display: flex; gap: 6px; }
 .sbx-editor {
-  flex: 1; min-height: 200px; background: rgba(0,0,0,0.2); border: none;
-  color: rgba(255,255,255,0.9); padding: 12px; font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 13px; line-height: 1.6; resize: none; outline: none; tab-size: 4;
+  flex: 1; min-height: 200px; background: #09090e;
 }
-.sbx-editor::placeholder { color: rgba(255,255,255,0.25); }
-.sbx-editor:disabled { opacity: 0.4; }
 
 /* Console */
 .sbx-console { border-top: 1px solid rgba(255,255,255,0.06); }
@@ -579,9 +596,9 @@ export default function SandboxPanel({ onAttachArtifact, visible }) {
 .sbx-console-body {
   max-height: 200px; overflow-y: auto; padding: 8px 12px; margin: 0;
   font-family: 'SF Mono', monospace; font-size: 12px; line-height: 1.5;
-  background: rgba(0,0,0,0.3); white-space: pre-wrap; word-break: break-all;
+  background: rgba(0,0,0,0.3);
 }
-.sbx-stdout { color: rgba(255,255,255,0.8); }
+.sbx-stdout { color: rgba(255,255,255,0.8); white-space: pre-wrap; word-break: break-all; margin: 0; padding: 0; }
 .sbx-stderr { color: #ff375f; }
 .sbx-muted { color: rgba(255,255,255,0.25); font-style: italic; }
 
