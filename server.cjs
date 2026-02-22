@@ -888,7 +888,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     // Send capability policy info to client
     sendSSE(res, { type: 'capability', profile: capPolicy.profile, requested: powerDial, downgraded: capPolicy.downgraded, reason: capPolicy.downgradeReason, ctx: capCfg.ctx || cfg.ctx });
 
-    let full = '', tc = 0; const thinkEmitter = createThinkStreamEmitter();
+    let full = '', tc = 0; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
     setStreaming(true); // B5: prevent model warming during active inference
     
     // ═══ FRONTIER ASSIST PATH ═══
@@ -901,13 +901,12 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
             const handle = streamFrontier(fp.provider, fp.key, chatMsgs, refinedPrompt, { model: fp.model }, {
               onToken: (token) => {
                 full += token; tc++;
-                const tr = thinkEmitter.emit(token);
-                if (tr) sendSSE(res, tr);
+                thinkEmitter.pushText(token);
                 sendSSE(res, { type: 'token', content: token });
                 streamController.appendPartial(sid, token);
               },
               onDone: (info) => {
-                const tf = thinkEmitter.flush(); if (tf) sendSSE(res, tf);
+                thinkEmitter.reset();
                 sendSSE(res, { type: 'done', tokens: tc, model: `frontier:${fp.provider}`, agent: ar.agentId, requestId: req.requestId, frontier: true });
                 consumeFrontierQuota(user.userId);
                 recordFrontier(); // B3: sovereignty tracking
@@ -944,7 +943,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
         const correction = streamController.checkCorrection(sid);
         if (correction) { sendSSE(res, { type: 'aborted_for_correction', correction, partial: streamController.getPartial(sid) }); streamAbort.abort(); break; }
         buf += chunk.toString(); const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; const tr = thinkEmitter.emit(d.message.content); if (tr) sendSSE(res, tr); sendSSE(res, { type: 'token', content: d.message.content }); streamController.appendPartial(sid, d.message.content); } if (d.done) { const tf = thinkEmitter.flush(); if (tf) sendSSE(res, tf); sendSSE(res, { type: 'done', tokens: tc, model: cfg.name, agent: ar.agentId, requestId: req.requestId }); } } catch(e) {} }
+        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); sendSSE(res, { type: 'done', tokens: tc, model: cfg.name, agent: ar.agentId, requestId: req.requestId }); } } catch(e) {} }
       }
     } catch(se) {
       if (se.name === 'CanceledError' || se.code === 'ERR_CANCELED') { streamController.unregisterStream(sid); }

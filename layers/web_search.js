@@ -93,7 +93,7 @@ function querySearXNG(query, maxResults = 5) {
     
     const client = url.protocol === 'https:' ? https : http;
     
-    const req = client.get(url, { timeout: 10000 }, (res) => {
+    const req = client.get(url, { timeout: 1500 }, (res) => {
       let body = '';
       res.on('data', d => body += d);
       res.on('end', () => {

@@ -23,42 +23,92 @@ function mapThinkToLabel(raw) {
   return 'Thinking…';
 }
 
+/**
+ * Per-sentence streaming emitter for <think>/<plan> blocks.
+ * Calls send({ type: 'thinking', content: sentence }) for each complete
+ * sentence extracted from the thinking block as tokens arrive.
+ */
 function createThinkStreamEmitter(send) {
-  let buffer = '';
-  let lastLabel = '';
+  let buf = '';        // raw token buffer (for tag detection)
+  let inThink = false; // currently inside a <think>/<plan> block
+  let thinkBuf = '';   // accumulated think text, pending sentence split
+
   function pushText(chunk) {
     if (!chunk) return;
-    buffer += String(chunk);
+    buf += String(chunk);
 
-    while (true) {
-      const start = buffer.search(/<(think|plan)>/i);
-      if (start === -1) break;
-      const endTag = buffer.search(/<\/(think|plan)>\s*/i);
-      if (endTag === -1) break;
+    let progress = true;
+    while (progress && buf.length) {
+      progress = false;
 
-      const tagStartMatch = buffer.slice(start).match(/<(think|plan)>/i);
-      if (!tagStartMatch) break;
+      if (inThink) {
+        const lo = buf.toLowerCase();
+        let closeAt = -1;
+        const c1 = lo.indexOf('</think>');
+        const c2 = lo.indexOf('</plan>');
+        if (c1 !== -1 && c2 !== -1) closeAt = Math.min(c1, c2);
+        else if (c1 !== -1) closeAt = c1;
+        else if (c2 !== -1) closeAt = c2;
 
-      const tag = tagStartMatch[1].toLowerCase();
-      const openIdx = buffer.toLowerCase().indexOf(`<${tag}>`, start);
-      const closeIdx = buffer.toLowerCase().indexOf(`</${tag}>`, openIdx);
-      if (openIdx == -1 || closeIdx == -1) break;
+        if (closeAt === -1) {
+          // Keep last 8 chars in case the closing tag spans chunks
+          const safe = buf.length > 8 ? buf.length - 8 : 0;
+          thinkBuf += buf.slice(0, safe);
+          buf = buf.slice(safe);
+          _emitSentences(false);
+          return;
+        }
+        thinkBuf += buf.slice(0, closeAt);
+        const tagEnd = buf.indexOf('>', closeAt) + 1;
+        buf = buf.slice(tagEnd > 0 ? tagEnd : closeAt + 8);
+        inThink = false;
+        _emitSentences(true);
+        thinkBuf = '';
+        progress = true;
 
-      const inner = buffer.slice(openIdx + (`<${tag}>`).length, closeIdx);
-      const label = mapThinkToLabel(inner);
+      } else {
+        const lo = buf.toLowerCase();
+        let openAt = -1;
+        const o1 = lo.indexOf('<think>');
+        const o2 = lo.indexOf('<plan>');
+        if (o1 !== -1 && o2 !== -1) openAt = Math.min(o1, o2);
+        else if (o1 !== -1) openAt = o1;
+        else if (o2 !== -1) openAt = o2;
 
-      if (label && label !== lastLabel) {
-        lastLabel = label;
-        send(label);
+        if (openAt === -1) {
+          if (buf.length > 64) buf = buf.slice(-16);
+          return;
+        }
+        const tagEnd = buf.indexOf('>', openAt) + 1;
+        if (tagEnd === 0) return; // partial tag — wait for more
+        buf = buf.slice(tagEnd);
+        inThink = true;
+        thinkBuf = '';
+        progress = true;
       }
-
-      buffer = buffer.slice(closeIdx + (`</${tag}>`).length);
     }
-
-    if (buffer.length > 8192) buffer = buffer.slice(-2048);
   }
 
-  function reset() { buffer=''; lastLabel=''; }
+  function _emitSentences(flush) {
+    // Emit any sentence that ends with . ! ? or newline
+    while (thinkBuf.length) {
+      const m = thinkBuf.match(/^([\s\S]*?[.!?\n])\s*/);
+      if (!m) break;
+      // When not flushing, keep a 20-char guard to avoid splitting across chunk boundaries
+      if (!flush && thinkBuf.length - m[0].length < 20) break;
+      const sentence = m[1].replace(/\s+/g, ' ').trim();
+      if (sentence.length > 5 && send) {
+        send({ type: 'thinking', content: sentence.slice(0, 200) });
+      }
+      thinkBuf = thinkBuf.slice(m[0].length);
+    }
+    if (flush && thinkBuf.replace(/\s+/g, '').length > 5 && send) {
+      send({ type: 'thinking', content: thinkBuf.replace(/\s+/g, ' ').trim().slice(0, 200) });
+      thinkBuf = '';
+    }
+  }
+
+  function reset() { buf = ''; inThink = false; thinkBuf = ''; }
   return { pushText, reset };
 }
 

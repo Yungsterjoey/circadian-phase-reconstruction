@@ -629,6 +629,8 @@ const AuditIndicator = ({ status }) => {
 // ═══════════════════════════════════════════════════════════════════════════
 const ThoughtBlock = ({ content, isStreaming }) => {
   const [expanded, setExpanded] = useState(false);
+  // Auto-open when the model starts generating thinking tokens
+  useEffect(() => { if (isStreaming) setExpanded(true); }, [isStreaming]);
   if (!content && !isStreaming) return null;
   const lines = (content || '').split('\n').filter(l => l.trim());
   const preview = lines.slice(0, 2).map(l => l.slice(0, 60)).join(' \u2022 ');
@@ -1416,6 +1418,9 @@ export default function KuroChat() {
               tokenBuffer += d.content;
               toolScanBuffer += d.content; // Phase 3: track for tool call detection
               scheduleFlush();
+            } else if (d.type === 'thinking') {
+              // Per-sentence think summaries from the <think> block
+              if (d.content) addStep(d.content);
             } else if (d.type === 'policy_notice') {
               setPolicyNotice(d);
             } else if (d.type === 'capability') {
