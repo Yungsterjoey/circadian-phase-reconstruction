@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 7;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -239,6 +239,62 @@ function migrate() {
     `);
   }
 
+  if (current < 6) {
+    // v6: Git patch ops + snapshots
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS git_ops (
+        id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        ts            INTEGER NOT NULL,
+        operation     TEXT NOT NULL CHECK(operation IN ('diff','apply','branch','rollback')),
+        status        TEXT NOT NULL DEFAULT 'ok' CHECK(status IN ('ok','error','pending')),
+        metadata_json TEXT DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS git_snapshots (
+        id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        branch_name TEXT NOT NULL,
+        vfs_path    TEXT NOT NULL,
+        content     TEXT NOT NULL,
+        created_at  INTEGER NOT NULL,
+        UNIQUE(user_id, branch_name, vfs_path)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_git_ops_user   ON git_ops(user_id, ts);
+      CREATE INDEX IF NOT EXISTS idx_git_snaps_user ON git_snapshots(user_id, vfs_path);
+    `);
+  }
+
+  if (current < 7) {
+    // v7: Auth events audit trail + login attempt tracking
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS auth_events (
+        id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        user_id       TEXT,
+        event_type    TEXT NOT NULL CHECK(event_type IN
+                        ('login','logout','session_refresh','failed_attempt',
+                         'session_expired','token_login','session_rotated')),
+        ip            TEXT,
+        user_agent    TEXT,
+        ts            INTEGER NOT NULL,
+        metadata_json TEXT DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip       TEXT NOT NULL,
+        user_id  TEXT,
+        ts       INTEGER NOT NULL,
+        success  INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id, ts);
+      CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(event_type, ts);
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, ts);
+    `);
+  }
+
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   console.log(`[AUTH:DB] Schema v${SCHEMA_VERSION} applied`);
 }
@@ -348,4 +404,23 @@ setInterval(() => {
   if (result.changes > 0) console.log(`[AUTH:DB] Cleaned ${result.changes} expired sessions`);
 }, 60 * 60 * 1000);
 
-module.exports = { db, stmts, genId, genSessionId, genOTP, DB_PATH };
+// ── Auth event logger ─────────────────────────────────────────────────────────
+const _logAuthStmt = db.prepare(`
+  INSERT INTO auth_events (user_id, event_type, ip, user_agent, ts, metadata_json)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+
+function logAuthEvent(userId, eventType, ip, userAgent, meta) {
+  try {
+    _logAuthStmt.run(
+      userId    || null,
+      eventType,
+      ip        || null,
+      (userAgent || '').slice(0, 256),
+      Date.now(),
+      JSON.stringify(meta || {})
+    );
+  } catch { /* non-fatal — never block auth on audit failure */ }
+}
+
+module.exports = { db, stmts, genId, genSessionId, genOTP, DB_PATH, logAuthEvent };

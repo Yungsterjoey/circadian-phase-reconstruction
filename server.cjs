@@ -146,6 +146,9 @@ try { createSandboxRoutes = require('./layers/sandbox_routes.cjs'); } catch(e) {
 try { ({ createStripeRoutes, stripeWebhookHandler } = require('./layers/stripe/stripe_routes.cjs')); } catch(e) { createStripeRoutes = null; stripeWebhookHandler = null; console.warn('[WARN] Stripe routes not loaded:', e.message); }
 let mountVfsRoutes = null; try { mountVfsRoutes = require('./layers/vfs/vfs_routes.cjs'); } catch(e) { console.warn('[WARN] VFS routes not loaded:', e.message); }
 let mountRunnerRoutes = null; try { mountRunnerRoutes = require('./layers/runner/runner_routes.cjs'); } catch(e) { console.warn('[WARN] Runner routes not loaded:', e.message); }
+let mountGitRoutes = null; try { mountGitRoutes = require('./layers/git/git_routes.cjs'); } catch(e) { console.warn('[WARN] Git routes not loaded:', e.message); }
+let mountSearchRoutes = null; try { mountSearchRoutes = require('./layers/search/search_routes.cjs'); } catch(e) { console.warn('[WARN] Search routes not loaded:', e.message); }
+let rbac = null; try { rbac = require('./layers/auth/rbac.cjs'); console.log('[RBAC] Loaded'); } catch(e) { console.warn('[WARN] RBAC not loaded:', e.message); }
 
 // Phase 3.5: Web (o) Mode
 let mountWebRoutes = null;
@@ -157,11 +160,13 @@ const KURO_JSON_TOOLS_ENABLED = (process.env.KURO_JSON_TOOLS_ENABLED ?? 'true').
 const KURO_JSON_TOOLS_ONLY    = (process.env.KURO_JSON_TOOLS_ONLY    ?? 'false').toLowerCase() === 'true';
 let toolExecutor = null;
 let toolXmlCompat = null;
+let toolGuard = null;
 try {
   toolExecutor  = require('./layers/tools/executor.cjs');
   toolXmlCompat = require('./layers/tools/xml_compat.cjs');
   console.log(`[TOOLS] JSON protocol loaded (enabled=${KURO_JSON_TOOLS_ENABLED}, only=${KURO_JSON_TOOLS_ONLY})`);
 } catch(e) { console.warn('[WARN] Tool executor not loaded:', e.message); }
+try { toolGuard = require('./layers/tools/tool_guard.cjs'); console.log('[TOOL_GUARD] Loaded'); } catch(e) { console.warn('[WARN] Tool guard not loaded:', e.message); }
 
 // Tier gate
 let tierGate;
@@ -248,6 +253,11 @@ try {
   console.warn('[WARN] Capability router not loaded:', e.message);
 }
 
+// Phase 8 — Security + Observability modules
+let injectionGuard = null; try { injectionGuard = require('./layers/security/injection_guard.cjs'); console.log('[INJECTION_GUARD] Loaded'); } catch(e) { console.warn('[WARN] Injection guard not loaded:', e.message); }
+let kuroLogger = null; try { kuroLogger = require('./layers/observability/logger.cjs'); console.log('[LOGGER] Loaded'); } catch(e) { console.warn('[WARN] Observability logger not loaded:', e.message); }
+const KURO_INJECT_BLOCK = (process.env.KURO_INJECT_BLOCK ?? 'false').toLowerCase() === 'true';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPRESS APP
 // ═══════════════════════════════════════════════════════════════════════════
@@ -256,6 +266,7 @@ const corsOpts = { origin: PROFILE.corsOrigin==='*'?true:PROFILE.corsOrigin==='s
 app.use(cors(corsOpts));
 app.use(securityHeaders);
 app.use(requestIdMw);
+if (kuroLogger) app.use(kuroLogger.requestMiddleware);
 app.use(cookieParser());
 
 // ┌──────────────────────────────────────────────────────────────────────────
@@ -267,8 +278,32 @@ if (stripeWebhookHandler) {
   console.log('[STRIPE] Webhook route mounted (raw body)');
 }
 
-// NOW mount JSON body parser for everything else
-app.use(express.json({ limit: '10mb' }));
+// NOW mount JSON body parser for everything else (Phase 8: reduced from 10mb to 2mb)
+app.use(express.json({ limit: '2mb' }));
+
+// Phase 8: Rate limiting (express-rate-limit)
+try {
+  const rateLimit = require('express-rate-limit');
+  // Global: 200 req/min per IP — blocks raw DoS floods, well above normal usage
+  app.use(rateLimit({
+    windowMs: 60 * 1000, max: parseInt(process.env.KURO_RATE_GLOBAL || '200', 10),
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many requests — please slow down' },
+    skip: (req) => req.path === '/health' || req.path === '/api/health',
+  }));
+  // Strict limiter for auth endpoints: 20 req/15min per IP
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: parseInt(process.env.KURO_RATE_AUTH || '20', 10),
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many authentication attempts — please wait' },
+  });
+  app.use('/api/auth/login',          authLimiter);
+  app.use('/api/auth/signup',         authLimiter);
+  app.use('/api/auth/token-login',    authLimiter);
+  app.use('/api/auth/forgot-password',authLimiter);
+  app.use('/api/auth/reset-password', authLimiter);
+  console.log('[RATE_LIMIT] Global 200/min, auth 20/15min');
+} catch(e) { console.warn('[WARN] Rate limiting not loaded:', e.message); }
 
 // Serve built frontend assets
 app.use(express.static(path.join(__dirname, 'dist'), { index: false }));
@@ -439,6 +474,17 @@ try {
   console.log('[ADMIN] Routes mounted at /api/admin/*');
 } catch(e) { console.warn('[ADMIN] Failed to mount:', e.message); }
 
+// RBAC pre-flight guards (Phase 8) — registered before route mounts so they execute first
+if (rbac) {
+  app.use('/api/runner',       auth.required, rbac.requireRole('developer'));
+  app.use('/api/git',          auth.required, rbac.requireRole('developer'));
+  app.use('/api/vfs/write',    auth.required, rbac.requireRole('developer'));
+  app.use('/api/vfs/delete',   auth.required, rbac.requireRole('developer'));
+  app.use('/api/sandbox',      auth.required, rbac.requireRole('developer'));
+  app.use('/api/tools/invoke', auth.required, rbac.requireRole('developer'));
+  console.log('[RBAC] Guards active on /api/runner, /api/git, /api/vfs/write|delete, /api/sandbox, /api/tools/invoke');
+}
+
 // Sandbox routes (isolated code execution for Pro/Sovereign)
 if (createSandboxRoutes) {
   try {
@@ -451,12 +497,15 @@ if (createSandboxRoutes) {
 }
 if (mountVfsRoutes) { try { const { db: vfsDb } = require('./layers/auth/db.cjs'); app.use('/api/vfs', mountVfsRoutes(auth, { db: vfsDb })); console.log('[VFS] Routes mounted at /api/vfs/*'); } catch(e) { console.warn('[VFS] Failed to mount:', e.message); } }
 if (mountRunnerRoutes) { try { const { db: runnerDb } = require('./layers/auth/db.cjs'); app.use('/api/runner', mountRunnerRoutes(auth, { db: runnerDb })); console.log('[RUNNER] Routes mounted at /api/runner/*'); } catch(e) { console.warn('[RUNNER] Failed to mount:', e.message); } }
+if (mountGitRoutes) { try { const { db: gitDb } = require('./layers/auth/db.cjs'); app.use('/api/git', mountGitRoutes(auth, { db: gitDb })); console.log('[GIT] Routes mounted at /api/git/*'); } catch(e) { console.warn('[GIT] Failed to mount:', e.message); } }
+if (mountSearchRoutes) { try { const { db: searchDb } = require('./layers/auth/db.cjs'); app.use('/api/search', mountSearchRoutes(auth, { db: searchDb })); console.log('[SEARCH] Routes mounted at /api/search/*'); } catch(e) { console.warn('[SEARCH] Failed to mount:', e.message); } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 3 — JSON TOOL PROTOCOL  POST /api/tools/invoke
 // ═══════════════════════════════════════════════════════════════════════════
 if (toolExecutor) {
-  app.post('/api/tools/invoke', auth.required, async (req, res) => {
+  const _toolGuardMw = toolGuard?.toolGuardMiddleware || ((r, s, n) => n());
+  app.post('/api/tools/invoke', auth.required, _toolGuardMw, async (req, res) => {
     if (!KURO_JSON_TOOLS_ENABLED) {
       return res.status(503).json({ error: 'JSON tool protocol disabled (KURO_JSON_TOOLS_ENABLED=false)' });
     }
@@ -676,6 +725,21 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     const dome = ironDomeCheck(messages.length ? messages : [{ role: 'user', content: lastMsg }]);
     if (dome.status === 'BLOCKED') { sendLayer(res, 0, 'complete', { status: 'BLOCKED' }, clientType); sendSSE(res, { type: 'blocked', layer: 0, reason: dome.message || 'Blocked by policy' }); logEvent({ agent: 'threat_filter', action: 'block', requestId: req.requestId, clientFingerprint: fp, target: lastMsg.substring(0, 100), result: 'denied', userId: user.userId }); clearInterval(ka); return res.end(); }
     sendLayer(res, 0, 'complete', { status: dome.status, score: dome.score || 0 }, clientType);
+
+    // Injection guard (Phase 8) — detect prompt injection, sanitize markup
+    if (injectionGuard && lastMsg) {
+      const inj = injectionGuard.checkInjection(lastMsg);
+      if (inj.detected) {
+        console.error(`[PROMPT_INJECTION_ALERT] userId=${user.userId} patterns=${inj.patterns.slice(0,3).join('|')} preview=${lastMsg.slice(0,80)}`);
+        logEvent({ agent: 'injection_guard', action: 'alert', requestId: req.requestId, userId: user.userId, patterns: inj.patterns.slice(0,3), preview: lastMsg.slice(0,80) });
+        if (KURO_INJECT_BLOCK) {
+          sendSSE(res, { type: 'blocked', layer: 0, reason: 'Prompt injection detected' });
+          clearInterval(ka); return res.end();
+        }
+        // Sanitize the LLM-bound copy only; routing/RAG use original
+        if (messages.length) messages[messages.length - 1].content = inj.sanitized;
+      }
+    }
 
     // L1: RATE LIMITER
     sendLayer(res, 1, 'active', null, clientType);

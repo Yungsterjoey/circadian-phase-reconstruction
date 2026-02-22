@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>KURO OS — Offline</title>
+  <meta name="theme-color" content="#050508">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #050508;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px 20px;
+    }
+
+    .card {
+      max-width: 400px;
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 48px 40px;
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+    }
+
+    .icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      display: block;
+      opacity: 0.9;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+      color: rgba(255,255,255,0.95);
+    }
+
+    p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 6px 14px;
+      background: rgba(168,85,247,0.15);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(168,85,247,0.9);
+    }
+
+    .retry-btn {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: rgba(168,85,247,0.2);
+      border: 1px solid rgba(168,85,247,0.35);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.85);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .retry-btn:hover { background: rgba(168,85,247,0.32); }
+
+    /* Subtle animated pulse on the icon */
+    @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+    .icon { animation: pulse 3s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="icon">📡</span>
+    <h1>You're offline</h1>
+    <p>KURO OS needs a network connection to process requests and access your files.</p>
+    <p>The app shell is cached — reconnect to resume your session.</p>
+    <span class="badge">KURO OS</span>
+    <button class="retry-btn" onclick="window.location.reload()">Retry connection</button>
+  </div>
+</body>
+</html>

@@ -17,6 +17,7 @@ import AdminApp from './components/apps/AdminApp';
 import AboutApp from './components/apps/AboutApp';
 import FileExplorerApp from './components/apps/FileExplorerApp';
 import KuroIcon from './components/KuroIcon';
+import GitPatchApp from './components/apps/GitPatchApp';
 
 const APP_COMPONENTS = {
   KuroChatApp: KuroChatApp,
@@ -30,6 +31,7 @@ const APP_COMPONENTS = {
   SandboxApp: () => <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'rgba(255,255,255,0.4)',fontSize:14}}>Sandbox — Coming Soon</div>,
   AdminApp: AdminApp,
   AboutApp: AboutApp,
+  GitPatchApp: GitPatchApp,
 };
 
 const TIER_LEVEL = { free: 0, pro: 1, sovereign: 2 };
@@ -365,6 +367,72 @@ function GlassPanel({ isLocked, onLockedAppClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PWA INSTALL PROMPT — Phase 7
+// Captures beforeinstallprompt and surfaces a non-intrusive install button.
+// Dismissed permanently via sessionStorage (reappears next session if not installed).
+// ═══════════════════════════════════════════════════════════════════════════
+function InstallPrompt() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [dismissed, setDismissed] = useState(
+    () => sessionStorage.getItem('kuro-pwa-dismissed') === '1'
+  );
+
+  useEffect(() => {
+    // Already running as installed PWA — don't show prompt
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+    if (window.navigator.standalone === true) return; // iOS Safari
+
+    const handler = (e) => {
+      e.preventDefault(); // prevent auto-prompt
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setDismissed(true);
+    }
+  };
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    sessionStorage.setItem('kuro-pwa-dismissed', '1');
+  };
+
+  if (!deferredPrompt || dismissed) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 9999, display: 'flex', alignItems: 'center', gap: 10,
+      background: 'rgba(15,15,24,0.92)', border: '1px solid rgba(168,85,247,0.35)',
+      borderRadius: 14, padding: '9px 14px',
+      backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      fontSize: 13, color: 'rgba(255,255,255,0.85)',
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ fontSize: 16 }}>💾</span>
+      <span>Install KURO OS</span>
+      <button onClick={handleInstall} style={{
+        background: 'rgba(168,85,247,0.75)', border: 'none', borderRadius: 8,
+        color: '#fff', fontSize: 12, fontWeight: 600, padding: '4px 12px', cursor: 'pointer',
+      }}>Install</button>
+      <button onClick={handleDismiss} style={{
+        background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)',
+        fontSize: 16, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+      }} title="Dismiss">×</button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP — Desktop always rendered. AuthGate is an OS window.
 // ═══════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -461,6 +529,7 @@ export default function App() {
 
         <GlassPanel isLocked={isLocked} onLockedAppClick={focusAuthWindow} />
         <GlassDock isLocked={isLocked} onLockedAppClick={focusAuthWindow} />
+        <InstallPrompt />
 
         <AuthModal />
         <VerifyModal />

@@ -32,6 +32,20 @@ function fmtSize(b) {
   return b + ' B';
 }
 
+// Highlight first occurrence of q within text
+function highlightMatch(text, q) {
+  if (!q || !text) return <span>{text}</span>;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return <span>{text}</span>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="sr-match">{text.slice(idx, idx + q.length)}</span>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}
+
 const S = {
   root:    { display:'flex', flexDirection:'column', height:'100%', background:'rgba(10,10,20,0.95)', color:'rgba(255,255,255,0.88)', fontFamily:'monospace', fontSize:13 },
   toolbar: { display:'flex', alignItems:'center', gap:6, padding:'9px 12px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 },
@@ -62,6 +76,14 @@ export default function FileExplorerApp() {
   const [showDiff,   setShowDiff]   = useState(false);
   const [editorKey,  setEditorKey]  = useState(0);      // force remount on new file
   const editorRef = useRef(null);                       // { revealLine, format, save, getValue, getOriginal }
+
+  // Search state
+  const [searchQuery,   setSearchQuery]   = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchActive,  setSearchActive]  = useState(false);
+  const [searchError,   setSearchError]   = useState('');
+  const pendingRevealLine = useRef(null);
 
   const normPath = (p) => ('/' + p).replace(/\/\/+/g, '/').replace(/\/$/, '') || '/';
 
@@ -192,6 +214,51 @@ export default function FileExplorerApp() {
     reader.readAsText(file);
   };
 
+  // Open a file by its full VFS path (used by search click-to-navigate)
+  const openByPath = useCallback(async (fullPath, revealAtLine = null) => {
+    if (revealAtLine != null) pendingRevealLine.current = revealAtLine;
+    try {
+      const r = await fetch(`${API}/read?path=${encodeURIComponent(fullPath)}`, { credentials: 'include' });
+      const text = r.ok ? await r.text() : '';
+      setOrigContent(text);
+      setOpenFile(fullPath);
+      setShowDiff(false);
+      setEditorKey(k => k + 1);
+    } catch { /* ignore — editor will show load error */ }
+  }, []);
+
+  // After editorKey changes (new file opened), reveal any pending line
+  useEffect(() => {
+    if (pendingRevealLine.current == null) return;
+    const line = pendingRevealLine.current;
+    const timer = setTimeout(() => {
+      editorRef.current?.revealLine(line);
+      pendingRevealLine.current = null;
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [editorKey]);
+
+  // Search — scoped to current directory path
+  const doSearch = useCallback(async (q) => {
+    if (!q.trim()) return;
+    setSearchLoading(true);
+    setSearchError('');
+    setSearchResults([]);
+    try {
+      const params = new URLSearchParams({ q });
+      if (path && path !== '/') params.set('path', path);
+      const r = await fetch(`/api/search?${params}`, { credentials: 'include' });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Search failed');
+      setSearchResults(data.results || []);
+      if ((data.results || []).length === 0) setSearchError('No matches found.');
+    } catch (e) {
+      setSearchError(e.message);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [path]);
+
   const quotaPct = quota ? Math.min(100, Math.round(quota.used / quota.limit * 100)) : 0;
 
   // Current editor value for diff (only available after Monaco mounts)
@@ -208,6 +275,11 @@ export default function FileExplorerApp() {
           Upload<input type="file" style={{ display:'none' }} onChange={doUpload} />
         </label>
         <button style={S.btn} onClick={() => load()} title="Refresh">↻</button>
+        <button
+          style={{ ...S.btn, ...(searchActive ? { color:'rgba(168,85,247,0.9)', borderColor:'rgba(168,85,247,0.3)' } : {}) }}
+          onClick={() => { setSearchActive(v => !v); setSearchResults([]); setSearchError(''); }}
+          title="Search files"
+        >🔍</button>
         {openFile && !showDiff && (
           <button style={{ ...S.btn, color:'rgba(168,85,247,0.85)', borderColor:'rgba(168,85,247,0.3)' }}
             onClick={handleShowDiff} title="Show diff vs saved">
@@ -230,12 +302,57 @@ export default function FileExplorerApp() {
         </div>
       )}
 
+      {/* Search bar */}
+      {searchActive && (
+        <div style={{ display:'flex', gap:6, padding:'7px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)', flexShrink:0, alignItems:'center' }}>
+          <input
+            className="sr-input"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && doSearch(searchQuery)}
+            placeholder={`Search in ${path === '/' ? 'all files' : path}…`}
+            style={S.input}
+            autoFocus
+          />
+          <button style={S.btn} onClick={() => doSearch(searchQuery)} disabled={searchLoading}>
+            {searchLoading ? '…' : 'Go'}
+          </button>
+        </div>
+      )}
+
       {error && <div style={S.err}>{error}</div>}
 
       {/* Split: file list | editor/diff */}
       <div className="fe-split">
-        {/* File list */}
+        {/* File list — replaced by search results when search is active */}
         <div className={`fe-files ${openFile ? '' : ''}`} style={openFile ? {} : { width: '100%' }}>
+          {/* Search results */}
+          {searchActive && (searchLoading || searchResults.length > 0 || searchError) && (
+            <div className="sr-results">
+              {searchLoading && <div style={S.empty}>Searching…</div>}
+              {!searchLoading && searchError && <div style={{ ...S.empty, color:'rgba(255,120,120,0.7)' }}>{searchError}</div>}
+              {!searchLoading && searchResults.map((r, i) => (
+                <div
+                  key={i}
+                  className="sr-result-row"
+                  onClick={() => openByPath(r.file, r.line)}
+                  title={`${r.file} line ${r.line}`}
+                >
+                  <div className="sr-result-meta">
+                    <span className="sr-result-file">{r.file.split('/').pop()}</span>
+                    <span className="sr-result-line">:{r.line}</span>
+                    <span className="sr-result-path">{r.file}</span>
+                  </div>
+                  <div className="sr-result-preview">
+                    {highlightMatch(r.preview.trim(), searchQuery)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Normal file list — hidden when search has results */}
+          {(!searchActive || (!searchLoading && searchResults.length === 0 && !searchError)) && (
+            <>
           {loading && <div style={S.empty}>Loading…</div>}
           {!loading && entries.length === 0 && <div style={S.empty}>Empty directory</div>}
           {entries.map(e => (
@@ -259,6 +376,8 @@ export default function FileExplorerApp() {
               >✕</button>
             </div>
           ))}
+            </>
+          )}
         </div>
 
         {/* Editor / Diff pane */}

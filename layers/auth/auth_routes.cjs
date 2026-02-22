@@ -14,7 +14,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const https = require('https');
-const { db, stmts, genId, genSessionId, genOTP } = require('./db.cjs');
+const { db, stmts, genId, genSessionId, genOTP, logAuthEvent } = require('./db.cjs');
 const { sendOTP, verifyOTP } = require('./email_otp.cjs');
 
 let OAuth2Client;
@@ -25,7 +25,7 @@ const SESSION_DURATION = '+24 hours';
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV !== 'development',
-  sameSite: 'lax', // lax for OAuth redirects (strict blocks cross-origin redirects)
+  sameSite: 'strict',
   path: '/',
   maxAge: 24 * 60 * 60 * 1000
 };
@@ -338,7 +338,10 @@ function createAuthRoutes(authMiddleware) {
       }
 
       const valid = await bcrypt.compare(password, user.password_hash);
-      if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+      if (!valid) {
+        logAuthEvent(user.id, 'failed_attempt', ip, (req.headers['user-agent'] || '').slice(0, 256), { method: 'password' });
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
 
       // Auto-promote admin on login if KURO_ADMIN_EMAIL matches
       const adminEmail = process.env.KURO_ADMIN_EMAIL;
@@ -348,6 +351,7 @@ function createAuthRoutes(authMiddleware) {
 
       const sid = createSession(user.id, req);
       setSessionCookie(res, sid);
+      logAuthEvent(user.id, 'login', ip, (req.headers['user-agent'] || '').slice(0, 256), { tier: user.tier });
       res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: !!user.email_verified } });
     } catch (e) {
       console.error('[AUTH] Login error:', e.message);
@@ -358,7 +362,11 @@ function createAuthRoutes(authMiddleware) {
   // ─── LOGOUT ──────────────────────────────────────────
   router.post('/logout', (req, res) => {
     const sid = req.cookies?.kuro_sid;
-    if (sid) stmts.deleteSession.run(sid);
+    if (sid) {
+      const session = stmts.getSession.get(sid);
+      if (session) logAuthEvent(session.user_id, 'logout', getIP(req), (req.headers['user-agent'] || '').slice(0, 256), {});
+      stmts.deleteSession.run(sid);
+    }
     res.clearCookie('kuro_sid', COOKIE_OPTS);
     res.json({ success: true });
   });
@@ -633,6 +641,7 @@ function createAuthRoutes(authMiddleware) {
 
         const sid = createSession(user.id, req);
         setSessionCookie(res, sid);
+        logAuthEvent(user.id, 'token_login', ip, (req.headers['user-agent'] || '').slice(0, 256), { source: 'kuro_tokens' });
         return res.json({
           success: true,
           user: { id: user.id, email: user.email, name: user.name, tier: user.tier, emailVerified: true },
@@ -676,6 +685,7 @@ function createAuthRoutes(authMiddleware) {
 
       const sid = createSession(user.id, req);
       setSessionCookie(res, sid);
+      logAuthEvent(user.id, 'token_login', ip, (req.headers['user-agent'] || '').slice(0, 256), { source: 'tokens_json' });
 
       res.json({
         success: true,

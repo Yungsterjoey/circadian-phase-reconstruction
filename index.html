@@ -10,6 +10,7 @@
   <link rel="canonical" href="https://kuroglass.net">
   <link rel="icon" href="/kuro-logo.jpg">
   <link rel="apple-touch-icon" href="/kuro-logo.jpg">
+  <link rel="manifest" href="/manifest.json">
   <meta property="og:title" content="KURO OS — Sovereign Intelligence Platform">
   <meta property="og:description" content="AI with visible pipeline, cryptographic audit trails, and full data sovereignty.">
   <meta property="og:type" content="website">
@@ -67,5 +68,19 @@
     </div>
   </noscript>
   <script type="module" src="/src/main.jsx"></script>
+  <script>
+    // Register service worker — scope: '/' (app shell only, never /api/*)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(function (reg) {
+            console.log('[SW] Registered, scope:', reg.scope);
+          })
+          .catch(function (err) {
+            console.warn('[SW] Registration failed:', err);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

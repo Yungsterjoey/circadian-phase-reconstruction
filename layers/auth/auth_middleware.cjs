@@ -10,7 +10,13 @@
  */
 
 const crypto = require('crypto');
-const { stmts } = require('./db.cjs');
+const { stmts, logAuthEvent } = require('./db.cjs');
+
+// Session lifetime policy (env-configurable for enterprise hardening)
+const SESSION_MAX_DAYS = parseInt(process.env.KURO_SESSION_MAX_DAYS || '7', 10);
+const SESSION_INACTIVITY_HOURS = process.env.KURO_SESSION_INACTIVITY_HOURS
+  ? parseInt(process.env.KURO_SESSION_INACTIVITY_HOURS, 10) : null;
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // mirrors SESSION_DURATION in auth_routes.cjs
 
 // Tier → role mapping (bridges new tier system to existing role system)
 const TIER_MAP = {
@@ -86,6 +92,30 @@ function resolveUserV2(req) {
   if (sid) {
     const session = stmts.getSession.get(sid);
     if (session) {
+      const now = Date.now();
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+        || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+      const ua = (req.headers['user-agent'] || '').slice(0, 256);
+
+      // Absolute max lifetime guard (KURO_SESSION_MAX_DAYS, default 7)
+      const createdAt = new Date(session.created_at).getTime();
+      if (!isNaN(createdAt) && now - createdAt > SESSION_MAX_DAYS * 86400 * 1000) {
+        try { stmts.deleteSession.run(sid); } catch(e) {}
+        logAuthEvent(session.user_id, 'session_expired', ip, ua, { reason: 'max_lifetime' });
+        return null;
+      }
+
+      // Inactivity timeout guard (KURO_SESSION_INACTIVITY_HOURS — optional)
+      if (SESSION_INACTIVITY_HOURS && session.expires_at) {
+        const expiresAt = new Date(session.expires_at).getTime();
+        const lastActive = expiresAt - SESSION_DURATION_MS;
+        if (!isNaN(lastActive) && now - lastActive > SESSION_INACTIVITY_HOURS * 3600 * 1000) {
+          try { stmts.deleteSession.run(sid); } catch(e) {}
+          logAuthEvent(session.user_id, 'session_expired', ip, ua, { reason: 'inactivity' });
+          return null;
+        }
+      }
+
       // Sliding window: refresh session expiry on each authenticated request
       try { stmts.refreshSession.run(sid); } catch(e) {}
       return sessionToUser(session);
@@ -94,8 +124,9 @@ function resolveUserV2(req) {
     // (handled in middleware response)
   }
 
-  // 2. Fallback to legacy token system
-  if (legacyResolveUser) {
+  // 2. Fallback to legacy token system (disabled when KURO_JSON_TOOLS_ONLY=true)
+  const toolsOnly = (process.env.KURO_JSON_TOOLS_ONLY ?? 'false').toLowerCase() === 'true';
+  if (!toolsOnly && legacyResolveUser) {
     const legacyUser = legacyResolveUser(req);
     if (legacyUser) {
       legacyUser.authMethod = 'legacy_token';

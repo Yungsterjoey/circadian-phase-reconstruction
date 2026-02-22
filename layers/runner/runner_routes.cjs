@@ -250,7 +250,11 @@ function mountRunnerRoutes(auth, { db }) {
 
   function requireRunnerTier(req, res, next) {
     const tier = req.user?.tier || 'free';
-    if (tier === 'free') return res.status(403).json({ error: 'runner_disabled', message: 'Runner requires Pro or Sovereign tier' });
+    if (tier === 'free') {
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+      console.error(`[SANDBOX_VIOLATION] tier_blocked userId=${req.user?.userId} tier=${tier} ip=${ip}`);
+      return res.status(403).json({ error: 'runner_disabled', message: 'Runner requires Pro or Sovereign tier' });
+    }
     req._budgets = getBudgets(tier);
     next();
   }
@@ -262,7 +266,10 @@ function mountRunnerRoutes(auth, { db }) {
 
     const budgets = req._budgets;
     const check = rateCheck(userId, budgets);
-    if (!check.ok) return res.status(429).json({ error: check.reason });
+    if (!check.ok) {
+      console.error(`[SANDBOX_VIOLATION] rate_limited userId=${userId} reason=${check.reason}`);
+      return res.status(429).json({ error: check.reason });
+    }
 
     const { projectId, cmd, cwd, lang = 'python', snapshot = false, env: userEnv, inlineCode } = req.body || {};
     if (!cmd) return res.status(400).json({ error: 'cmd required' });
