@@ -1197,11 +1197,12 @@ export default function KuroChat() {
     if (!preset && !input.trim()) return;
 
     const cid = activeId;
+    const freshMeta = () => ({ steps: [], tools: [], sources: [], runner: null });
     if (!preset) {
-      updateMessages(cid, prev => [...prev, msg, { role: 'assistant', content: '', redactionCount: 0 }]);
+      updateMessages(cid, prev => [...prev, msg, { role: 'assistant', content: '', redactionCount: 0, meta: freshMeta() }]);
       setInput('');
     } else {
-      updateMessages(cid, prev => [...prev, { role: 'assistant', content: '', redactionCount: 0 }]);
+      updateMessages(cid, prev => [...prev, { role: 'assistant', content: '', redactionCount: 0, meta: freshMeta() }]);
     }
 
     if (!messages.length && msg.content) {
@@ -1234,6 +1235,7 @@ export default function KuroChat() {
     // Phase 3.5: Web (o) — fetch results before stream, inject context into payload
     if (webEnabled && msg.content) {
       setWebResults([]);
+      addStep('Searching web sources');
       try {
         const wRes = await authFetch('/api/web/search', {
           method: 'POST',
@@ -1243,12 +1245,36 @@ export default function KuroChat() {
           const wData = await wRes.json();
           if (wData.results?.length) {
             setWebResults(wData.results);
-            // Prepend context block to system/messages for the model
+            setSources(wData.results);         // Phase 3.6: per-message sources
             payload.webContext = wData.context;
           }
         }
       } catch { /* degrade silently */ }
     }
+
+    // ── Phase 3.6: meta dispatch helpers ─────────────────────────────────
+    // Update the last assistant message's meta without touching content.
+    const dispatchMeta = (fn) => {
+      updateMessages(cid, prev => {
+        const u = [...prev];
+        const last = u[u.length - 1];
+        if (last?.role === 'assistant') {
+          const cur = last.meta || { steps: [], tools: [], sources: [], runner: null };
+          u[u.length - 1] = { ...last, meta: fn(cur) };
+        }
+        return u;
+      });
+    };
+    const addStep = (text) =>
+      dispatchMeta(m => ({ ...m, steps: [...m.steps, { id: `${Date.now()}-${Math.random()}`, text }] }));
+    const setSources = (sources) =>
+      dispatchMeta(m => ({ ...m, sources }));
+    const addTool = (id, name) =>
+      dispatchMeta(m => ({ ...m, tools: [...m.tools, { id, name, status: 'pending', startMs: Date.now() }] }));
+    const updateTool = (id, status, durationMs) =>
+      dispatchMeta(m => ({ ...m, tools: m.tools.map(t => t.id === id ? { ...t, status, durationMs } : t) }));
+    const setRunner = (runner) =>
+      dispatchMeta(m => ({ ...m, runner }));
 
     let retries = 0;
     const MAX_RETRIES = 2;
@@ -1276,20 +1302,40 @@ export default function KuroChat() {
       if (!rafId) rafId = requestAnimationFrame(flushTokenBuffer);
     };
 
-    // Phase 3: execute any JSON tool calls found in the completed response
+    // Phase 3 + 3.6: execute JSON tool calls found in the completed response,
+    // updating ReasoningPanel meta as each call proceeds.
     const handleJsonToolCalls = async (content, convId) => {
       const calls = extractJsonToolCalls(content);
       if (!calls.length) return;
+      addStep('Validating tool arguments');
       for (const { raw, parsed } of calls) {
+        const toolName = parsed?.kuro_tool_call?.name || 'unknown';
+        const toolId   = parsed?.kuro_tool_call?.id   || `${toolName}-${Date.now()}`;
+        addTool(toolId, toolName);
+        const invokeStart = Date.now();
         try {
           const res = await authFetch('/api/tools/invoke', {
             method: 'POST',
             body: JSON.stringify(parsed),
           });
-          if (!res.ok) continue;
+          const durationMs = Date.now() - invokeStart;
+          if (!res.ok) { updateTool(toolId, 'error', durationMs); continue; }
           const data = await res.json();
           const tr = data.kuro_tool_result;
-          if (!tr) continue;
+          if (!tr) { updateTool(toolId, 'error', durationMs); continue; }
+          updateTool(toolId, tr.ok ? 'ok' : 'error', durationMs);
+
+          // Phase 3.6: surface runner job in panel
+          if (tr.name === 'runner.spawn' && tr.ok && tr.result) {
+            addStep('Running code in sandbox');
+            setRunner({
+              jobId:  tr.result.jobId  || null,
+              status: tr.result.status || 'queued',
+              lang:   parsed.kuro_tool_call?.args?.lang || '',
+              cmd:    parsed.kuro_tool_call?.args?.cmd  || '',
+            });
+          }
+
           const resultBlock = tr.ok
             ? `\n\n**Tool result** (\`${tr.name}\`):\n\`\`\`json\n${JSON.stringify(tr.result, null, 2)}\n\`\`\``
             : `\n\n**Tool error** (\`${tr.name}\`): ${tr.error}`;
@@ -1302,6 +1348,7 @@ export default function KuroChat() {
             return u;
           });
         } catch (err) {
+          updateTool(toolId, 'error', Date.now() - invokeStart);
           console.error('[TOOL] Invoke error:', err.message);
         }
       }
@@ -1411,6 +1458,7 @@ export default function KuroChat() {
               clearTimeout(staleTimer);
               if (rafId) cancelAnimationFrame(rafId);
               flushTokenBuffer();
+              addStep('Formatting final answer');   // Phase 3.6
               // Phase 3: detect and execute any JSON tool calls in the response
               handleJsonToolCalls(toolScanBuffer, cid).catch(console.error);
               setIsLoading(false);
