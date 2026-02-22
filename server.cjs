@@ -147,6 +147,11 @@ try { ({ createStripeRoutes, stripeWebhookHandler } = require('./layers/stripe/s
 let mountVfsRoutes = null; try { mountVfsRoutes = require('./layers/vfs/vfs_routes.cjs'); } catch(e) { console.warn('[WARN] VFS routes not loaded:', e.message); }
 let mountRunnerRoutes = null; try { mountRunnerRoutes = require('./layers/runner/runner_routes.cjs'); } catch(e) { console.warn('[WARN] Runner routes not loaded:', e.message); }
 
+// Phase 3.5: Web (o) Mode
+let mountWebRoutes = null;
+try { mountWebRoutes = require('./layers/web/web_routes.cjs'); }
+catch(e) { console.warn('[WARN] Web routes not loaded:', e.message); }
+
 // Phase 3: JSON Tool Protocol
 const KURO_JSON_TOOLS_ENABLED = (process.env.KURO_JSON_TOOLS_ENABLED ?? 'true').toLowerCase() !== 'false';
 const KURO_JSON_TOOLS_ONLY    = (process.env.KURO_JSON_TOOLS_ONLY    ?? 'false').toLowerCase() === 'true';
@@ -495,6 +500,15 @@ if (toolExecutor) {
   });
 
   console.log('[TOOLS] Routes mounted at /api/tools/* (invoke, convert_xml)');
+}
+
+// Phase 3.5: Web (o) Mode
+if (mountWebRoutes) {
+  try {
+    const { db: webDb } = require('./layers/auth/db.cjs');
+    app.use('/api/web', mountWebRoutes(auth, { db: webDb }));
+    console.log('[WEB] Routes mounted at /api/web/* (KURO_WEB_ENABLED=' + (process.env.KURO_WEB_ENABLED ?? 'true') + ')');
+  } catch(e) { console.warn('[WEB] Failed to mount:', e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
