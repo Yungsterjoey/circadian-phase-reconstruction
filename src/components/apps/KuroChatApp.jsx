@@ -665,6 +665,44 @@ const ArtifactCard = ({ artifact }) => {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PHASE 3: JSON TOOL CALL EXTRACTOR
+// Scans accumulated model output for embedded {"kuro_tool_call": {...}} blocks.
+// <think> blocks are stripped before scanning (never surfaced).
+// ═══════════════════════════════════════════════════════════════════════════
+function extractJsonToolCalls(text) {
+  const calls = [];
+  if (!text) return calls;
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  let pos = 0;
+  while (pos < stripped.length) {
+    const idx = stripped.indexOf('{"kuro_tool_call":', pos);
+    if (idx === -1) break;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = idx; i < stripped.length; i++) {
+      const ch = stripped[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\' && inStr) { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const raw = stripped.slice(idx, i + 1);
+            const parsed = JSON.parse(raw);
+            if (parsed.kuro_tool_call) calls.push({ raw, parsed });
+          } catch { /* malformed JSON, skip */ }
+          break;
+        }
+      }
+    }
+    pos = idx + 1;
+  }
+  return calls;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CONTENT PARSER
 // ═══════════════════════════════════════════════════════════════════════════
 function parseContent(content) {
@@ -1142,6 +1180,7 @@ export default function KuroChat() {
 
     // ── Smooth streaming: buffer tokens, flush on rAF (~60fps) ──────────
     let tokenBuffer = '';
+    let toolScanBuffer = ''; // Phase 3: full content for JSON tool call detection
     let rafId = null;
     const flushTokenBuffer = () => {
       rafId = null;
@@ -1161,7 +1200,39 @@ export default function KuroChat() {
       if (!rafId) rafId = requestAnimationFrame(flushTokenBuffer);
     };
 
+    // Phase 3: execute any JSON tool calls found in the completed response
+    const handleJsonToolCalls = async (content, convId) => {
+      const calls = extractJsonToolCalls(content);
+      if (!calls.length) return;
+      for (const { raw, parsed } of calls) {
+        try {
+          const res = await authFetch('/api/tools/invoke', {
+            method: 'POST',
+            body: JSON.stringify(parsed),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const tr = data.kuro_tool_result;
+          if (!tr) continue;
+          const resultBlock = tr.ok
+            ? `\n\n**Tool result** (\`${tr.name}\`):\n\`\`\`json\n${JSON.stringify(tr.result, null, 2)}\n\`\`\``
+            : `\n\n**Tool error** (\`${tr.name}\`): ${tr.error}`;
+          updateMessages(convId, prev => {
+            const u = [...prev];
+            const last = u[u.length - 1];
+            if (last?.role === 'assistant') {
+              u[u.length - 1] = { ...last, content: last.content.replace(raw, `[Tool: ${tr.name}]${resultBlock}`) };
+            }
+            return u;
+          });
+        } catch (err) {
+          console.error('[TOOL] Invoke error:', err.message);
+        }
+      }
+    };
+
     const attemptStream = async () => {
+      toolScanBuffer = ''; // reset on each attempt
       try {
         abortRef.current = new AbortController();
         const res = await fetch('/api/stream', {
@@ -1220,6 +1291,7 @@ export default function KuroChat() {
               tokens++;
               setTokenCount(tokens);
               tokenBuffer += d.content;
+              toolScanBuffer += d.content; // Phase 3: track for tool call detection
               scheduleFlush();
             } else if (d.type === 'policy_notice') {
               setPolicyNotice(d);
@@ -1263,6 +1335,8 @@ export default function KuroChat() {
               clearTimeout(staleTimer);
               if (rafId) cancelAnimationFrame(rafId);
               flushTokenBuffer();
+              // Phase 3: detect and execute any JSON tool calls in the response
+              handleJsonToolCalls(toolScanBuffer, cid).catch(console.error);
               setIsLoading(false);
               setConnectionError(null);
               return; // Success — no retry
