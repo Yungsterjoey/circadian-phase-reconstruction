@@ -405,6 +405,47 @@ const Island = ({ children, className = '', floating = false, glow = false, dism
 };
 
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 3.5: WEB (o) TOGGLE + SOURCE FLASH CARDS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const WebToggle = ({ enabled, onChange }) => (
+  <button
+    type="button"
+    className={`tool-island web-island ${enabled ? 'web-on' : ''}`}
+    onClick={() => onChange(!enabled)}
+    title={enabled ? 'Web (o) ON — click to disable' : 'Web (o) OFF — click to enable'}
+  >
+    <Globe size={13} />
+    <span>Web {enabled ? 'on' : 'off'}</span>
+  </button>
+);
+
+const WebSourceCards = ({ results }) => {
+  if (!results || results.length === 0) return null;
+  return (
+    <div className="web-source-cards">
+      {results.slice(0, 5).map((r, i) => (
+        <a
+          key={i}
+          className="web-card"
+          href={r.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <div className="web-card-num">{i + 1}</div>
+          <div className="web-card-body">
+            <div className="web-card-title">{r.title}</div>
+            <div className="web-card-url">{r.url.replace(/^https?:\/\//, '').slice(0, 60)}</div>
+            {r.snippet && <div className="web-card-snippet">{r.snippet.slice(0, 100)}</div>}
+          </div>
+          <ExternalLink size={11} className="web-card-icon" />
+        </a>
+      ))}
+    </div>
+  );
+};
+
 // Fast ↔ Sovereign — standalone pill island
 const SpeedIsland = ({ value, onChange }) => {
   const isFast = value !== 'sovereign';
@@ -966,6 +1007,18 @@ export default function KuroChat() {
   const [auditStatus, setAuditStatus] = useState({ verified: true });
   const [connectionError, setConnectionError] = useState(null);
 
+  // Phase 3.5: Web (o) mode — off by default, persisted in sessionStorage
+  const [webEnabled, setWebEnabled] = useState(() => {
+    try { return sessionStorage.getItem('kuro_web_enabled') === 'true'; } catch { return false; }
+  });
+  const [webResults, setWebResults] = useState([]); // latest search results for source cards
+
+  // Persist web toggle in session
+  const toggleWeb = (v) => {
+    setWebEnabled(v);
+    try { sessionStorage.setItem('kuro_web_enabled', v ? 'true' : 'false'); } catch {}
+  };
+
   // RT-02: Only IDs in localStorage, messages in memory
   const [projects, setProjects] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kuro_projects_v72') || '[]'); } catch { return []; }
@@ -1173,6 +1226,25 @@ export default function KuroChat() {
       preemptSessionId: getPreemptSession(),
       // RT-05: Profile NOT sent — server resolves from token
     };
+
+    // Phase 3.5: Web (o) — fetch results before stream, inject context into payload
+    if (webEnabled && msg.content) {
+      setWebResults([]);
+      try {
+        const wRes = await authFetch('/api/web/search', {
+          method: 'POST',
+          body: JSON.stringify({ query: msg.content }),
+        });
+        if (wRes.ok) {
+          const wData = await wRes.json();
+          if (wData.results?.length) {
+            setWebResults(wData.results);
+            // Prepend context block to system/messages for the model
+            payload.webContext = wData.context;
+          }
+        }
+      } catch { /* degrade silently */ }
+    }
 
     let retries = 0;
     const MAX_RETRIES = 2;
@@ -1470,6 +1542,8 @@ export default function KuroChat() {
               <EmptyState />
             ) : (
               <div className="messages">
+                {/* Phase 3.5: Web source cards above messages when results available */}
+                <WebSourceCards results={webResults} />
                 {messages.map((m, i) => (
                   <Message
                     key={`${activeId}-${i}`}
@@ -1498,6 +1572,7 @@ export default function KuroChat() {
                 <Paperclip size={13} /><span>Attach</span>
               </button>
               <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
+              <WebToggle enabled={webEnabled} onChange={toggleWeb} />
               <SpeedIsland value={powerDial} onChange={setPowerDial} />
             </div>
             <Island className={`input-island preempt-${preemptState}`} floating glow dismissable position="bottom">
@@ -2138,6 +2213,40 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 .speed-island.fast:hover { background: rgba(255,214,10,0.07); color: rgba(255,230,80,0.95); border-color: rgba(255,214,10,0.3); }
 .speed-island.sov { color: rgba(168,85,247,0.85); border-color: rgba(168,85,247,0.22); }
 .speed-island.sov:hover { background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.4); }
+
+/* ═══ WEB (o) TOGGLE ═══ */
+.web-island { color: rgba(100,180,255,0.6); border-color: rgba(100,180,255,0.12); }
+.web-island:hover { background: rgba(100,180,255,0.07); color: rgba(120,200,255,0.9); border-color: rgba(100,180,255,0.28); }
+.web-island.web-on { color: #64b4ff; border-color: rgba(100,180,255,0.35); background: rgba(100,180,255,0.1); }
+.web-island.web-on:hover { background: rgba(100,180,255,0.17); }
+
+/* ═══ WEB SOURCE FLASH CARDS ═══ */
+.web-source-cards {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 0 4px 0;
+  animation: fadeIn 0.25s ease;
+}
+.web-card {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 10px;
+  background: rgba(100,180,255,0.05);
+  border: 1px solid rgba(100,180,255,0.14);
+  border-radius: var(--lg-radius-sm, 12px);
+  text-decoration: none; color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.web-card:hover { background: rgba(100,180,255,0.1); border-color: rgba(100,180,255,0.28); }
+.web-card-num {
+  flex-shrink: 0; width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: #64b4ff;
+  background: rgba(100,180,255,0.12); border-radius: 50%;
+}
+.web-card-body { flex: 1; min-width: 0; }
+.web-card-title { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-card-url { font-size: 10px; color: #64b4ff; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-card-snippet { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.web-card-icon { flex-shrink: 0; opacity: 0.4; margin-top: 2px; }
 
 /* ═══ INPUT ISLAND ═══ */
 .input-island {
