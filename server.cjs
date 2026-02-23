@@ -1001,18 +1001,44 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
           if (prompt) {
             // Unload Ollama model from VRAM before calling FLUX so GPU is free
             try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
+            // Resolve preset + aspect: LLM tool args take precedence, then user session prefs
+            const vPreset = args.preset || req.body.visionPreset || 'draft';
+            const vAspect = args.aspect_ratio || req.body.visionAspect || '1:1';
             // Strip the raw JSON from the token stream display
             sendSSE(res, { type: 'token', content: '\0' }); // flush trick
-            sendSSE(res, { type: 'vision_start', prompt });
+            sendSSE(res, { type: 'vision_start', prompt, preset: vPreset, aspect: vAspect });
             const visionEvents = [];
             const { generate: visionGenerate } = require('./layers/vision/vision_orchestrator.cjs');
-            const mockReq = { body: { prompt, userTier: user.tier || 'free', profile: 'lab' }, user, on: () => {} };
+            const mockReq = {
+              body: {
+                prompt,
+                preset:          vPreset,
+                aspect_ratio:    vAspect,
+                n:               args.n               || req.body.visionN               || 1,
+                seed:            args.seed            ?? req.body.visionSeed            ?? undefined,
+                steps:           args.steps           || undefined,
+                guidance_scale:  args.guidance_scale  ?? undefined,
+                negative_prompt: args.negative_prompt || undefined,
+                userTier: user.tier || 'free',
+                profile: 'lab',
+              },
+              user,
+              on: () => {},
+            };
             const mockRes = { write(raw) { const m = raw.match(/^data: (.+)\n\n$/s); if (m) { try { const e = JSON.parse(m[1]); visionEvents.push(e); if (e.type !== 'done') sendSSE(res, e); } catch {} } }, setHeader(){}, flushHeaders(){}, end(){} };
             await visionGenerate(mockReq, mockRes, logEvent);
             const result = visionEvents.find(e => e.type === 'vision_result');
             if (result) {
               const imgUrl = `/api/vision/image/${result.filename}`;
-              sendSSE(res, { type: 'vision_result', imageUrl: imgUrl, filename: result.filename, seed: result.seed, dimensions: result.dimensions, elapsed: result.elapsed });
+              // Build images array (variants) as URLs, not base64
+              const images = result.images
+                ? result.images.map(img => ({ url: `/api/vision/image/${img.filename}`, seed: img.seed, filename: img.filename }))
+                : null;
+              sendSSE(res, {
+                type: 'vision_result', imageUrl: imgUrl, filename: result.filename,
+                seed: result.seed, dimensions: result.dimensions, elapsed: result.elapsed,
+                preset: result.preset || vPreset, n: result.n || 1, images,
+              });
             } else {
               const err = visionEvents.find(e => e.type === 'error');
               sendSSE(res, { type: 'token', content: `\n**Vision failed**: ${err?.message || 'unknown error'}` });

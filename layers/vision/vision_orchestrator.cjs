@@ -177,6 +177,13 @@ async function generate(req, res, auditFn) {
       });
 
       let genResult;
+      // Emit progress ticks every 2s while FLUX is running (prevents dead air)
+      let genTick = 0;
+      const genInterval = setInterval(() => {
+        genTick++;
+        const pct = Math.min(40 + genTick * 4, 90);
+        sse(res, { type: 'vision_progress', jobId: requestId, pct, stage: 'generate', elapsed: Math.round((Date.now() - t0) / 1000) });
+      }, 2000);
       try {
         const { data } = await axios.post(`${FLUX_URL}/generate`, {
           prompt:          currentPrompt,
@@ -194,9 +201,11 @@ async function generate(req, res, auditFn) {
 
         genResult = data;
       } catch (e) {
+        clearInterval(genInterval);
         sse(res, { type: 'vision_phase', phase: 'generate', status: 'error', data: { error: e.message } });
         throw new Error(`FLUX generation failed: ${e.message}`);
       }
+      clearInterval(genInterval);
 
       if (!genResult.success) {
         sse(res, { type: 'vision_phase', phase: 'generate', status: 'error', data: { error: genResult.error } });
