@@ -293,6 +293,9 @@ const MarkdownText = React.memo(({ text }) => {
       const lineEls = [];
       for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
+        // Images — ![alt](url)
+        const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
+        if (imgMatch) { lineEls.push(<img key={key++} src={imgMatch[2]} alt={imgMatch[1]} className="md-img" loading="lazy" />); continue; }
         // Headers
         const hMatch = line.match(/^(#{1,3})\s+(.+)$/);
         if (hMatch) { const lvl = hMatch[1].length; lineEls.push(React.createElement(`h${lvl + 2}`, { key: key++, className: 'md-h' }, hMatch[2])); continue; }
@@ -478,6 +481,187 @@ const Pill = ({ icon: Icon, label, color, active, onClick, compact, badge, disab
     {label && <span>{label}</span>}
     {badge && <span className="pill-badge">{badge}</span>}
   </button>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KURO SWITCH — reusable toggle used in panels
+// ═══════════════════════════════════════════════════════════════════════════
+const KuroSwitch = ({ on, onChange }) => (
+  <button
+    type="button"
+    className={`ks-switch ${on ? 'on' : ''}`}
+    onClick={() => onChange(!on)}
+    role="switch"
+    aria-checked={on}
+  >
+    <span className="ks-thumb" />
+  </button>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ATTACH PANEL — glass popover above input island
+// ═══════════════════════════════════════════════════════════════════════════
+const AttachPanel = ({
+  onAttachFile,
+  webEnabled, onWebChange,
+  powerDial, onSpeedChange,
+  insightsEnabled, onInsightsChange,
+  analysisEnabled, onAnalysisChange,
+  actionsEnabled, onActionsChange,
+  onClose,
+}) => {
+  const fileRows = [
+    { icon: Folder, label: 'Attach File', desc: 'Docs, images, code — opens file browser', action: onAttachFile },
+  ];
+  const toggleRows = [
+    { label: 'Web Search',      desc: 'Fetch live results before generating',          on: webEnabled,        set: onWebChange,       color: '#64b4ff' },
+    { label: 'Fast Responses',  desc: 'Quicker replies using a smaller model',         on: powerDial !== 'sovereign', set: v => onSpeedChange(v ? 'instant' : 'sovereign'), color: '#ffd60a' },
+    { label: 'Insights',        desc: 'Pattern recognition & key point extraction',    on: insightsEnabled,   set: onInsightsChange,  color: '#5e5ce6' },
+    { label: 'Analysis',        desc: 'Structured data & document analysis mode',      on: analysisEnabled,   set: onAnalysisChange,  color: '#ff9f0a' },
+    { label: 'Actions',         desc: 'Execute code and system-level commands',        on: actionsEnabled,    set: onActionsChange,   color: '#30d158' },
+  ];
+  return (
+    <>
+      <div className="ap-backdrop" onClick={onClose} />
+      <div className="ap-panel" onClick={e => e.stopPropagation()}>
+        <div className="ap-inner">
+          {fileRows.map(r => (
+            <button key={r.label} type="button" className="ap-row ap-file-row" onClick={() => { r.action(); }}>
+              <span className="ap-row-icon"><r.icon size={16} /></span>
+              <span className="ap-row-body">
+                <span className="ap-row-label">{r.label}</span>
+                <span className="ap-row-desc">{r.desc}</span>
+              </span>
+              <ChevronRight size={14} className="ap-row-arr" />
+            </button>
+          ))}
+          <div className="ap-divider" />
+          {toggleRows.map(t => (
+            <div key={t.label} className="ap-row ap-toggle-row">
+              <span className="ap-row-body">
+                <span className="ap-row-label">{t.label}</span>
+                <span className="ap-row-desc">{t.desc}</span>
+              </span>
+              <KuroSwitch on={t.on} onChange={t.set} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETTINGS PANEL — full slide-over with all advanced controls
+// ═══════════════════════════════════════════════════════════════════════════
+const SettingsPanel = ({
+  settings, updateSetting,
+  powerDial, setPowerDial,
+  webEnabled, toggleWeb,
+  activeSkill, setActiveSkill,
+  onClose,
+}) => (
+  <>
+    <div className="sp-backdrop" onClick={onClose} />
+    <div className="sp-panel">
+      <div className="sp-header">
+        <span className="sp-title">Settings</span>
+        <button className="sp-close" onClick={onClose}><X size={16} /></button>
+      </div>
+      <div className="sp-body">
+
+        <div className="sp-section">
+          <div className="sp-section-title">Intelligence</div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Show thinking</div>
+              <div className="sp-row-desc">Display chain-of-thought reasoning blocks inline</div>
+            </div>
+            <KuroSwitch on={settings.showThinking} onChange={v => updateSetting('showThinking', v)} />
+          </div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Preemptive compute</div>
+              <div className="sp-row-desc">Speculatively start generating before you finish typing</div>
+            </div>
+            <KuroSwitch on={settings.preemptEnabled} onChange={v => updateSetting('preemptEnabled', v)} />
+          </div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Live edit corrections</div>
+              <div className="sp-row-desc">Show auto-correction bar for mid-stream phrasing fixes</div>
+            </div>
+            <KuroSwitch on={settings.liveEditEnabled} onChange={v => updateSetting('liveEditEnabled', v)} />
+          </div>
+          <div className="sp-row sp-row-stack">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Volatility</div>
+              <div className="sp-row-desc">How unhinged the model gets. Low = clinical. High = feral.</div>
+            </div>
+            <div className="vol-slider-wrap">
+              <div className="vol-track">
+                <div className="vol-fill" style={{ width: `${settings.temperature}%` }} />
+                <div className="vol-notches">
+                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(n => (
+                    <span key={n} className={`vol-notch${settings.temperature >= n ? ' lit' : ''}`} />
+                  ))}
+                </div>
+                <input
+                  type="range" min={0} max={100} value={settings.temperature}
+                  onChange={e => updateSetting('temperature', +e.target.value)}
+                  className="vol-input"
+                />
+              </div>
+              <div className="vol-readout">
+                <span className="vol-val">{settings.temperature}</span>
+                <span className="vol-label">{settings.temperature < 20 ? 'CLINICAL' : settings.temperature < 40 ? 'STABLE' : settings.temperature < 60 ? 'NOMINAL' : settings.temperature < 80 ? 'VOLATILE' : 'UNHINGED'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sp-section">
+          <div className="sp-section-title">Tools</div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Web search</div>
+              <div className="sp-row-desc">Fetch live results from the web before responding</div>
+            </div>
+            <KuroSwitch on={webEnabled} onChange={toggleWeb} />
+          </div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Code sandbox</div>
+              <div className="sp-row-desc">Run and preview generated code in an isolated frame</div>
+            </div>
+            <KuroSwitch on={activeSkill === 'sandbox'} onChange={v => setActiveSkill(v ? 'sandbox' : 'chat')} />
+          </div>
+        </div>
+
+        <div className="sp-section">
+          <div className="sp-section-title">Model</div>
+          <div className="sp-row">
+            <div className="sp-row-info">
+              <div className="sp-row-label">Response speed</div>
+              <div className="sp-row-desc">Fast uses a smaller model; Sovereign uses full depth</div>
+            </div>
+            <div className="sp-seg">
+              <button className={`sp-seg-btn ${powerDial !== 'sovereign' ? 'active' : ''}`} onClick={() => setPowerDial('instant')}>
+                <Zap size={12} /><span>Fast</span>
+              </button>
+              <button className={`sp-seg-btn ${powerDial === 'sovereign' ? 'active' : ''}`} onClick={() => setPowerDial('sovereign')}>
+                <Crown size={12} /><span>Sovereign</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </>
 );
 
 
@@ -776,7 +960,6 @@ function parseContent(content) {
 // MESSAGE — RT-08: Index-based regen, RT-16: per-message redaction
 // ═══════════════════════════════════════════════════════════════════════════
 const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, agents, activeAgent }) => {
-  const [showActions, setShowActions] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const editRef = useRef(null);
@@ -791,7 +974,6 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
   const startEdit = () => {
     setEditValue(msg.content);
     setEditing(true);
-    setShowActions(false);
     setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 30);
   };
   const saveEdit = () => {
@@ -802,17 +984,8 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
   const cancelEdit = () => setEditing(false);
 
   return (
-    <div
-      className={`message ${msg.role}`}
-      onMouseEnter={() => !editing && setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
-    >
-      {msg.role === 'assistant' && (
-        <div className="message-avatar" style={{ '--agent-color': agent?.color || '#a855f7' }}>
-          <AgentIcon size={18} />
-        </div>
-      )}
-      <div className="message-content">
+    <div className={`message ${msg.role}`}>
+      <div className={`message-content${msg.isEdited ? ' edited' : ''}`}>
         {msg.role === 'assistant' && (
           <ReasoningPanel meta={msg.meta} isStreaming={isStreaming} />
         )}
@@ -854,10 +1027,10 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
                   ? parsed.main.replace(/^\[Image:[^\]]+\]\n?/gm, '').trim() || null
                   : parsed.main)
             }
-            {isStreaming && !parsed.thinkStreaming && <span className="stream-cursor">_</span>}
+            {isStreaming && !parsed.thinkStreaming && <span className={`stream-cursor${msg.isEditResponse ? ' edit-cursor' : ''}`}>_</span>}
           </div>
         )}
-        {showActions && !isStreaming && !editing && (
+        {!isStreaming && !editing && (
           <div className="message-actions">
             <button onClick={() => onCopy(msg.content)} title="Copy"><Copy size={14} /></button>
             {msg.role === 'user' && onEdit && (
@@ -866,7 +1039,6 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
           </div>
         )}
       </div>
-      {msg.role === 'user' && <div className="message-avatar user"><User size={18} /></div>}
     </div>
   );
 };
@@ -913,7 +1085,7 @@ const Sidebar = ({
   visible, onClose, projects, activeProject, setActiveProject, createProject,
   conversations, activeId, setActiveId, createConv, deleteConv,
   search, setSearch, profileDef, auditStatus,
-  activeSkill, onSkillChange
+  activeSkill, onSkillChange, onOpenSettings,
 }) => {
   const filteredConvs = useMemo(() => {
     let list = conversations;
@@ -970,7 +1142,7 @@ const Sidebar = ({
         <div className="sidebar-bottom">
           <ProfileIndicator profileDef={profileDef} />
           <AuditIndicator status={auditStatus} />
-          <button className="sidebar-link"><Settings size={16} /><span>Settings</span></button>
+          <button className="sidebar-link" onClick={() => { onOpenSettings?.(); onClose(); }}><Settings size={16} /><span>Settings</span></button>
         </div>
       </aside>
     </>
@@ -1052,9 +1224,15 @@ export default function KuroChat() {
   const [streamStart, setStreamStart] = useState(0);
 
   const [isDragging, setIsDragging] = useState(false);
+  const [attachPanelOpen, setAttachPanelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [insightsEnabled, setInsightsEnabled] = useState(false);
+  const [analysisEnabled, setAnalysisEnabled] = useState(false);
+  const [actionsEnabled, setActionsEnabled] = useState(false);
 
-  // Settings
-  const [settings] = useState({ temperature: 70, showThinking: true });
+  // Settings — with setter so controls in SettingsPanel are live
+  const [settings, setSettings] = useState({ temperature: 70, showThinking: true, preemptEnabled: true, liveEditEnabled: true });
+  const updateSetting = useCallback((k, v) => setSettings(prev => ({ ...prev, [k]: v })), []);
   const [powerDial, setPowerDial] = useState('sovereign'); // ⚡ instant | 👑 sovereign
 
   // Refs
@@ -1158,14 +1336,6 @@ export default function KuroChat() {
     ));
   }, []);
 
-  const handleEditMessage = useCallback((msgIndex, newContent) => {
-    updateMessages(activeId, msgs => {
-      const updated = [...msgs];
-      updated[msgIndex] = { ...updated[msgIndex], content: newContent };
-      return updated;
-    });
-  }, [activeId, updateMessages]);
-
   const createConv = useCallback(() => {
     const n = { id: String(Date.now()), title: '', messages: [], projectId: activeProject };
     setConversations(prev => [n, ...prev]);
@@ -1194,13 +1364,18 @@ export default function KuroChat() {
   }, []);
 
   // ── RT-11: SSE with reconnection + RT-15: Error surfacing ─────────
-  const sendMessage = useCallback(async (preset = null) => {
+  // opts.historyForPayload: explicit message array to send (for edit-resend)
+  // opts.isEditResponse: marks assistant reply as edit-triggered (orange cursor)
+  const sendMessage = useCallback(async (preset = null, opts = {}) => {
     const msg = preset || { role: 'user', content: input.trim() };
     if (!preset && !input.trim()) return;
 
     const cid = activeId;
     const freshMeta = () => ({ steps: [], tools: [], sources: [], runner: null });
-    if (!preset) {
+    if (opts.historyForPayload) {
+      // Edit-resend: set conversation to explicit history + new assistant slot
+      updateMessages(cid, [...opts.historyForPayload, { role: 'assistant', content: '', redactionCount: 0, meta: freshMeta(), isEditResponse: true }]);
+    } else if (!preset) {
       updateMessages(cid, prev => [...prev, msg, { role: 'assistant', content: '', redactionCount: 0, meta: freshMeta() }]);
       setInput('');
     } else {
@@ -1218,8 +1393,9 @@ export default function KuroChat() {
     setConnectionError(null);
 
     // RT-01, RT-04, RT-05: Auth + server resolves profile/agent
+    const historyForApi = opts.historyForPayload || [...messages, msg];
     const payload = {
-      messages: [...messages, msg].map(m => ({
+      messages: historyForApi.map(m => ({
         role: m.role,
         content: m.content,
         images: m.images,
@@ -1281,6 +1457,7 @@ export default function KuroChat() {
     let retries = 0;
     const MAX_RETRIES = 2;
     const RETRY_DELAY = [1000, 3000];
+    const streamStartMs = Date.now();
 
     // ── Smooth streaming: buffer tokens, flush on rAF (~60fps) ──────────
     let tokenBuffer = '';
@@ -1306,6 +1483,7 @@ export default function KuroChat() {
 
     // Phase 3 + 3.6: execute JSON tool calls found in the completed response,
     // updating ReasoningPanel meta as each call proceeds.
+    const executedToolIds = new Set(); // Dedup: skip calls already handled via SSE (vision)
     const handleJsonToolCalls = async (content, convId) => {
       const calls = extractJsonToolCalls(content);
       if (!calls.length) return;
@@ -1313,7 +1491,32 @@ export default function KuroChat() {
       for (const { raw, parsed } of calls) {
         const toolName = parsed?.kuro_tool_call?.name || 'unknown';
         const toolId   = parsed?.kuro_tool_call?.id   || `${toolName}-${Date.now()}`;
+        if (executedToolIds.has(toolId)) {
+          console.warn(`[VISION_TOOL_LOOP_ABORT] toolId=${toolId} already executed — skipping`);
+          continue;
+        }
+        executedToolIds.add(toolId);
         addTool(toolId, toolName);
+
+        // ── IMMEDIATE: replace raw JSON with a placeholder so it never shows as text ──
+        const placeholder = `__TOOL_PENDING_${toolId}__`;
+        const replaceInMsg = (search, replacement) => {
+          updateMessages(convId, prev => {
+            const u = [...prev];
+            // Search all assistant messages, not just last (in case new messages arrived)
+            for (let i = u.length - 1; i >= 0; i--) {
+              if (u[i].role === 'assistant' && u[i].content.includes(search)) {
+                u[i] = { ...u[i], content: u[i].content.replace(search, replacement) };
+                break;
+              }
+            }
+            return u;
+          });
+        };
+
+        // Hide the raw JSON immediately
+        replaceInMsg(raw, placeholder);
+
         const invokeStart = Date.now();
         try {
           const res = await authFetch('/api/tools/invoke', {
@@ -1321,10 +1524,19 @@ export default function KuroChat() {
             body: JSON.stringify(parsed),
           });
           const durationMs = Date.now() - invokeStart;
-          if (!res.ok) { updateTool(toolId, 'error', durationMs); continue; }
+          if (!res.ok) {
+            const errText = await res.text().catch(() => `HTTP ${res.status}`);
+            updateTool(toolId, 'error', durationMs);
+            replaceInMsg(placeholder, `**Tool error**: ${errText}`);
+            continue;
+          }
           const data = await res.json();
           const tr = data.kuro_tool_result;
-          if (!tr) { updateTool(toolId, 'error', durationMs); continue; }
+          if (!tr) {
+            updateTool(toolId, 'error', durationMs);
+            replaceInMsg(placeholder, `**Tool error**: Invalid response from server`);
+            continue;
+          }
           updateTool(toolId, tr.ok ? 'ok' : 'error', durationMs);
 
           // Phase 3.6: surface runner job in panel
@@ -1338,23 +1550,26 @@ export default function KuroChat() {
             });
           }
 
-          const resultBlock = tr.ok
-            ? `\n\n**Tool result** (\`${tr.name}\`):\n\`\`\`json\n${JSON.stringify(tr.result, null, 2)}\n\`\`\``
-            : `\n\n**Tool error** (\`${tr.name}\`): ${tr.error}`;
-          updateMessages(convId, prev => {
-            const u = [...prev];
-            const last = u[u.length - 1];
-            if (last?.role === 'assistant') {
-              u[u.length - 1] = { ...last, content: last.content.replace(raw, `[Tool: ${tr.name}]${resultBlock}`) };
-            }
-            return u;
-          });
+          // Vision tool: embed image inline instead of JSON dump
+          if (tr.name === 'vision.generate' && tr.ok && tr.result?.imageUrl) {
+            addStep(`Image generated (${tr.result.elapsed || '?'}s, seed ${tr.result.seed || '?'})`);
+          }
+
+          const resultBlock = tr.name === 'vision.generate' && tr.ok && tr.result?.imageUrl
+            ? `![Generated Image](${tr.result.imageUrl})\n*${tr.result.dimensions?.width || 1024}×${tr.result.dimensions?.height || 1024} · ${tr.result.pipeline || 'flux'} · ${tr.result.elapsed || '?'}s · seed ${tr.result.seed || '?'}*`
+            : tr.ok
+            ? `\`\`\`json\n${JSON.stringify(tr.result, null, 2)}\n\`\`\``
+            : `**Tool error**: ${tr.error}`;
+          replaceInMsg(placeholder, resultBlock);
         } catch (err) {
           updateTool(toolId, 'error', Date.now() - invokeStart);
+          replaceInMsg(placeholder, `**Tool error**: ${err.message}`);
           console.error('[TOOL] Invoke error:', err.message);
         }
       }
     };
+
+    addStep('Connecting to model');
 
     const attemptStream = async () => {
       toolScanBuffer = ''; // reset on each attempt
@@ -1412,11 +1627,39 @@ export default function KuroChat() {
               continue;
             }
 
-            if (d.type === 'token') {
+            if (d.type === 'vision_start') {
+              addStep(`Generating image…`);
+              // Wipe raw tool call JSON that streamed into the message
+              flushTokenBuffer();
+              toolScanBuffer = ''; // Prevent handleJsonToolCalls from re-executing after SSE vision
+              updateMessages(cid, prev => prev.map((m, i) =>
+                i === prev.length - 1 && m.role === 'assistant'
+                  ? { ...m, content: m.content.replace(/\{[\s\S]*?"vision\.generate"[\s\S]*/, '').trim() }
+                  : m
+              ));
+            } else if (d.type === 'vision_phase') {
+              if (d.label) addStep(d.label);
+            } else if (d.type === 'vision_result') {
+              flushTokenBuffer();
+              executedToolIds.add('vision-1'); // Mark as SSE-handled so handleJsonToolCalls skips it
+              const imgMd = `![Generated Image](${d.imageUrl})\n*${d.dimensions?.width || 1024}×${d.dimensions?.height || 1024} · ${d.elapsed || '?'}s · seed ${d.seed || '?'}*`;
+              updateMessages(cid, prev => prev.map((m, i) =>
+                i === prev.length - 1 && m.role === 'assistant'
+                  ? { ...m, content: (m.content || '') + '\n' + imgMd }
+                  : m
+              ));
+              addStep(`Image generated (${d.elapsed || '?'}s)`);
+            } else if (d.type === 'token') {
+              if (tokens === 0) addStep('Generating response');
               tokens++;
               setTokenCount(tokens);
+              if (tokens % 10 === 0) {
+                dispatchMeta(m => ({ ...m, tokens, elapsed: Date.now() - streamStartMs }));
+              }
+              // Suppress raw tool call JSON from display
+              if (d.content === '\0' || d.content.includes('"kuro_tool_call"')) continue;
               tokenBuffer += d.content;
-              toolScanBuffer += d.content; // Phase 3: track for tool call detection
+              toolScanBuffer += d.content;
               scheduleFlush();
             } else if (d.type === 'thinking') {
               // Per-sentence think summaries from the <think> block
@@ -1463,7 +1706,14 @@ export default function KuroChat() {
               clearTimeout(staleTimer);
               if (rafId) cancelAnimationFrame(rafId);
               flushTokenBuffer();
-              addStep('Formatting final answer');   // Phase 3.6
+              // Final meta: token count, model, elapsed time
+              const finalElapsed = Date.now() - streamStartMs;
+              dispatchMeta(m => ({
+                ...m,
+                tokens,
+                model: d.model || '',
+                elapsed: finalElapsed,
+              }));
               // Phase 3: detect and execute any JSON tool calls in the response
               handleJsonToolCalls(toolScanBuffer, cid).catch(console.error);
               setIsLoading(false);
@@ -1476,6 +1726,10 @@ export default function KuroChat() {
         clearTimeout(staleTimer);
         if (rafId) cancelAnimationFrame(rafId);
         flushTokenBuffer();
+        // Fallback: if stream ended without a 'done' event, still process tool calls
+        if (toolScanBuffer) {
+          handleJsonToolCalls(toolScanBuffer, cid).catch(console.error);
+        }
       } catch (err) {
         if (rafId) cancelAnimationFrame(rafId);
         flushTokenBuffer();
@@ -1504,6 +1758,14 @@ export default function KuroChat() {
 
     await attemptStream();
   }, [input, activeId, activeAgent, activeSkill, messages, settings, isLoading]);
+
+  const handleEditMessage = useCallback((msgIndex, newContent) => {
+    // Truncate to before the edited message, re-send with new content
+    const truncated = messages.slice(0, msgIndex);
+    const editedMsg = { role: 'user', content: newContent, isEdited: true };
+    const fullHistory = [...truncated, editedMsg];
+    sendMessage(editedMsg, { historyForPayload: fullHistory, isEditResponse: true });
+  }, [messages, sendMessage]);
 
   // ── RT-08: Index-based regen ───────────────────────────────────────
   const handleRegen = useCallback((msgIndex) => {
@@ -1564,7 +1826,21 @@ export default function KuroChat() {
           auditStatus={auditStatus}
           activeSkill={activeSkill}
           onSkillChange={setActiveSkill}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
+        {settingsOpen && (
+          <SettingsPanel
+            settings={settings}
+            updateSetting={updateSetting}
+            powerDial={powerDial}
+            setPowerDial={setPowerDial}
+            webEnabled={webEnabled}
+            toggleWeb={toggleWeb}
+            activeSkill={activeSkill}
+            setActiveSkill={setActiveSkill}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
 
         <main className="main">
           <PolicyBanner notice={policyNotice} agents={agents} onDismiss={() => setPolicyNotice(null)} />
@@ -1572,12 +1848,6 @@ export default function KuroChat() {
           {/* Header */}
           <Island className="header-island" floating glow dismissable position="top">
             <button className="icon-btn" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button>
-            <AgentSelector
-              active={activeAgent}
-              onChange={setActiveAgent}
-              agents={agents}
-              maxTier={profileDef?.maxAgentTier || 3}
-            />
             <div className="header-spacer" />
             <button className="icon-btn" onClick={createConv}><Plus size={18} /></button>
           </Island>
@@ -1622,51 +1892,71 @@ export default function KuroChat() {
 
           <ConnectionStatus error={connectionError} />
 
-          {/* Input area — tools row + input island */}
+          {/* Input area — attach panel + [+] bubble + input island */}
           <div className="input-area">
-            <div className="input-tools-row">
-              <button className="tool-island attach-island" type="button" onClick={() => fileInputRef.current?.click()} title="Attach file">
-                <Paperclip size={13} /><span>Attach</span>
-              </button>
-              <input type="file" ref={fileInputRef} hidden onChange={e => handleFiles(e.target.files)} />
-              <WebToggle enabled={webEnabled} onChange={toggleWeb} />
-              <SpeedIsland value={powerDial} onChange={setPowerDial} />
-            </div>
-            <Island className={`input-island preempt-${preemptState}`} floating glow dismissable position="bottom">
-              <LiveEditBar
-                phrase={liveEdit.correctionPhrase}
-                visible={liveEdit.showBar}
-                adapting={liveEdit.adapting}
-                error={liveEdit.error}
-                onApply={liveEdit.applyCorrection}
-                onDismiss={liveEdit.dismiss}
+            {attachPanelOpen && (
+              <AttachPanel
+                onAttachFile={() => fileInputRef.current?.click()}
+                webEnabled={webEnabled} onWebChange={toggleWeb}
+                powerDial={powerDial} onSpeedChange={setPowerDial}
+                insightsEnabled={insightsEnabled} onInsightsChange={setInsightsEnabled}
+                analysisEnabled={analysisEnabled} onAnalysisChange={setAnalysisEnabled}
+                actionsEnabled={actionsEnabled} onActionsChange={setActionsEnabled}
+                onClose={() => setAttachPanelOpen(false)}
               />
-              <div className="input-main">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={e => { setInput(e.target.value); onInputChange(e.target.value); }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (liveEdit.showBar) liveEdit.applyCorrection();
-                      else if (!isLoading) sendMessage();
-                    }
-                  }}
-                  placeholder={chatPlaceholder}
-                  rows={1}
-                />
-                {isLoading ? (
-                  <button className="send-btn stop" onClick={() => { abortRef.current?.abort(); setIsLoading(false); }}><Square size={16} /></button>
-                ) : (
-                  <button className="send-btn" onClick={() => sendMessage()} disabled={!input.trim()}><ArrowUp size={18} /></button>
+            )}
+            {/* single file input — no image/* so iOS opens Files directly */}
+            <input type="file" ref={fileInputRef} hidden
+              accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.rb,.go,.rs,.c,.cpp,.sh,.bash,.yaml,.yml,.xml,.csv,.log,.zip,.tar,.gz,.mp4,.mov,.mp3"
+              onChange={e => { handleFiles(e.target.files); setAttachPanelOpen(false); }}
+            />
+            <div className="input-row">
+              <button
+                className={`attach-btn${attachPanelOpen ? ' open' : ''}`}
+                type="button"
+                onClick={() => setAttachPanelOpen(v => !v)}
+                title="Attach or toggle options"
+              >
+                <Plus size={16} />
+              </button>
+              <Island className={`input-island preempt-${preemptState}`} floating glow dismissable position="bottom">
+                {settings.liveEditEnabled && (
+                  <LiveEditBar
+                    phrase={liveEdit.correctionPhrase}
+                    visible={liveEdit.showBar}
+                    adapting={liveEdit.adapting}
+                    error={liveEdit.error}
+                    onApply={liveEdit.applyCorrection}
+                    onDismiss={liveEdit.dismiss}
+                  />
                 )}
-              </div>
-            </Island>
+                <div className="input-main">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={e => { setInput(e.target.value); if (settings.preemptEnabled) onInputChange(e.target.value); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (settings.liveEditEnabled && liveEdit.showBar) liveEdit.applyCorrection();
+                        else if (!isLoading) sendMessage();
+                      }
+                    }}
+                    placeholder={chatPlaceholder}
+                    rows={1}
+                  />
+                  {isLoading ? (
+                    <button className="send-btn stop" onClick={() => { abortRef.current?.abort(); setIsLoading(false); }}><Square size={16} /></button>
+                  ) : (
+                    <button className="send-btn" onClick={() => sendMessage()} disabled={!input.trim()}><ArrowUp size={18} /></button>
+                  )}
+                </div>
+              </Island>
+            </div>
           </div>
         </main>
 
-        {isDragging && <div className="drop-zone"><Paperclip size={48} /><span>Drop to upload</span></div>}
+        {isDragging && <div className="drop-zone"><Plus size={48} /><span>Drop to upload</span></div>}
 
         <style>{`
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2049,16 +2339,7 @@ export default function KuroChat() {
 .message { display: flex; gap: 12px; animation: msgIn 0.28s cubic-bezier(0.22,1,0.36,1); }
 @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { justify-content: flex-end; }
-.message-avatar {
-  width: 32px; height: 32px;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--agent-color, var(--accent)), #6366f1);
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.message-avatar.user { background: var(--surface-2); }
-.message-avatar svg { color: white; }
-.message-content { max-width: 85%; min-width: 0; }
+.message-content { max-width: 88%; min-width: 0; }
 .message.user .message-content {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2074,6 +2355,16 @@ export default function KuroChat() {
   animation: cursorFade 0.9s ease-in-out infinite;
   font-weight: normal;
   user-select: none;
+}
+.stream-cursor.edit-cursor {
+  color: var(--warning);
+  text-shadow: 0 0 6px rgba(255,159,10,0.5), 0 0 14px rgba(255,159,10,0.3);
+}
+/* Edited user message — orange glow on bubble */
+.message.user .message-content.edited {
+  border-color: rgba(255,159,10,0.4);
+  box-shadow: 0 0 0 3px rgba(255,159,10,0.07), 0 0 28px -8px rgba(255,159,10,0.35);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 @keyframes cursorFade {
   0%, 100% { opacity: 1; }
@@ -2092,7 +2383,8 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 .md-link { color: #a78bfa; text-decoration: none; border-bottom: 1px solid rgba(167,139,250,0.3); }
 .md-link:hover { color: #c4b5fd; border-bottom-color: rgba(196,181,253,0.5); }
 .md-line { display: inline; }
-.message-actions { display: flex; gap: 4px; margin-top: 8px; animation: fadeIn 0.15s ease; }
+.message-actions { display: flex; gap: 4px; margin-top: 8px; animation: msgActionsIn 0.4s ease 0.25s both; }
+@keyframes msgActionsIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .message-actions button {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
@@ -2112,6 +2404,14 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   transition: opacity 0.15s, transform 0.15s;
 }
 .message-img-thumb:hover { opacity: 0.9; transform: scale(1.02); }
+.md-img {
+  max-width: 100%; max-height: 480px;
+  border-radius: 12px; object-fit: contain;
+  border: 1px solid var(--border);
+  margin: 8px 0;
+  display: block;
+  background: rgba(0,0,0,0.2);
+}
 
 /* ═══ THOUGHT BLOCK ═══ */
 .thought-block {
@@ -2245,37 +2545,182 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   z-index: 50;
   display: flex; flex-direction: column; gap: 7px;
 }
-.input-tools-row {
-  display: flex; gap: 6px; align-items: center;
-  padding: 0 4px;
+/* ═══ INPUT ROW — [+] bubble + Island side by side ═══ */
+.input-row {
+  display: flex; align-items: flex-end; gap: 8px;
 }
-/* Shared pill island style — upload, speed, etc. */
-.tool-island {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 12px;
+.input-island { flex: 1; min-width: 0; }
+
+/* ═══ ATTACH BUTTON — circular bubble outside Island ═══ */
+.attach-btn {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(22,22,26,0.88);
   border: 1px solid var(--border);
-  border-radius: 100px;
+  border-radius: var(--radius-md); /* match island radius */
+  color: var(--text-2);
+  cursor: pointer; flex-shrink: 0;
   backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 16px rgba(0,0,0,0.35);
-  color: var(--text-2); font-size: 12px; font-weight: 500;
-  cursor: pointer; flex-shrink: 0;
-  transition: background 0.15s, color 0.15s, transform 0.13s cubic-bezier(0.2,0,0,1);
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.22s cubic-bezier(0.22,1,0.36,1);
   -webkit-tap-highlight-color: transparent;
 }
-.tool-island:hover { background: rgba(35,35,42,0.92); color: var(--text); }
-.tool-island:active { transform: scale(0.95); transition-duration: 0.07s; }
-/* Speed island modes */
-.speed-island.fast { color: rgba(255,214,10,0.75); border-color: rgba(255,214,10,0.15); }
-.speed-island.fast:hover { background: rgba(255,214,10,0.07); color: rgba(255,230,80,0.95); border-color: rgba(255,214,10,0.3); }
-.speed-island.sov { color: rgba(168,85,247,0.85); border-color: rgba(168,85,247,0.22); }
-.speed-island.sov:hover { background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.4); }
+.attach-btn:hover { background: rgba(35,35,42,0.95); color: var(--text); }
+.attach-btn:active { transform: scale(0.93); }
+.attach-btn.open { background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.3); color: var(--accent); transform: rotate(45deg); }
 
-/* ═══ WEB (o) TOGGLE ═══ */
-.web-island { color: rgba(100,180,255,0.6); border-color: rgba(100,180,255,0.12); }
-.web-island:hover { background: rgba(100,180,255,0.07); color: rgba(120,200,255,0.9); border-color: rgba(100,180,255,0.28); }
-.web-island.web-on { color: #64b4ff; border-color: rgba(100,180,255,0.35); background: rgba(100,180,255,0.1); }
-.web-island.web-on:hover { background: rgba(100,180,255,0.17); }
+/* ═══ ATTACH PANEL — glass popover, left-aligned with + bubble ═══ */
+.ap-backdrop { position: fixed; inset: 0; z-index: 200; }
+.ap-panel {
+  position: absolute; bottom: calc(100% + 10px); left: 0;
+  width: 288px; z-index: 201;
+  transform-origin: bottom left;
+  animation: apShow 0.16s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes apShow {
+  from { opacity: 0; transform: scale(0.93) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+.ap-inner {
+  background: rgba(18,18,24,0.97);
+  backdrop-filter: blur(60px) saturate(1.5); -webkit-backdrop-filter: blur(60px) saturate(1.5);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.05);
+}
+.ap-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border: none; background: none; width: 100%;
+  text-align: left; cursor: pointer;
+  transition: background 0.12s;
+}
+.ap-row:hover { background: rgba(255,255,255,0.04); }
+.ap-row + .ap-row { border-top: 1px solid rgba(255,255,255,0.04); }
+.ap-file-row { cursor: pointer; }
+.ap-toggle-row { cursor: default; }
+.ap-row-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--surface); border-radius: 9px; color: var(--text-2); flex-shrink: 0; }
+.ap-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ap-row-label { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.3; }
+.ap-row-desc { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+.ap-row-arr { color: var(--text-3); flex-shrink: 0; }
+.ap-divider { height: 1px; background: var(--border); margin: 0; }
+
+/* ═══ KURO SWITCH ═══ */
+.ks-switch {
+  width: 40px; height: 24px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  position: relative; cursor: pointer; flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ks-switch.on { background: var(--accent); border-color: var(--accent); }
+.ks-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  transition: transform 0.2s cubic-bezier(0.22,1,0.36,1);
+}
+.ks-switch.on .ks-thumb { transform: translateX(16px); }
+
+/* ═══ SETTINGS PANEL ═══ */
+.sp-backdrop { position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: fadeIn 0.18s ease; }
+.sp-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(360px, 100%);
+  background: rgba(12,12,16,0.98);
+  backdrop-filter: blur(60px); -webkit-backdrop-filter: blur(60px);
+  border-left: 1px solid var(--border);
+  z-index: 401;
+  display: flex; flex-direction: column;
+  animation: spSlideIn 0.25s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes spSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.sp-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sp-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.sp-close { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-2); cursor: pointer; transition: background 0.12s; }
+.sp-close:hover { background: var(--surface-2); color: var(--text); }
+.sp-body { flex: 1; overflow-y: auto; }
+.sp-section { border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 4px; }
+.sp-section:last-child { border-bottom: none; }
+.sp-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); padding: 16px 20px 6px; }
+.sp-row { display: flex; align-items: center; gap: 12px; padding: 10px 20px; min-height: 58px; }
+.sp-row-stack { flex-wrap: wrap; gap: 8px; }
+.sp-row-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.sp-row-label { font-size: 13px; font-weight: 500; color: var(--text); }
+.sp-row-desc { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+/* ── NIN ADD ANXIETY — Volatility Slider ── */
+.vol-slider-wrap { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.vol-track {
+  position: relative; height: 28px; width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.vol-fill {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  background: linear-gradient(90deg,
+    rgba(168,85,247,0.3) 0%,
+    rgba(239,68,68,0.5) 60%,
+    rgba(255,50,30,0.75) 100%);
+  transition: width 0.06s linear;
+  pointer-events: none;
+}
+.vol-fill::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.4) 3px,
+    rgba(0,0,0,0.4) 4px
+  );
+}
+.vol-notches {
+  position: absolute; inset: 0;
+  display: flex; align-items: stretch; justify-content: space-between;
+  padding: 4px 2px;
+  pointer-events: none;
+}
+.vol-notch {
+  width: 1px;
+  background: rgba(255,255,255,0.08);
+  transition: background 0.1s;
+}
+.vol-notch.lit { background: rgba(255,255,255,0.2); }
+.vol-input {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  margin: 0; padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+.vol-readout {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.vol-val {
+  font-size: 22px; font-weight: 800; letter-spacing: -1px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.vol-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  transition: color 0.15s;
+}
+/* Color escalation based on parent state — driven by the fill gradient */
+.vol-slider-wrap:has(.vol-input:hover) .vol-fill { filter: brightness(1.3); }
+.vol-slider-wrap:has(.vol-input:active) .vol-fill { filter: brightness(1.5); }
+.vol-slider-wrap:has(.vol-input:active) .vol-track { border-color: rgba(239,68,68,0.3); }
+.sp-seg { display: flex; gap: 4px; flex-shrink: 0; }
+.sp-seg-btn { display: flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-2); font-size: 12px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; white-space: nowrap; }
+.sp-seg-btn.active { background: rgba(168,85,247,0.14); border-color: rgba(168,85,247,0.35); color: var(--accent); }
 
 /* ═══ WEB SOURCE FLASH CARDS ═══ */
 .web-source-cards {

@@ -4,7 +4,34 @@
  *     Dock always visible. Locked apps greyed until auth.
  * G2: Legacy 3D cube in dock start button. Glass tokens aligned.
  */
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, Component } from 'react';
+
+// ─── Error Boundary — catches render crashes and shows them instead of black screen ───
+class AppErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(err) { return { error: err }; }
+  render() {
+    if (this.state.error) {
+      const msg = this.state.error?.message || String(this.state.error);
+      const stack = this.state.error?.stack || '';
+      return (
+        <div style={{
+          position: 'fixed', inset: 0, background: '#08080f',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'monospace', padding: 32,
+        }}>
+          <div style={{ maxWidth: 680, width: '100%' }}>
+            <div style={{ color: '#ff5f57', fontSize: 14, fontWeight: 700, marginBottom: 12 }}>KURO — Render Error</div>
+            <div style={{ color: '#fff', fontSize: 13, marginBottom: 16, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg}</div>
+            <pre style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'auto', maxHeight: 400 }}>{stack}</pre>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 20, padding: '8px 20px', background: 'rgba(168,85,247,0.2)', border: '1px solid rgba(168,85,247,0.4)', color: '#a855f7', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Reload</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { LiquidGlassProvider } from './components/LiquidGlassEngine';
 import { useOSStore } from './stores/osStore';
 import { useAuthStore } from './stores/authStore';
@@ -157,7 +184,7 @@ function AppWindow({ appId, children, noClose, title, icon }) {
 // LOCK BADGE
 // ═══════════════════════════════════════════════════════════════════════════
 function LockBadge({ minTier }) {
-  return <span className="lock-badge" data-tier={minTier}>🔒{TIER_LABEL[minTier] || ''}</span>;
+  return <span className="lock-badge" data-tier={minTier}><KuroIcon name="lock" size={10} color="currentColor" />{TIER_LABEL[minTier] || ''}</span>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -211,7 +238,7 @@ function GlassDock({ isLocked, onLockedAppClick }) {
   if (dockHidden) {
     return (
       <button className="dock-reveal-tab" onClick={() => setDockHidden(false)} aria-label="Show Dock">
-        <span className="dock-reveal-chevron">▴</span>
+        <KuroIcon name="chevron-up" size={12} color="currentColor" />
       </button>
     );
   }
@@ -219,7 +246,7 @@ function GlassDock({ isLocked, onLockedAppClick }) {
   return (
     <div className="dock-outer">
       <button className="dock-hide-btn" onClick={() => setDockHidden(true)} aria-label="Hide Dock">
-        <span className="dock-hide-chevron">▾</span>
+        <KuroIcon name="chevron-down" size={12} color="currentColor" />
       </button>
       <div className="glass-dock">
         <button className="dock-cube" onClick={toggleGlassPanel}>
@@ -233,7 +260,7 @@ function GlassDock({ isLocked, onLockedAppClick }) {
               onClick={() => handleClick(app)} title={app.name}>
               <span className="dock-icon"><KuroIcon name={app.id} size={22} color="rgba(255,255,255,0.85)" /></span>
               {locked && !isLocked && <LockBadge minTier={app.minTier} />}
-              {locked && isLocked && <span className="lock-badge" style={{background:'rgba(255,255,255,0.15)'}}>🔒</span>}
+              {locked && isLocked && <span className="lock-badge" style={{background:'rgba(255,255,255,0.15)'}}><KuroIcon name="lock" size={10} color="rgba(255,255,255,0.6)" /></span>}
               {windows[app.id]?.isOpen && !locked && <div className="dock-indicator" />}
             </button>
           );
@@ -288,7 +315,7 @@ function ShadowNetToggle() {
   return (
     <button className={`shadow-net-row${vpn.enabled ? ' on' : ''}`} onClick={toggle} disabled={busy}>
       <span className="sn-label">
-        <span className="sn-icon">🛡</span>
+        <KuroIcon name="shield" size={14} color="currentColor" className="sn-icon" />
         <span className="sn-text">
           <span className="sn-name">Shadow Net</span>
           <span className="sn-sub">{vpn.active ? 'WireGuard active' : vpn.enabled ? 'Connecting…' : 'Off'}</span>
@@ -418,7 +445,7 @@ function InstallPrompt() {
       fontSize: 13, color: 'rgba(255,255,255,0.85)',
       whiteSpace: 'nowrap',
     }}>
-      <span style={{ fontSize: 16 }}>💾</span>
+      <KuroIcon name="install" size={16} color="rgba(255,255,255,0.7)" />
       <span>Install KURO OS</span>
       <button onClick={handleInstall} style={{
         background: 'rgba(168,85,247,0.75)', border: 'none', borderRadius: 8,
@@ -426,8 +453,8 @@ function InstallPrompt() {
       }}>Install</button>
       <button onClick={handleDismiss} style={{
         background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)',
-        fontSize: 16, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
-      }} title="Dismiss">×</button>
+        display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0 2px',
+      }} title="Dismiss"><KuroIcon name="close" size={14} color="currentColor" /></button>
     </div>
   );
 }
@@ -435,7 +462,7 @@ function InstallPrompt() {
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP — Desktop always rendered. AuthGate is an OS window.
 // ═══════════════════════════════════════════════════════════════════════════
-export default function App() {
+function AppInner() {
   const { windows, apps, openApp, focusWindow, restoreApp } = useOSStore();
   const { init, loading, user } = useAuthStore();
 
@@ -968,5 +995,13 @@ export default function App() {
         `}</style>
       </div>
     </LiquidGlassProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppInner />
+    </AppErrorBoundary>
   );
 }

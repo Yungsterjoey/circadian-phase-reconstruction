@@ -14,8 +14,13 @@
 const { VFS_TOOLS }    = require('./vfs_tools.cjs');
 const { RUNNER_TOOLS } = require('./runner_tools.cjs');
 
+// Vision orchestrator — loaded lazily (GPU-heavy, may not be present)
+let visionOrchestrator = null;
+try { visionOrchestrator = require('../vision/vision_orchestrator.cjs'); } catch(e) {}
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 const SCHEMAS = {
+  'vision.generate': require('./schemas/vision.generate.json'),
   'vfs.list':      require('./schemas/vfs.list.json'),
   'vfs.read':      require('./schemas/vfs.read.json'),
   'vfs.write':     require('./schemas/vfs.write.json'),
@@ -114,6 +119,59 @@ const REGISTRY = {
     policyKey: 'runner.logs',
     async handler(args, userId, db) {
       return RUNNER_TOOLS.runner_logs.run(args, userId, db);
+    },
+  },
+
+  // ── Vision ──────────────────────────────────────────────────────────────────
+  'vision.generate': {
+    schema:    SCHEMAS['vision.generate'],
+    policyKey: 'vision.generate',
+    async handler(args, userId /*, db */) {
+      if (!visionOrchestrator) {
+        throw new Error('Vision module not available');
+      }
+
+      // Collect SSE events from the orchestrator via mock req/res
+      const events = [];
+      const mockReq = {
+        body: {
+          prompt: args.prompt,
+          width: args.width || 1024,
+          height: args.height || 1024,
+          seed: args.seed,
+          userTier: 'pro', // tool invocation requires Pro+ (enforced by RBAC)
+          profile: 'lab',
+        },
+        user: { userId },
+        on: () => {}, // no-op for 'close' handler
+      };
+      const mockRes = {
+        write(raw) {
+          const m = raw.match(/^data: (.+)\n\n$/);
+          if (m) try { events.push(JSON.parse(m[1])); } catch {}
+        },
+        setHeader() {},
+        flushHeaders() {},
+        end() {},
+      };
+
+      await visionOrchestrator.generate(mockReq, mockRes, null);
+
+      const result = events.find(e => e.type === 'vision_result');
+      if (result) {
+        return {
+          imageUrl: `/api/vision/image/${result.filename}`,
+          filename: result.filename,
+          seed: result.seed,
+          dimensions: result.dimensions,
+          elapsed: result.elapsed,
+          pipeline: result.pipeline,
+          attempts: result.attempts,
+        };
+      }
+
+      const error = events.find(e => e.type === 'error');
+      throw new Error(error?.message || 'Vision generation failed');
     },
   },
 };

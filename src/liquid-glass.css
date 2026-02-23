@@ -821,6 +821,9 @@
 .rp-header:hover {
   background: rgba(168, 85, 247, 0.08);
 }
+.rp-live .rp-header {
+  color: rgba(168, 85, 247, 1);
+}
 
 .rp-icon {
   display: flex;
@@ -831,6 +834,28 @@
 .rp-label {
   flex: 1;
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Live stats (tokens, tps) shown inline during streaming ── */
+.rp-live-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-family: var(--lg-font-mono, monospace);
+  color: rgba(168, 85, 247, 0.7);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.rp-done-stats {
+  font-size: 10px;
+  font-family: var(--lg-font-mono, monospace);
+  color: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .rp-body {
@@ -839,6 +864,46 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* ── Stream activity bar ── */
+.rp-stream-bar {
+  height: 2px;
+  width: 100%;
+  background: rgba(168, 85, 247, 0.1);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.rp-stream-fill {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, rgba(168,85,247,0.6), rgba(168,85,247,0.2));
+  border-radius: 1px;
+  animation: rpStreamSlide 2s ease-in-out infinite;
+}
+@keyframes rpStreamSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Perf summary (post-stream) ── */
+.rp-perf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  font-family: var(--lg-font-mono, monospace);
+  color: rgba(255, 255, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+}
+.rp-perf-model {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.rp-perf-tok, .rp-perf-time, .rp-perf-tps {
+  color: rgba(255, 255, 255, 0.25);
 }
 
 /* Steps */
@@ -855,15 +920,24 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.5);
   line-height: 1.4;
+  transition: color 0.2s;
+}
+.rp-step-active {
+  color: rgba(255, 255, 255, 0.8);
 }
 .rp-step-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgba(168, 85, 247, 0.6);
+  background: rgba(168, 85, 247, 0.4);
   flex-shrink: 0;
+  transition: background 0.2s;
+}
+.rp-step-active .rp-step-dot {
+  background: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
 }
 
 /* Section header */

@@ -324,7 +324,7 @@ const MODEL_REGISTRY = {
   // Brain: heavy reasoning (Qwen3-30B-A3B VL abliterated, ~10GB active VRAM)
   // Budget: 3 + 10 + 4 (KV cache) = 17GB used, 7GB headroom
 
-  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'huihui_ai/gemma3-abliterated:4b',                                ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Gemma3 4B Abliterated)', vram: 3 },
+  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'llama3.2:3b',                                                    ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Llama 3.2 3B)', vram: 2 },
   'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 10 },
   'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                                              ctx: 2048,  embedding: true, tier: 'subconscious' }
 };
@@ -377,7 +377,7 @@ async function checkOllama() {
 // PROMPTS
 // ═══════════════════════════════════════════════════════════════════════════
 const MODE_PROMPTS = {
-  main: 'You are KURO, a sovereign AI intelligence running on-premises.\n\nCOMMUNICATION:\n- Direct and genuine\n- Match response length to query complexity\n- Use <think>...</think> for complex reasoning only\n- Address user as Operator when appropriate',
+  main: 'You are KURO, a sovereign AI intelligence running on-premises.\n\nCOMMUNICATION:\n- Direct and genuine\n- Match response length to query complexity\n- Use <think>...</think> for complex reasoning only\n- Address user as Operator when appropriate\n\nIMAGE GENERATION:\nYou can generate images using the FLUX vision pipeline. When the user asks you to create, draw, generate, or make an image/picture/photo/illustration, output a JSON tool call:\n{"kuro_tool_call":{"id":"vision-1","name":"vision.generate","args":{"prompt":"detailed image description here"}}}\nWrite a rich, detailed prompt describing the image. Do NOT say you cannot generate images — you CAN via the vision tool.',
   dev: 'You are KURO::DEV, autonomous coding mode.\n\nPROTOCOL:\n1. Plan first — use <plan>...</plan> tags\n2. Execute without asking permission\n3. Debug autonomously\n\nOUTPUT FORMAT:\n- Terminal: <terminal>$ command</terminal>\n- Files: <file path="..." action="create|modify|delete">content</file>',
   bloodhound: 'You are KURO::BLOODHOUND, deep research mode.\nMethodical, cross-reference sources.\nUse <research>...</research> for analysis.',
   war_room: 'You are KURO::WAR_ROOM, strategic planning mode.\nAll angles, risks, countermeasures.\nUse <strategy>...</strategy> for planning.'
@@ -443,6 +443,35 @@ function sendSSE(r, d) { try { r.write('data: ' + JSON.stringify(d) + '\n\n'); }
 function sendLayer(r, n, s, x, ct) { if (ct === 'chat') return; const p = { type: 'layer', layer: n, name: LAYERS[n] || `L${n}`, status: s }; if (x) Object.assign(p, x); sendSSE(r, p); }
 function buildSystemPrompt(mode, skill, opts, rag, am) { let p = MODE_PROMPTS[mode] || MODE_PROMPTS.main; p += `\nRunning as KURO::CORE [${mode.toUpperCase()}]`; if (am?.agent) { p += ` via ${am.agent.name}`; if (am.downgraded) p += ` [DOWNGRADED: ${am.reason}]`; } p += `\nProfile: ${PROFILE.name}\n`; if (skill && SKILL_BEHAVIORS[skill]) p += '\n' + SKILL_BEHAVIORS[skill] + '\n'; if (opts.thinking) p += GHOST_PROTOCOLS.thinking; if (opts.reasoning) p += GHOST_PROTOCOLS.reasoning; if (opts.incubation) p += GHOST_PROTOCOLS.incubation; if (opts.redTeam) p += GHOST_PROTOCOLS.redTeam; if (opts.nuclearFusion) p += GHOST_PROTOCOLS.nuclearFusion; if (rag?.length) { p += '\n[RETRIEVED CONTEXT]\n'; rag.forEach((d, i) => p += `<context id="${i + 1}" score="${d.score?.toFixed(2) || '?'}">\n${d.document}\n</context>\n`); p += '\nUse above context when relevant.\n'; } return p; }
 
+// Balanced-brace JSON extractor for vision tool calls.
+// Replaces the fragile regex that broke on } inside prompt text or extra whitespace.
+function extractVisionCall(text) {
+  const idx = text.indexOf('"kuro_tool_call"');
+  if (idx === -1) return null;
+  const start = text.lastIndexOf('{', idx);
+  if (start === -1) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (esc) { esc = false; continue; }
+    if (inStr) { if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        try {
+          const raw = text.slice(start, i + 1);
+          const p = JSON.parse(raw);
+          if (p?.kuro_tool_call?.name === 'vision.generate') return { raw, args: p.kuro_tool_call.args || {} };
+        } catch {}
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MOUNT AUTH + STRIPE ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -481,7 +510,12 @@ if (rbac) {
   app.use('/api/vfs/write',    auth.required, rbac.requireRole('developer'));
   app.use('/api/vfs/delete',   auth.required, rbac.requireRole('developer'));
   app.use('/api/sandbox',      auth.required, rbac.requireRole('developer'));
-  app.use('/api/tools/invoke', auth.required, rbac.requireRole('developer'));
+  app.use('/api/tools/invoke', auth.required, (req, res, next) => {
+    // Vision tools have their own tier/quota gating — allow all authenticated users
+    const toolName = req.body?.kuro_tool_call?.name || '';
+    if (toolName.startsWith('vision.')) return next();
+    return rbac.requireRole('developer')(req, res, next);
+  });
   console.log('[RBAC] Guards active on /api/runner, /api/git, /api/vfs/write|delete, /api/sandbox, /api/tools/invoke');
 }
 
@@ -888,7 +922,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     // Send capability policy info to client
     sendSSE(res, { type: 'capability', profile: capPolicy.profile, requested: powerDial, downgraded: capPolicy.downgraded, reason: capPolicy.downgradeReason, ctx: capCfg.ctx || cfg.ctx });
 
-    let full = '', tc = 0; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
+    let full = '', tc = 0, resolvedModel = cfg.name; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
     setStreaming(true); // B5: prevent model warming during active inference
     
     // ═══ FRONTIER ASSIST PATH ═══
@@ -907,7 +941,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
               },
               onDone: (info) => {
                 thinkEmitter.reset();
-                sendSSE(res, { type: 'done', tokens: tc, model: `frontier:${fp.provider}`, agent: ar.agentId, requestId: req.requestId, frontier: true });
+                resolvedModel = `frontier:${fp.provider}`;
                 consumeFrontierQuota(user.userId);
                 recordFrontier(); // B3: sovereignty tracking
                 logEvent({ agent: 'frontier_assist', action: 'stream_complete', userId: user.userId, requestId: req.requestId, meta: { tokens: tc, provider: fp.provider, model: fp.model } });
@@ -943,13 +977,50 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
         const correction = streamController.checkCorrection(sid);
         if (correction) { sendSSE(res, { type: 'aborted_for_correction', correction, partial: streamController.getPartial(sid) }); streamAbort.abort(); break; }
         buf += chunk.toString(); const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); sendSSE(res, { type: 'done', tokens: tc, model: cfg.name, agent: ar.agentId, requestId: req.requestId }); } } catch(e) {} }
+        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); /* done sent below after vision check */ } } catch(e) {} }
       }
+      if (buf.trim()) { try { const d = JSON.parse(buf); if (d.message?.content) { full += d.message.content; tc++; sendSSE(res, { type: 'token', content: d.message.content }); } } catch(e) {} }
     } catch(se) {
       if (se.name === 'CanceledError' || se.code === 'ERR_CANCELED') { streamController.unregisterStream(sid); }
       else { sendSSE(res, { type: 'error', message: se.message }); ollamaHealth.failures++; }
     }
     } // end if(!full) — local Ollama path
+
+    // ── Server-side vision tool call detection ─────────────────────────────────
+    // Runs BEFORE done is sent so the client stays connected for the image.
+    // Loop guard: if history already contains a vision call from this session,
+    // strip it without re-running to break any re-emission cycle.
+    if (full) {
+      const visionCall = extractVisionCall(full);
+      if (visionCall) {
+        full = full.replace(visionCall.raw, '').trim(); // Always strip (loop guard)
+        try {
+          const args = visionCall.args;
+          const prompt = args.prompt || '';
+          if (prompt) {
+            // Strip the raw JSON from the token stream display
+            sendSSE(res, { type: 'token', content: '\0' }); // flush trick
+            sendSSE(res, { type: 'vision_start', prompt });
+            const visionEvents = [];
+            const { generate: visionGenerate } = require('./layers/vision/vision_orchestrator.cjs');
+            const mockReq = { body: { prompt, userTier: user.tier || 'free', profile: 'lab' }, user, on: () => {} };
+            const mockRes = { write(raw) { const m = raw.match(/^data: (.+)\n\n$/s); if (m) { try { const e = JSON.parse(m[1]); visionEvents.push(e); if (e.type !== 'done') sendSSE(res, e); } catch {} } }, setHeader(){}, flushHeaders(){}, end(){} };
+            await visionGenerate(mockReq, mockRes, logEvent);
+            const result = visionEvents.find(e => e.type === 'vision_result');
+            if (result) {
+              const imgUrl = `/api/vision/image/${result.filename}`;
+              sendSSE(res, { type: 'vision_result', imageUrl: imgUrl, filename: result.filename, seed: result.seed, dimensions: result.dimensions, elapsed: result.elapsed });
+            } else {
+              const err = visionEvents.find(e => e.type === 'error');
+              sendSSE(res, { type: 'token', content: `\n**Vision failed**: ${err?.message || 'unknown error'}` });
+            }
+          }
+        } catch(ve) { sendSSE(res, { type: 'token', content: `\n**Vision error**: ${ve.message}` }); }
+      }
+    }
+
+    // Send done AFTER vision (client stays connected until this arrives)
+    sendSSE(res, { type: 'done', tokens: tc, model: resolvedModel, agent: ar.agentId, requestId: req.requestId });
 
     if (full) {
       full = enhanceOutput(full); const cleanFull = stripThinkBlocks(full);
