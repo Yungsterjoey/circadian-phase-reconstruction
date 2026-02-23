@@ -501,6 +501,62 @@ const KuroSwitch = ({ on, onChange }) => (
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VISION BAR — compact quality + aspect selectors above input
+// ═══════════════════════════════════════════════════════════════════════════
+const VISION_PRESETS = ['draft', 'balanced', 'pro'];
+const VISION_ASPECTS = ['1:1', '4:5', '16:9', '9:16'];
+
+const VisionBar = ({ preset, setPreset, aspect, setAspect }) => (
+  <div className="vision-bar">
+    <div className="vb-group">
+      {VISION_PRESETS.map(p => (
+        <button key={p} className={`vb-pill${preset === p ? ' active' : ''}`} onClick={() => setPreset(p)}>
+          {p.charAt(0).toUpperCase() + p.slice(1)}
+        </button>
+      ))}
+    </div>
+    <div className="vb-sep" />
+    <div className="vb-group">
+      {VISION_ASPECTS.map(a => (
+        <button key={a} className={`vb-pill${aspect === a ? ' active' : ''}`} onClick={() => setAspect(a)}>
+          {a}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISION GENERATING CARD — live progress during diffusion
+// ═══════════════════════════════════════════════════════════════════════════
+const PHASE_PCT = { start: 5, intent: 10, gpu: 15, scene_graph: 30, generate: 42, composite: 82, evaluate: 92 };
+
+const VisionGeneratingCard = ({ gen }) => {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pct = gen.pct ?? PHASE_PCT[gen.phase] ?? 5;
+  const label = gen.label || gen.phase || 'Initializing…';
+  return (
+    <div className="vision-gen-card">
+      <div className="vgc-header">
+        <KuroCubeSpinner size="xs" />
+        <span className="vgc-title">Generating image</span>
+        <span className="vgc-meta">{gen.preset} · {gen.aspect}</span>
+        <span className="vgc-elapsed">{elapsed}s</span>
+      </div>
+      <div className="vgc-track"><div className="vgc-fill" style={{ width: `${pct}%` }} /></div>
+      <div className="vgc-phase">{label}</div>
+    </div>
+  );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ATTACH PANEL — glass popover above input island
 // ═══════════════════════════════════════════════════════════════════════════
 const AttachPanel = ({
@@ -1001,6 +1057,10 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
             ))}
           </div>
         )}
+        {/* Vision generating card — shown while diffusion is running */}
+        {msg.role === 'assistant' && msg.visionGenerating && (
+          <VisionGeneratingCard gen={msg.visionGenerating} />
+        )}
         {editing ? (
           <div className="message-edit-wrap">
             <textarea
@@ -1196,6 +1256,16 @@ export default function KuroChat() {
     setWebEnabled(v);
     try { sessionStorage.setItem('kuro_web_enabled', v ? 'true' : 'false'); } catch {}
   };
+
+  // Vision quality + aspect — persisted in sessionStorage
+  const [visionPreset, setVisionPreset] = useState(() => {
+    try { return sessionStorage.getItem('kuro_vision_preset') || 'draft'; } catch { return 'draft'; }
+  });
+  const [visionAspect, setVisionAspect] = useState(() => {
+    try { return sessionStorage.getItem('kuro_vision_aspect') || '1:1'; } catch { return '1:1'; }
+  });
+  const setVPreset = (v) => { setVisionPreset(v); try { sessionStorage.setItem('kuro_vision_preset', v); } catch {} };
+  const setVAspect = (v) => { setVisionAspect(v); try { sessionStorage.setItem('kuro_vision_aspect', v); } catch {} };
 
   // RT-02: Only IDs in localStorage, messages in memory
   const [projects, setProjects] = useState(() => {
@@ -1408,6 +1478,9 @@ export default function KuroChat() {
       powerDial,
       preemptSessionId: getPreemptSession(),
       // RT-05: Profile NOT sent — server resolves from token
+      // Vision session preferences (server uses as fallback if LLM doesn't specify)
+      visionPreset,
+      visionAspect,
     };
 
     // Phase 3.5: Web (o) — fetch results before stream, inject context into payload
@@ -1587,6 +1660,29 @@ export default function KuroChat() {
           throw new Error(`Server error: ${errText}`);
         }
 
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        if (!contentType.includes('text/event-stream')) {
+          const raw = await res.text().catch(() => '');
+          let message = 'Unexpected non-stream response from server';
+          try {
+            const parsed = JSON.parse(raw || '{}');
+            message = parsed.message || parsed.error || message;
+          } catch {
+            if (raw && raw.trim()) message = raw.trim();
+          }
+          updateMessages(cid, prev => {
+            const u = [...prev];
+            const last = u[u.length - 1];
+            if (last?.role === 'assistant' && !last.content) {
+              u[u.length - 1] = { ...last, content: message };
+            }
+            return u;
+          });
+          setConnectionError(message);
+          setIsLoading(false);
+          return;
+        }
+
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -1629,26 +1725,44 @@ export default function KuroChat() {
 
             if (d.type === 'vision_start') {
               addStep(`Generating image…`);
-              // Wipe raw tool call JSON that streamed into the message
               flushTokenBuffer();
               toolScanBuffer = ''; // Prevent handleJsonToolCalls from re-executing after SSE vision
               updateMessages(cid, prev => prev.map((m, i) =>
                 i === prev.length - 1 && m.role === 'assistant'
-                  ? { ...m, content: m.content.replace(/\{[\s\S]*?"vision\.generate"[\s\S]*/, '').trim() }
+                  ? { ...m,
+                      content: m.content.replace(/\{[\s\S]*?"vision\.generate"[\s\S]*/, '').trim(),
+                      visionGenerating: { phase: 'start', pct: 5, label: 'Initializing…', preset: d.preset || visionPreset, aspect: d.aspect || visionAspect } }
                   : m
               ));
             } else if (d.type === 'vision_phase') {
               if (d.label) addStep(d.label);
+              const phasePct = { intent: 10, gpu: 15, scene_graph: 30, generate: 42, composite: 82, evaluate: 92 }[d.phase] || 20;
+              updateMessages(cid, prev => prev.map((m, i) =>
+                i === prev.length - 1 && m.role === 'assistant' && m.visionGenerating
+                  ? { ...m, visionGenerating: { ...m.visionGenerating, phase: d.phase, pct: phasePct, label: d.label || d.phase } }
+                  : m
+              ));
+            } else if (d.type === 'vision_progress') {
+              updateMessages(cid, prev => prev.map((m, i) =>
+                i === prev.length - 1 && m.role === 'assistant' && m.visionGenerating
+                  ? { ...m, visionGenerating: { ...m.visionGenerating, pct: d.pct, label: `Diffusing… ${d.elapsed}s` } }
+                  : m
+              ));
             } else if (d.type === 'vision_result') {
               flushTokenBuffer();
               executedToolIds.add('vision-1'); // Mark as SSE-handled so handleJsonToolCalls skips it
-              const imgMd = `![Generated Image](${d.imageUrl})\n*${d.dimensions?.width || 1024}×${d.dimensions?.height || 1024} · ${d.elapsed || '?'}s · seed ${d.seed || '?'}*`;
+              const w = d.dimensions?.width || 1024, h = d.dimensions?.height || 1024;
+              const caption = `*${w}×${h} · ${d.preset || 'draft'} · ${d.elapsed || '?'}s · seed ${d.seed || '?'}*`;
+              const imgMd = `![Generated Image](${d.imageUrl})\n${caption}`;
               updateMessages(cid, prev => prev.map((m, i) =>
                 i === prev.length - 1 && m.role === 'assistant'
-                  ? { ...m, content: (m.content || '') + '\n' + imgMd }
+                  ? { ...m,
+                      visionGenerating: null,
+                      visionImages: d.images && d.images.length > 1 ? d.images : null,
+                      content: (m.content || '') + '\n' + imgMd }
                   : m
               ));
-              addStep(`Image generated (${d.elapsed || '?'}s)`);
+              addStep(`Image generated (${d.elapsed || '?'}s · ${d.preset || 'draft'})`);
             } else if (d.type === 'token') {
               if (tokens === 0) addStep('Generating response');
               tokens++;
@@ -1701,7 +1815,16 @@ export default function KuroChat() {
               setIsLoading(false);
               return;
             } else if (d.type === 'error') {
-              setConnectionError(d.message || 'Stream error');
+              const msg = d.message || 'Stream error';
+              updateMessages(cid, prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === 'assistant' && !last.content) {
+                  u[u.length - 1] = { ...last, content: `Error: ${msg}` };
+                }
+                return u;
+              });
+              setConnectionError(msg);
             } else if (d.type === 'done') {
               clearTimeout(staleTimer);
               if (rafId) cancelAnimationFrame(rafId);
@@ -1757,7 +1880,7 @@ export default function KuroChat() {
     };
 
     await attemptStream();
-  }, [input, activeId, activeAgent, activeSkill, messages, settings, isLoading]);
+  }, [input, activeId, activeAgent, activeSkill, messages, settings, isLoading, visionPreset, visionAspect]);
 
   const handleEditMessage = useCallback((msgIndex, newContent) => {
     // Truncate to before the edited message, re-send with new content
@@ -1902,6 +2025,7 @@ export default function KuroChat() {
               accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.rb,.go,.rs,.c,.cpp,.sh,.bash,.yaml,.yml,.xml,.csv,.log,.zip,.tar,.gz,.mp4,.mov,.mp3"
               onChange={e => { handleFiles(e.target.files); setAttachPanelOpen(false); }}
             />
+            <VisionBar preset={visionPreset} setPreset={setVPreset} aspect={visionAspect} setAspect={setVAspect} />
             <div className="input-row">
               <button
                 className={`attach-btn${attachPanelOpen ? ' open' : ''}`}
@@ -2876,6 +3000,56 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
 .progress-bar { height: 3px; background: var(--surface); border-radius: 2px; overflow: hidden; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #6366f1); border-radius: 2px; transition: width 0.3s ease; }
 .progress-stats { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ═══ VISION BAR ═══ */
+.vision-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 2px 4px;
+}
+.vb-group { display: flex; gap: 3px; }
+.vb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; }
+.vb-pill {
+  padding: 3px 9px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer; transition: all 0.15s;
+}
+.vb-pill:hover { color: var(--text-2); border-color: var(--border-2); }
+.vb-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ═══ VISION GENERATING CARD ═══ */
+.vision-gen-card {
+  margin: 8px 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.vgc-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.vgc-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.vgc-meta  { font-size: 11px; color: var(--text-3); margin-left: auto; }
+.vgc-elapsed { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.vgc-track {
+  height: 3px; background: var(--surface-2);
+  border-radius: 2px; overflow: hidden; margin-bottom: 7px;
+}
+.vgc-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #6366f1);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.vgc-phase { font-size: 11px; color: var(--text-3); }
 
 /* ═══ DROP ZONE ═══ */
 .drop-zone {
