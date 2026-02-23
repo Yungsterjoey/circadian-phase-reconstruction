@@ -312,6 +312,18 @@ const PORT = parseInt(process.env.KURO_PORT || process.env.PORT || '3100', 10);
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const DATA_DIR = process.env.KURO_DATA || '/var/lib/kuro';
 const CODE_DIR = process.env.KURO_CODE || '/opt/kuro';
+
+// ── VRAM strategy config ────────────────────────────────────────────────────
+const FLUX_URL = process.env.FLUX_URL || 'http://localhost:3200';
+// true  = may unload Ollama before FLUX (subject to heuristics below)
+// false = never unload (only safe if VRAM > 35GB)
+const VISION_FORCE_UNLOAD   = (process.env.KURO_VISION_FORCE_UNLOAD_OLLAMA ?? 'true') !== 'false';
+// Threshold in MB: unload Ollama if free VRAM drops below this
+const VISION_VRAM_THRESHOLD = parseInt(process.env.KURO_VISION_VRAM_THRESHOLD_MB || '12000');
+// Per-user active vision job guard (prevents VRAM storms)
+const visionActiveUsers = new Set();
+// Structured metrics
+const visionMetrics = { jobs: 0, unloads: 0, totalMs: 0, errors: 0 };
 const VECTOR_DIR = path.join(DATA_DIR, 'vectors');
 
 [DATA_DIR, VECTOR_DIR, path.join(DATA_DIR, 'sessions'), path.join(DATA_DIR, 'uploads'), path.join(DATA_DIR, 'docs'), path.join(DATA_DIR, 'patches'), path.join(DATA_DIR, 'sandboxes')].forEach(d => {
@@ -999,51 +1011,89 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
           const args = visionCall.args;
           const prompt = args.prompt || '';
           if (prompt) {
-            // Unload Ollama model from VRAM before calling FLUX so GPU is free
-            try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
-            // Resolve preset + aspect: LLM args > session pref > saved profile > default
-            let _savedVP = null;
-            try { const { stmts: _vs } = require('./layers/auth/db.cjs'); _savedVP = user?.userId ? _vs.getVisionProfile.get(user.userId) : null; } catch {}
-            const vPreset = args.preset || req.body.visionPreset || _savedVP?.preset || 'draft';
-            const vAspect = args.aspect_ratio || req.body.visionAspect || _savedVP?.aspect_ratio || '1:1';
-            // Strip the raw JSON from the token stream display
-            sendSSE(res, { type: 'token', content: '\0' }); // flush trick
-            sendSSE(res, { type: 'vision_start', prompt, preset: vPreset, aspect: vAspect });
-            const visionEvents = [];
-            const { generate: visionGenerate } = require('./layers/vision/vision_orchestrator.cjs');
-            const mockReq = {
-              body: {
-                prompt,
-                preset:          vPreset,
-                aspect_ratio:    vAspect,
-                n:               args.n               || req.body.visionN               || 1,
-                seed:            args.seed            ?? req.body.visionSeed            ?? undefined,
-                steps:           args.steps           || undefined,
-                guidance_scale:  args.guidance_scale  ?? undefined,
-                negative_prompt: args.negative_prompt || undefined,
-                userTier: user.tier || 'free',
-                profile: 'lab',
-              },
-              user,
-              on: () => {},
-            };
-            const mockRes = { write(raw) { const m = raw.match(/^data: (.+)\n\n$/s); if (m) { try { const e = JSON.parse(m[1]); visionEvents.push(e); if (e.type !== 'done') sendSSE(res, e); } catch {} } }, setHeader(){}, flushHeaders(){}, end(){} };
-            await visionGenerate(mockReq, mockRes, logEvent);
-            const result = visionEvents.find(e => e.type === 'vision_result');
-            if (result) {
-              const imgUrl = `/api/vision/image/${result.filename}`;
-              // Build images array (variants) as URLs, not base64
-              const images = result.images
-                ? result.images.map(img => ({ url: `/api/vision/image/${img.filename}`, seed: img.seed, filename: img.filename }))
-                : null;
-              sendSSE(res, {
-                type: 'vision_result', imageUrl: imgUrl, filename: result.filename,
-                seed: result.seed, dimensions: result.dimensions, elapsed: result.elapsed,
-                preset: result.preset || vPreset, n: result.n || 1, images,
-              });
-            } else {
-              const err = visionEvents.find(e => e.type === 'error');
-              sendSSE(res, { type: 'token', content: `\n**Vision failed**: ${err?.message || 'unknown error'}` });
+            // ── Per-user queue guard: one active vision job per user ──────────
+            const vUserId = user?.userId || (req.isGuest ? `guest_${req.ip}` : 'anon');
+            if (visionActiveUsers.has(vUserId)) {
+              sendSSE(res, { type: 'error', message: 'A vision job is already in progress. Please wait for it to finish.' });
+              sendSSE(res, { type: 'done', tokens: tc, model: resolvedModel });
+              return;
+            }
+            visionActiveUsers.add(vUserId);
+            const visionJobStart = Date.now();
+
+            try {
+              // ── Resolve preset/aspect: LLM args > session pref > saved profile > default ──
+              let _savedVP = null;
+              try { const { stmts: _vs } = require('./layers/auth/db.cjs'); _savedVP = user?.userId ? _vs.getVisionProfile.get(user.userId) : null; } catch {}
+              const vPreset = args.preset || req.body.visionPreset || _savedVP?.preset || 'draft';
+              const vAspect = args.aspect_ratio || req.body.visionAspect || _savedVP?.aspect_ratio || '1:1';
+
+              // ── Conditional Ollama unload ─────────────────────────────────
+              if (VISION_FORCE_UNLOAD) {
+                let doUnload = vPreset === 'pro'; // always unload for pro (needs max VRAM)
+                if (!doUnload) {
+                  try {
+                    const { data: hData } = await axios.get(`${FLUX_URL}/health`, { timeout: 3000 });
+                    doUnload = hData.vram_free_mb === null || hData.vram_free_mb < VISION_VRAM_THRESHOLD;
+                  } catch { doUnload = true; } // if health check fails, unload to be safe
+                }
+                if (doUnload) {
+                  try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
+                  visionMetrics.unloads++;
+                  console.log(`[VISION:VRAM] Ollama unloaded — preset=${vPreset} unloads=${visionMetrics.unloads}`);
+                } else {
+                  console.log(`[VISION:VRAM] Skipped unload — VRAM sufficient for preset=${vPreset}`);
+                }
+              }
+
+              // Strip the raw JSON from the token stream display
+              sendSSE(res, { type: 'token', content: '\0' }); // flush trick
+              sendSSE(res, { type: 'vision_start', prompt, preset: vPreset, aspect: vAspect });
+              const visionEvents = [];
+              const { generate: visionGenerate } = require('./layers/vision/vision_orchestrator.cjs');
+              const mockReq = {
+                body: {
+                  prompt,
+                  preset:          vPreset,
+                  aspect_ratio:    vAspect,
+                  n:               args.n               || req.body.visionN               || 1,
+                  seed:            args.seed            ?? req.body.visionSeed            ?? undefined,
+                  steps:           args.steps           || undefined,
+                  guidance_scale:  args.guidance_scale  ?? undefined,
+                  negative_prompt: args.negative_prompt || undefined,
+                  userTier: user.tier || 'free',
+                  profile: 'lab',
+                },
+                user,
+                on: () => {},
+              };
+              const mockRes = { write(raw) { const m = raw.match(/^data: (.+)\n\n$/s); if (m) { try { const e = JSON.parse(m[1]); visionEvents.push(e); if (e.type !== 'done') sendSSE(res, e); } catch {} } }, setHeader(){}, flushHeaders(){}, end(){} };
+              await visionGenerate(mockReq, mockRes, logEvent);
+
+              const result = visionEvents.find(e => e.type === 'vision_result');
+              if (result) {
+                const imgUrl = `/api/vision/image/${result.filename}`;
+                const images = result.images
+                  ? result.images.map(img => ({ url: `/api/vision/image/${img.filename}`, seed: img.seed, filename: img.filename }))
+                  : null;
+                sendSSE(res, {
+                  type: 'vision_result', imageUrl: imgUrl, filename: result.filename,
+                  seed: result.seed, dimensions: result.dimensions, elapsed: result.elapsed,
+                  preset: result.preset || vPreset, n: result.n || 1, images,
+                });
+              } else {
+                visionMetrics.errors++;
+                const err = visionEvents.find(e => e.type === 'error');
+                sendSSE(res, { type: 'token', content: `\n**Vision failed**: ${err?.message || 'unknown error'}` });
+              }
+
+              // ── Structured metrics ────────────────────────────────────────
+              visionMetrics.jobs++;
+              visionMetrics.totalMs += Date.now() - visionJobStart;
+              const avgMs = Math.round(visionMetrics.totalMs / visionMetrics.jobs);
+              console.log(`[VISION:METRICS] jobs=${visionMetrics.jobs} unloads=${visionMetrics.unloads} errors=${visionMetrics.errors} avg=${avgMs}ms`);
+            } finally {
+              visionActiveUsers.delete(vUserId); // always release, even on error
             }
           }
         } catch(ve) { sendSSE(res, { type: 'token', content: `\n**Vision error**: ${ve.message}` }); }
