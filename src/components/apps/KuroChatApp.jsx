@@ -557,6 +557,29 @@ const VisionGeneratingCard = ({ gen }) => {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VISION GRID — 2×2 variant display with seed + download actions
+// ═══════════════════════════════════════════════════════════════════════════
+const VisionGrid = ({ images, onUseSeed }) => (
+  <div className={`vision-grid${images.length > 1 ? ' grid-multi' : ''}`}>
+    {images.map((img, i) => (
+      <div key={i} className="vg-cell">
+        <img src={img.url} alt={`variant ${i + 1}`} className="vg-img" loading="lazy" />
+        <div className="vg-actions">
+          <button className="vg-btn" onClick={() => onUseSeed(img.seed)} title={`Use seed ${img.seed}`}>
+            <RefreshCw size={11} />
+            <span>{img.seed}</span>
+          </button>
+          <a className="vg-btn" href={img.url} download target="_blank" rel="noreferrer" title="Download">
+            <Download size={11} />
+          </a>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ATTACH PANEL — glass popover above input island
 // ═══════════════════════════════════════════════════════════════════════════
 const AttachPanel = ({
@@ -1015,7 +1038,7 @@ function parseContent(content) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE — RT-08: Index-based regen, RT-16: per-message redaction
 // ═══════════════════════════════════════════════════════════════════════════
-const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, agents, activeAgent }) => {
+const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, onUseSeed, showThoughts, agents, activeAgent }) => {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const editRef = useRef(null);
@@ -1060,6 +1083,10 @@ const Message = ({ msg, msgIndex, isStreaming, onCopy, onEdit, showThoughts, age
         {/* Vision generating card — shown while diffusion is running */}
         {msg.role === 'assistant' && msg.visionGenerating && (
           <VisionGeneratingCard gen={msg.visionGenerating} />
+        )}
+        {/* Vision variants grid — shown for n>1 results */}
+        {msg.role === 'assistant' && msg.visionImages && msg.visionImages.length > 1 && (
+          <VisionGrid images={msg.visionImages} onUseSeed={onUseSeed} />
         )}
         {editing ? (
           <div className="message-edit-wrap">
@@ -1998,6 +2025,7 @@ export default function KuroChat() {
                         activeAgent={activeAgent}
                         onCopy={c => navigator.clipboard.writeText(c)}
                         onEdit={handleEditMessage}
+                        onUseSeed={seed => setInput(prev => prev + (prev ? ' ' : '') + `seed:${seed}`)}
                       />
                     ))}
                     <div ref={messagesEndRef} />
@@ -3050,6 +3078,30 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   transition: width 0.6s ease;
 }
 .vgc-phase { font-size: 11px; color: var(--text-3); }
+
+/* ═══ VISION GRID ═══ */
+.vision-grid {
+  display: grid; grid-template-columns: 1fr;
+  gap: 8px; margin: 8px 0;
+}
+.vision-grid.grid-multi { grid-template-columns: 1fr 1fr; }
+.vg-cell { position: relative; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.vg-img { display: block; width: 100%; height: auto; }
+.vg-actions {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; gap: 6px; padding: 6px 8px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  opacity: 0; transition: opacity 0.15s;
+}
+.vg-cell:hover .vg-actions { opacity: 1; }
+.vg-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px; font-size: 11px;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px; color: var(--text-2); cursor: pointer;
+  text-decoration: none; transition: background 0.12s;
+}
+.vg-btn:hover { background: rgba(0,0,0,0.85); color: var(--text); }
 
 /* ═══ DROP ZONE ═══ */
 .drop-zone {
