@@ -62,9 +62,14 @@ async function generate(req, res, auditFn) {
     sessionId,
     profile = 'lab',
     seed,
-    width = 1024,
-    height = 1024,
+    width,
+    height,
+    aspect_ratio,
+    preset     = 'draft',
+    n          = 1,
+    negative_prompt,
     steps: requestedSteps,
+    guidance_scale: requestedGuidance,
     fluxMode: requestedFlux,
     userTier = 'free'
   } = req.body;
@@ -73,7 +78,7 @@ async function generate(req, res, auditFn) {
   const fluxMode = resolveFluxMode(requestedFlux, userTier);
   const fluxCfg = FLUX_MODES[fluxMode];
   const steps = requestedSteps || fluxCfg.steps;
-  const guidanceScale = fluxCfg.guidance;
+  const guidanceScale = requestedGuidance != null ? requestedGuidance : fluxCfg.guidance;
 
   if (!prompt?.trim()) {
     sse(res, { type: 'error', message: 'Empty prompt' });
@@ -174,15 +179,18 @@ async function generate(req, res, auditFn) {
       let genResult;
       try {
         const { data } = await axios.post(`${FLUX_URL}/generate`, {
-          prompt: currentPrompt,
-          negative_prompt: sceneGraph.negative_prompt || '',
-          width: Math.min(sceneGraph.dimensions?.width || width, fluxCfg.maxDim),
-          height: Math.min(sceneGraph.dimensions?.height || height, fluxCfg.maxDim),
+          prompt:          currentPrompt,
+          negative_prompt: negative_prompt || sceneGraph.negative_prompt || '',
+          preset,
+          aspect_ratio:    aspect_ratio,
+          width:           width  || sceneGraph.dimensions?.width,
+          height:          height || sceneGraph.dimensions?.height,
+          n:               n || 1,
           steps,
-          guidance_scale: guidanceScale,
-          seed: isRetry ? undefined : seed, // Fresh seed on retry
-          request_id: requestId
-        }, { timeout: 180000 }); // 3 min timeout
+          guidance_scale:  guidanceScale,
+          seed:            isRetry ? undefined : seed,
+          request_id:      requestId
+        }, { timeout: 300000 });
 
         genResult = data;
       } catch (e) {
@@ -302,15 +310,18 @@ async function generate(req, res, auditFn) {
 
     // ── Final: Send Image ──────────────────────────────────────────
     sse(res, {
-      type: 'vision_result',
-      image: finalImage.base64,
-      filename: finalImage.filename,
-      hash: finalImage.hash,
-      seed: finalMeta.seed,
+      type:       'vision_result',
+      image:      finalImage.base64,
+      filename:   finalImage.filename,
+      hash:       finalImage.hash,
+      seed:       finalMeta.seed,
       dimensions: finalMeta.dimensions,
-      elapsed: Math.round((Date.now() - t0) / 1000),
-      attempts: attempt,
-      pipeline: intent.pipeline,
+      elapsed:    Math.round((Date.now() - t0) / 1000),
+      attempts:   attempt,
+      pipeline:   intent.pipeline,
+      preset:     preset,
+      n:          finalImage.images ? finalImage.images.length : 1,
+      images:     finalImage.images || null,
       evaluation: evalResult ? {
         passed: evalResult.passed,
         checks: evalResult.results

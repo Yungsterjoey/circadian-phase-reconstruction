@@ -135,10 +135,16 @@ const REGISTRY = {
       const events = [];
       const mockReq = {
         body: {
-          prompt: args.prompt,
-          width: args.width || 1024,
-          height: args.height || 1024,
-          seed: args.seed,
+          prompt:          args.prompt,
+          negative_prompt: args.negative_prompt,
+          preset:          args.preset || 'draft',
+          aspect_ratio:    args.aspect_ratio,
+          width:           args.width,
+          height:          args.height,
+          steps:           args.steps,
+          guidance_scale:  args.guidance_scale,
+          n:               args.n || 1,
+          seed:            args.seed,
           userTier: 'pro', // tool invocation requires Pro+ (enforced by RBAC)
           profile: 'lab',
         },

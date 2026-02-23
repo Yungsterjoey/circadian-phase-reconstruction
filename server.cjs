@@ -325,7 +325,7 @@ const MODEL_REGISTRY = {
   // Budget: 3 + 10 + 4 (KV cache) = 17GB used, 7GB headroom
 
   'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'llama3.2:3b',                                                    ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Llama 3.2 3B)', vram: 2 },
-  'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 16384, thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 10 },
+  'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 8192,  thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 22 },
   'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                                              ctx: 2048,  embedding: true, tier: 'subconscious' }
 };
 
@@ -922,7 +922,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     // Send capability policy info to client
     sendSSE(res, { type: 'capability', profile: capPolicy.profile, requested: powerDial, downgraded: capPolicy.downgraded, reason: capPolicy.downgradeReason, ctx: capCfg.ctx || cfg.ctx });
 
-    let full = '', tc = 0, resolvedModel = cfg.name; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
+    let full = '', tc = 0, resolvedModel = cfg.name, sentVisibleToken = false; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
     setStreaming(true); // B5: prevent model warming during active inference
     
     // ═══ FRONTIER ASSIST PATH ═══
@@ -937,6 +937,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
                 full += token; tc++;
                 thinkEmitter.pushText(token);
                 sendSSE(res, { type: 'token', content: token });
+                sentVisibleToken = true;
                 streamController.appendPartial(sid, token);
               },
               onDone: (info) => {
@@ -977,9 +978,9 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
         const correction = streamController.checkCorrection(sid);
         if (correction) { sendSSE(res, { type: 'aborted_for_correction', correction, partial: streamController.getPartial(sid) }); streamAbort.abort(); break; }
         buf += chunk.toString(); const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); /* done sent below after vision check */ } } catch(e) {} }
+        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); sentVisibleToken = true; streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); /* done sent below after vision check */ } } catch(e) {} }
       }
-      if (buf.trim()) { try { const d = JSON.parse(buf); if (d.message?.content) { full += d.message.content; tc++; sendSSE(res, { type: 'token', content: d.message.content }); } } catch(e) {} }
+      if (buf.trim()) { try { const d = JSON.parse(buf); if (d.message?.content) { full += d.message.content; tc++; sendSSE(res, { type: 'token', content: d.message.content }); sentVisibleToken = true; } } catch(e) {} }
     } catch(se) {
       if (se.name === 'CanceledError' || se.code === 'ERR_CANCELED') { streamController.unregisterStream(sid); }
       else { sendSSE(res, { type: 'error', message: se.message }); ollamaHealth.failures++; }
@@ -998,6 +999,8 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
           const args = visionCall.args;
           const prompt = args.prompt || '';
           if (prompt) {
+            // Unload Ollama model from VRAM before calling FLUX so GPU is free
+            try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
             // Strip the raw JSON from the token stream display
             sendSSE(res, { type: 'token', content: '\0' }); // flush trick
             sendSSE(res, { type: 'vision_start', prompt });
@@ -1017,6 +1020,11 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
           }
         } catch(ve) { sendSSE(res, { type: 'token', content: `\n**Vision error**: ${ve.message}` }); }
       }
+    }
+
+    if (!sentVisibleToken && full) {
+      const visible = stripThinkBlocks(full);
+      if (visible) { sendSSE(res, { type: 'token', content: visible }); sentVisibleToken = true; }
     }
 
     // Send done AFTER vision (client stays connected until this arrives)
