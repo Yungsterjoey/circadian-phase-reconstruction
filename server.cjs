@@ -1001,9 +1001,11 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
           if (prompt) {
             // Unload Ollama model from VRAM before calling FLUX so GPU is free
             try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
-            // Resolve preset + aspect: LLM tool args take precedence, then user session prefs
-            const vPreset = args.preset || req.body.visionPreset || 'draft';
-            const vAspect = args.aspect_ratio || req.body.visionAspect || '1:1';
+            // Resolve preset + aspect: LLM args > session pref > saved profile > default
+            let _savedVP = null;
+            try { const { stmts: _vs } = require('./layers/auth/db.cjs'); _savedVP = user?.userId ? _vs.getVisionProfile.get(user.userId) : null; } catch {}
+            const vPreset = args.preset || req.body.visionPreset || _savedVP?.preset || 'draft';
+            const vAspect = args.aspect_ratio || req.body.visionAspect || _savedVP?.aspect_ratio || '1:1';
             // Strip the raw JSON from the token stream display
             sendSSE(res, { type: 'token', content: '\0' }); // flush trick
             sendSSE(res, { type: 'vision_start', prompt, preset: vPreset, aspect: vAspect });
@@ -1128,6 +1130,32 @@ app.get('/api/files', auth.required, (req, res) => { const dp = req.query.path |
 app.get('/api/sessions', auth.analyst, (req, res) => { try { res.json(sessionConn.aggregate ? sessionConn.aggregate(req.user.userId) : { totalSessions: 0, sessions: [] }); } catch(e) { res.json({ totalSessions: 0, sessions: [] }); } });
 app.get('/api/profile', guestOrAuth(resolveUser), (_, res) => { res.json({ active: ACTIVE_PROFILE, profile: PROFILE, available: Object.keys(PROFILES) }); });
 app.get('/api/guest/quota', (_req, res) => { const q = checkGuestQuota(_req); res.json(q); });
+
+// ── Vision user style profiles ──────────────────────────────────────────────
+app.get('/api/vision/profile', auth.required, (req, res) => {
+  try {
+    const { stmts } = require('./layers/auth/db.cjs');
+    const p = stmts.getVisionProfile.get(req.user.userId);
+    res.json({ profile: p || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/vision/profile', auth.required, (req, res) => {
+  try {
+    const { preset, aspect_ratio, base_size, guidance_scale, steps, negative_prompt } = req.body;
+    const VALID_PRESETS  = new Set(['draft', 'balanced', 'pro']);
+    const VALID_ASPECTS  = new Set(['1:1', '4:5', '16:9', '9:16']);
+    const safePreset     = VALID_PRESETS.has(preset) ? preset : 'draft';
+    const safeAspect     = VALID_ASPECTS.has(aspect_ratio) ? aspect_ratio : '1:1';
+    const safeBase       = Math.min(Math.max(parseInt(base_size) || 1024, 256), 1536);
+    const safeGuidance   = guidance_scale != null ? Math.min(Math.max(parseFloat(guidance_scale), 0), 20) : null;
+    const safeSteps      = steps != null ? Math.min(Math.max(parseInt(steps), 1), 40) : null;
+    const safeNeg        = negative_prompt ? String(negative_prompt).slice(0, 2000) : null;
+    const { stmts } = require('./layers/auth/db.cjs');
+    stmts.upsertVisionProfile.run(req.user.userId, safePreset, safeAspect, safeBase, safeGuidance, safeSteps, safeNeg, Date.now());
+    res.json({ ok: true, saved: { preset: safePreset, aspect_ratio: safeAspect } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SHADOW NET — Server-wide VPN / network privacy toggle

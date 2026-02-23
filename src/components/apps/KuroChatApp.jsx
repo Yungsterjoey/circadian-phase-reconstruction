@@ -506,7 +506,7 @@ const KuroSwitch = ({ on, onChange }) => (
 const VISION_PRESETS = ['draft', 'balanced', 'pro'];
 const VISION_ASPECTS = ['1:1', '4:5', '16:9', '9:16'];
 
-const VisionBar = ({ preset, setPreset, aspect, setAspect }) => (
+const VisionBar = ({ preset, setPreset, aspect, setAspect, onSave, saved }) => (
   <div className="vision-bar">
     <div className="vb-group">
       {VISION_PRESETS.map(p => (
@@ -523,6 +523,9 @@ const VisionBar = ({ preset, setPreset, aspect, setAspect }) => (
         </button>
       ))}
     </div>
+    <button className={`vb-save${saved ? ' saved' : ''}`} onClick={onSave} title="Save as default">
+      {saved ? <Check size={11} /> : <Bookmark size={11} />}
+    </button>
   </div>
 );
 
@@ -1291,8 +1294,13 @@ export default function KuroChat() {
   const [visionAspect, setVisionAspect] = useState(() => {
     try { return sessionStorage.getItem('kuro_vision_aspect') || '1:1'; } catch { return '1:1'; }
   });
-  const setVPreset = (v) => { setVisionPreset(v); try { sessionStorage.setItem('kuro_vision_preset', v); } catch {} };
-  const setVAspect = (v) => { setVisionAspect(v); try { sessionStorage.setItem('kuro_vision_aspect', v); } catch {} };
+  const [visionSaved, setVisionSaved] = useState(false);
+  const setVPreset = (v) => { setVisionPreset(v); setVisionSaved(false); try { sessionStorage.setItem('kuro_vision_preset', v); } catch {} };
+  const setVAspect = (v) => { setVisionAspect(v); setVisionSaved(false); try { sessionStorage.setItem('kuro_vision_aspect', v); } catch {} };
+  const saveVisionProfile = useCallback(() => {
+    authFetch('/api/vision/profile', { method: 'POST', body: JSON.stringify({ preset: visionPreset, aspect_ratio: visionAspect }) })
+      .then(r => r.json()).then(d => { if (d.ok) setVisionSaved(true); }).catch(() => {});
+  }, [visionPreset, visionAspect]);
 
   // RT-02: Only IDs in localStorage, messages in memory
   const [projects, setProjects] = useState(() => {
@@ -1358,6 +1366,15 @@ export default function KuroChat() {
 
     authFetch('/api/audit/verify').then(r => r.json()).then(d => {
       setAuditStatus(d);
+    }).catch(() => {});
+
+    // Load saved vision profile — overrides sessionStorage defaults if set
+    authFetch('/api/vision/profile').then(r => r.json()).then(d => {
+      if (d.profile) {
+        if (d.profile.preset)       { setVisionPreset(d.profile.preset);       try { sessionStorage.setItem('kuro_vision_preset', d.profile.preset); } catch {} }
+        if (d.profile.aspect_ratio) { setVisionAspect(d.profile.aspect_ratio); try { sessionStorage.setItem('kuro_vision_aspect', d.profile.aspect_ratio); } catch {} }
+        setVisionSaved(true);
+      }
     }).catch(() => {});
   }, []);
 
@@ -2053,7 +2070,7 @@ export default function KuroChat() {
               accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.rb,.go,.rs,.c,.cpp,.sh,.bash,.yaml,.yml,.xml,.csv,.log,.zip,.tar,.gz,.mp4,.mov,.mp3"
               onChange={e => { handleFiles(e.target.files); setAttachPanelOpen(false); }}
             />
-            <VisionBar preset={visionPreset} setPreset={setVPreset} aspect={visionAspect} setAspect={setVAspect} />
+            <VisionBar preset={visionPreset} setPreset={setVPreset} aspect={visionAspect} setAspect={setVAspect} onSave={saveVisionProfile} saved={visionSaved} />
             <div className="input-row">
               <button
                 className={`attach-btn${attachPanelOpen ? ' open' : ''}`}
@@ -3051,6 +3068,16 @@ h3.md-h { font-size: 1.1em; } h4.md-h { font-size: 1em; } h5.md-h { font-size: 0
   border-color: var(--accent);
   color: #fff;
 }
+.vb-save {
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: transparent; color: var(--text-3); cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.vb-save:hover { border-color: var(--border-2); color: var(--text-2); }
+.vb-save.saved { color: var(--success); border-color: var(--success); }
 
 /* ═══ VISION GENERATING CARD ═══ */
 .vision-gen-card {

@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -295,6 +295,22 @@ function migrate() {
     `);
   }
 
+  if (current < 8) {
+    // v8: Vision user style profiles
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS vision_profiles (
+        user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        preset          TEXT NOT NULL DEFAULT 'draft',
+        aspect_ratio    TEXT NOT NULL DEFAULT '1:1',
+        base_size       INTEGER NOT NULL DEFAULT 1024,
+        guidance_scale  REAL,
+        steps           INTEGER,
+        negative_prompt TEXT,
+        updated_at      INTEGER NOT NULL
+      );
+    `);
+  }
+
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   console.log(`[AUTH:DB] Schema v${SCHEMA_VERSION} applied`);
 }
@@ -343,6 +359,21 @@ const stmts = {
   refreshSession: db.prepare("UPDATE sessions SET expires_at = datetime('now', '+24 hours') WHERE id = ? AND expires_at > datetime('now')"),
   deleteSession: db.prepare('DELETE FROM sessions WHERE id = ?'),
   deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+
+  // Vision profiles
+  getVisionProfile: db.prepare('SELECT * FROM vision_profiles WHERE user_id = ?'),
+  upsertVisionProfile: db.prepare(`
+    INSERT INTO vision_profiles (user_id, preset, aspect_ratio, base_size, guidance_scale, steps, negative_prompt, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preset          = excluded.preset,
+      aspect_ratio    = excluded.aspect_ratio,
+      base_size       = excluded.base_size,
+      guidance_scale  = excluded.guidance_scale,
+      steps           = excluded.steps,
+      negative_prompt = excluded.negative_prompt,
+      updated_at      = excluded.updated_at
+  `),
   cleanExpiredSessions: db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')"),
 
   // OAuth
