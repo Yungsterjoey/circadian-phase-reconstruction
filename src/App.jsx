@@ -45,6 +45,9 @@ import AboutApp from './components/apps/AboutApp';
 import FileExplorerApp from './components/apps/FileExplorerApp';
 import KuroIcon from './components/KuroIcon';
 import GitPatchApp from './components/apps/GitPatchApp';
+import HomeScreen from './components/os/HomeScreen';
+import OSDock from './components/os/OSDock';
+import ContextMenu from './components/os/ContextMenu';
 
 const APP_COMPONENTS = {
   KuroChatApp: KuroChatApp,
@@ -463,53 +466,88 @@ function InstallPrompt() {
 // MAIN APP — Desktop always rendered. AuthGate is an OS window.
 // ═══════════════════════════════════════════════════════════════════════════
 function AppInner() {
-  const { windows, apps, openApp, focusWindow, restoreApp } = useOSStore();
+  const { windows, apps, openApps, visibleAppId, openApp, focusWindow, restoreApp } = useOSStore();
   const { init, loading, user } = useAuthStore();
 
-  // Auth init is handled by main.jsx before render; router guards protect /app.
-  // Re-run init only if subscription is missing (token-login or session-restore path).
+  // Auth init handled by main.jsx. Re-run only if subscription is missing.
   const { subscription } = useAuthStore();
   useEffect(() => { if (!subscription) init(); }, []);
 
   // Auto-open KuroChat after auth
   useEffect(() => {
-    if (user && !windows['kuro.chat']?.isOpen) {
+    if (user && !openApps.includes('kuro.chat')) {
       openApp('kuro.chat');
     }
   }, [user]);
 
-  // Post-upgrade redirect check
+  // Post-upgrade redirect check — re-init auth to pick up new tier
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('upgraded') === 'true') {
-      useAuthStore.getState().refreshUser?.();
+      useAuthStore.getState().init();
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
   return (
     <LiquidGlassProvider defaultTheme="dark">
-      <div className="kuro-desktop">
+      <div className="kuro-desktop kuro-os-shell">
         <DesktopBackground />
         <CookieBanner />
 
-        {/* App windows — user is guaranteed authenticated by router guard */}
+        {/* ── iOS-style app layer ─────────────────────────────────────── */}
+        {/* Home Screen — shown when no app is fullscreen */}
+        <div
+          className="kuro-home-layer"
+          style={{ display: visibleAppId ? 'none' : 'flex' }}
+          aria-hidden={!!visibleAppId}
+        >
+          <HomeScreen />
+        </div>
+
+        {/* Mounted apps — kept alive in DOM for state preservation.
+            Only visibleAppId is shown; others get display:none.
+            LRU eviction in osStore limits this to MAX_BG_APPS. */}
+        {openApps.map(appId => {
+          const app = apps.find(a => a.id === appId);
+          if (!app) return null;
+          const Component = APP_COMPONENTS[app.component];
+          if (!Component) return null;
+          const isVisible = appId === visibleAppId;
+          return (
+            <div
+              key={appId}
+              className={`kuro-app-fullscreen${isVisible ? ' kuro-app-visible' : ''}`}
+              style={{ display: isVisible ? 'flex' : 'none' }}
+              aria-hidden={!isVisible}
+              role="main"
+              aria-label={app.name}
+            >
+              <Component />
+            </div>
+          );
+        })}
+
+        {/* ── Legacy windowed windows (for LEGACY_WINDOWED compat) ───── */}
         {Object.entries(windows).map(([appId, win]) => {
           if (appId === AUTH_WINDOW_ID) return null;
           if (!win.isOpen) return null;
+          // Only render legacy windows for apps NOT in the new openApps list
+          if (openApps.includes(appId)) return null;
           const app = apps.find(a => a.id === appId);
           if (!app) return null;
           const Component = APP_COMPONENTS[app.component];
           if (!Component) return null;
           return (
-            <AppWindow key={appId} appId={appId}>
+            <AppWindow key={`legacy-${appId}`} appId={appId}>
               <Component />
             </AppWindow>
           );
         })}
 
-        <GlassPanel isLocked={false} />
-        <GlassDock isLocked={false} />
+        <GlassPanel isLocked={false} onLockedAppClick={() => { window.location.href = '/login'; }} />
+        <OSDock />
+        <ContextMenu />
         <InstallPrompt />
 
         <AuthModal />
@@ -518,6 +556,65 @@ function AppInner() {
         <AuthStyles />
 
         <style>{`
+/* ── OS design tokens (scoped to .kuro-os-shell) ────────────── */
+.kuro-os-shell {
+  --kuro-os-icon-bg:          rgba(255, 255, 255, 0.06);
+  --kuro-os-icon-border:      rgba(255, 255, 255, 0.08);
+  --kuro-os-icon-hover:       rgba(255, 255, 255, 0.10);
+  --kuro-os-icon-active:      rgba(255, 255, 255, 0.14);
+  --kuro-os-icon-radius:      14px;
+  --kuro-os-icon-size:        56px;
+  --kuro-os-icon-gap:         20px;
+  --kuro-os-label-color:      rgba(255, 255, 255, 0.75);
+  --kuro-os-label-size:       11px;
+  --kuro-os-indicator-color:  var(--lg-accent, #a855f7);
+  --kuro-os-indicator-size:   6px;
+  --kuro-os-menu-bg:          var(--lg-glass-bg, rgba(255,255,255,0.04));
+  --kuro-os-menu-blur:        var(--lg-blur-standard, 40px);
+  --kuro-os-menu-border:      var(--lg-glass-border, rgba(255,255,255,0.08));
+  --kuro-os-menu-radius:      14px;
+  --kuro-os-menu-width:       220px;
+  --kuro-os-menu-item-h:      40px;
+  --kuro-os-menu-item-hover:  rgba(255, 255, 255, 0.06);
+  --kuro-os-menu-separator:   rgba(255, 255, 255, 0.06);
+  --kuro-os-dock-h:           56px;
+  --kuro-os-dock-radius:      28px;
+  --kuro-os-dock-max-w:       420px;
+  --kuro-os-indicator-w:      134px;
+  --kuro-os-indicator-h:      5px;
+  --kuro-os-indicator-opacity:0.3;
+  --kuro-os-app-open-dur:     280ms;
+  --kuro-os-app-close-dur:    200ms;
+}
+
+/* ── Home layer ─────────────────────────────────────────────── */
+.kuro-home-layer {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Fullscreen app layer ────────────────────────────────────── */
+.kuro-app-fullscreen {
+  position: fixed;
+  inset: 0;
+  flex-direction: column;
+  background: var(--lg-surface-0, #000);
+  z-index: 500;
+  overflow: hidden;
+}
+.kuro-app-fullscreen.kuro-app-visible {
+  animation: kuro-app-open var(--kuro-os-app-open-dur, 280ms) var(--lg-ease-decelerate, cubic-bezier(0,0,0.2,1)) both;
+}
+@keyframes kuro-app-open {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kuro-app-fullscreen.kuro-app-visible { animation: none; }
+}
+
 .kuro-desktop {
   width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; position: fixed; inset: 0;
   background: var(--lg-surface-0, #000); color: var(--lg-text-primary, #fff);

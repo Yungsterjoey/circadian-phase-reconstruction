@@ -116,6 +116,37 @@
   --kuro-auth-line-color: rgba(255, 255, 255, 0.12);
 }
 
+/* ─── OS HOME SCREEN TOKENS (scoped via .kuro-os-shell) ─────────────────
+   These fall back to sensible values here so components work without
+   the shell scope in Storybook / isolated testing contexts.
+   ─────────────────────────────────────────────────────────────────────── */
+:root {
+  --kuro-os-icon-bg:            rgba(255, 255, 255, 0.06);
+  --kuro-os-icon-border:        rgba(255, 255, 255, 0.08);
+  --kuro-os-icon-hover:         rgba(255, 255, 255, 0.10);
+  --kuro-os-icon-active:        rgba(255, 255, 255, 0.14);
+  --kuro-os-icon-radius:        14px;
+  --kuro-os-icon-size:          56px;
+  --kuro-os-icon-gap:           20px;
+  --kuro-os-label-color:        rgba(255, 255, 255, 0.75);
+  --kuro-os-label-size:         11px;
+  --kuro-os-indicator-color:    #a855f7;
+  --kuro-os-indicator-size:     6px;
+  --kuro-os-menu-radius:        14px;
+  --kuro-os-menu-width:         220px;
+  --kuro-os-menu-item-h:        40px;
+  --kuro-os-menu-item-hover:    rgba(255, 255, 255, 0.06);
+  --kuro-os-menu-separator:     rgba(255, 255, 255, 0.06);
+  --kuro-os-dock-h:             56px;
+  --kuro-os-dock-radius:        28px;
+  --kuro-os-dock-max-w:         420px;
+  --kuro-os-indicator-w:        134px;
+  --kuro-os-indicator-h:        5px;
+  --kuro-os-indicator-opacity:  0.3;
+  --kuro-os-app-open-dur:       280ms;
+  --kuro-os-app-close-dur:      200ms;
+}
+
 /* ─── LIGHT MODE ───────────────────────────────────────────────────── */
 :root[data-theme="light"],
 .lg-light {

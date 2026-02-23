@@ -1852,48 +1852,40 @@ export default function KuroChat() {
             <button className="icon-btn" onClick={createConv}><Plus size={18} /></button>
           </Island>
 
-          {/* Messages or Sandbox Panel */}
-          {activeSkill === 'sandbox' ? (
-            <div className="messages-scroll" style={{padding: 0}}>
-              <SandboxPanel
-                visible={activeSkill === 'sandbox'}
-                onAttachArtifact={(artRef) => {
-                  setInput(prev => prev + `\n[sandbox:${artRef.runId.slice(0,8)}] ${artRef.summary}`);
-                  setActiveSkill('chat');
-                }}
-              />
-            </div>
-          ) : (
-          <div className="messages-scroll">
-            {messages.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <div className="messages">
-                {/* Phase 3.5: Web source cards above messages when results available */}
-                <WebSourceCards results={webResults} />
-                {messages.map((m, i) => (
-                  <Message
-                    key={`${activeId}-${i}`}
-                    msg={m}
-                    msgIndex={i}
-                    isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'}
-                    showThoughts={settings.showThinking}
-                    agents={agents}
-                    activeAgent={activeAgent}
-                    onCopy={c => navigator.clipboard.writeText(c)}
-                    onEdit={handleEditMessage}
-                  />
-                ))}
-                <div ref={messagesEndRef} />
+          {/* ── Chat + Sandbox unified split layout ──────────────── */}
+          <div className={`chat-sandbox-row${activeSkill === 'sandbox' ? ' has-sandbox' : ''}`}>
+
+            {/* Left: chat pane (always visible) */}
+            <div className="chat-pane">
+              <div className="messages-scroll">
+                {messages.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  <div className="messages">
+                    {/* Web source cards above messages when results available */}
+                    <WebSourceCards results={webResults} />
+                    {messages.map((m, i) => (
+                      <Message
+                        key={`${activeId}-${i}`}
+                        msg={m}
+                        msgIndex={i}
+                        isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'}
+                        showThoughts={settings.showThinking}
+                        agents={agents}
+                        activeAgent={activeAgent}
+                        onCopy={c => navigator.clipboard.writeText(c)}
+                        onEdit={handleEditMessage}
+                      />
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          )}
 
-          <ConnectionStatus error={connectionError} />
+              <ConnectionStatus error={connectionError} />
 
-          {/* Input area — attach panel + [+] bubble + input island */}
-          <div className="input-area">
+              {/* Input area — attach panel + [+] bubble + input island */}
+              <div className="input-area">
             {attachPanelOpen && (
               <AttachPanel
                 onAttachFile={() => fileInputRef.current?.click()}
@@ -1953,7 +1945,24 @@ export default function KuroChat() {
                 </div>
               </Island>
             </div>
-          </div>
+            </div>{/* /input-area */}
+            </div>{/* /chat-pane */}
+
+            {/* Right: sandbox pane — slides in when activeSkill === 'sandbox' */}
+            {activeSkill === 'sandbox' && (
+              <div className="sandbox-pane">
+                <SandboxPanel
+                  visible={true}
+                  onAttachArtifact={(artRef) => {
+                    setInput(prev => prev + `\n[sandbox:${artRef.runId.slice(0,8)}] ${artRef.summary}`);
+                    setActiveSkill('chat');
+                  }}
+                />
+              </div>
+            )}
+
+          </div>{/* /chat-sandbox-row */}
+
         </main>
 
         {isDragging && <div className="drop-zone"><Plus size={48} /><span>Drop to upload</span></div>}
@@ -2302,7 +2311,59 @@ export default function KuroChat() {
 .sidebar-skills::-webkit-scrollbar { display: none; }
 
 /* ═══ MAIN ═══ */
-.main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* ── Chat + Sandbox split row ──────────────────────────────── */
+.chat-sandbox-row {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
+}
+.chat-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+.sandbox-pane {
+  width: 50%;
+  min-width: 320px;
+  max-width: 800px;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: sandbox-slide-in 280ms var(--lg-ease-decelerate, cubic-bezier(0,0,0.2,1)) both;
+  flex-shrink: 0;
+}
+@keyframes sandbox-slide-in {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sandbox-pane { animation: none; }
+}
+/* On mobile: sandbox pane is a bottom sheet via fixed positioning */
+@media (max-width: 767px) {
+  .chat-sandbox-row { flex-direction: column; }
+  .sandbox-pane {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    height: 55%;
+    animation: sandbox-slide-up 280ms var(--lg-ease-decelerate) both;
+  }
+  @keyframes sandbox-slide-up {
+    from { opacity: 0; transform: translateY(32px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
 
 /* ═══ HEADER ═══ */
 .header-island {
