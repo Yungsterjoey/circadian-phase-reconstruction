@@ -113,9 +113,11 @@ const PHASE_LABELS = [
 // ─── State ────────────────────────────────────────────────────────────────
 
 let _state = {
-  phaseRadians: 0,          // φ₀ — reference phase (radians)
-  confidence:   0.5,        // C₀ — initial confidence [0, 1]
-  lastUpdateMs: Date.now(), // timestamp of last state write (ms since epoch)
+  phaseRadians:       0,          // φ₀ — reference phase (radians)
+  confidence:         0.5,        // C₀ — initial confidence [0, 1]
+  lastUpdateMs:       Date.now(), // timestamp of last state write (ms since epoch)
+  referenceEpochMs:   null,       // wall-clock anchor (ms) — set by anchor()
+  referenceClockHour: null,       // civil clock hour tied to phaseRadians — set by anchor()
 };
 
 // ─── Core math helpers ────────────────────────────────────────────────────
@@ -128,6 +130,20 @@ let _state = {
  */
 function wrapPhase(phi) {
   return ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+}
+
+/**
+ * Shortest signed arc from 0 to x on S¹, mapping x to (−π, π].
+ * The JS % operator truncates toward zero, so one if-guard per side suffices
+ * after reducing to (−2π, 2π).  Convention: +π is returned at the boundary.
+ * @param {number} x — raw angle difference (radians, any range)
+ * @returns {number}
+ */
+function shortestArc(x) {
+  let r = x % (2 * Math.PI);
+  if (r >  Math.PI) r -= 2 * Math.PI;
+  if (r < -Math.PI) r += 2 * Math.PI;
+  return r;
 }
 
 /**
@@ -169,10 +185,9 @@ function propagatePhase(phi0, deltaHours) {
  * @returns {number} — posterior phase in [0, 2π)
  */
 function bayesianCorrect(phiPrior, phiObserved, K) {
-  // Compute shortest-arc innovation to avoid wrap-around artefacts.
-  let innovation = phiObserved - phiPrior;
-  if (innovation >  Math.PI) innovation -= 2 * Math.PI;
-  if (innovation < -Math.PI) innovation += 2 * Math.PI;
+  // Shortest-arc innovation via shortestArc() — algebraically equiv. to the
+  // if-chain form; both produce the same result for all finite IEEE 754 inputs.
+  const innovation = shortestArc(phiObserved - phiPrior);
 
   return wrapPhase(phiPrior + K * innovation);
 }
@@ -320,8 +335,10 @@ function lightPhaseGain(phi, kBase) {
 
 /**
  * Derive an observed phase from sleep onset/offset timestamps.
- * Sleep onset typically anchors to the BRAKE→RESET transition (3π/2).
- * Duration modulates the anchor within the RESET segment.
+ * Sleep onset anchors to CT21 (7π/4 ≈ 5.497 rad) — CBT_min / circadian nadir.
+ * Empirical basis: DLMO occurs at CT14; sleep onset follows DLMO by ~7 h,
+ * placing it at CT21 (Czeisler & Khalsa, 2000; Khalsa et al., 2003).
+ * Duration modulates the anchor within ±π/8 around CT21.
  *
  * @param {number} onsetMs  — sleep onset (ms since epoch)
  * @param {number} offsetMs — sleep offset / wake time (ms since epoch)
@@ -331,7 +348,7 @@ function sleepPhaseObservation(onsetMs, offsetMs) {
   const sleepDurationHours = (offsetMs - onsetMs) / 3600000;
   // Normalise around 7 h mean; ±π/8 adjustment over the normal 4–10 h range.
   const durationDeviation = (sleepDurationHours - 7.0) / 7.0;
-  return wrapPhase((3 * Math.PI) / 2 + durationDeviation * (Math.PI / 8));
+  return wrapPhase((7 * Math.PI) / 4 + durationDeviation * (Math.PI / 8));
 }
 
 /**
@@ -349,6 +366,58 @@ function caffeinePhaseObservation(caffeineMs, nowMs) {
   const effectiveness  = Math.exp(-Math.LN2 * hoursElapsed / _config.caffeineHalfLifeHours);
   const target         = (3 * Math.PI) / 4; // BALANCE midpoint
   return { phiObserved: target, effectiveK: _config.kalmanGain.caffeine * effectiveness };
+}
+
+// ─── Clock–phase coordinate mapping ──────────────────────────────────────
+//
+// anchor() establishes a bijection between civil clock time and circadian phase.
+// After calling anchor(), clockToPhase() and phaseToClockHour() convert between
+// the two coordinate systems using the current ω.
+//
+// Biological basis: DLMO (CT14) and CBT_min (CT21) are the two population-mean
+// anchors most suitable for tying endogenous phase to clock time.  Callers
+// should pass the clinically appropriate phase for their anchor event.
+
+/**
+ * Tie internal circadian phase to civil clock time.
+ * Sets state.phaseRadians, state.referenceClockHour, state.referenceEpochMs,
+ * and state.lastUpdateMs to timestampMs.  Confidence is not changed.
+ *
+ * @param {number} phaseRadians  — circadian phase to assign (radians)
+ * @param {number} clockHour     — civil clock hour for that phase (0–23.9…)
+ * @param {number} timestampMs   — wall-clock time of the anchor (ms since epoch)
+ */
+function anchor(phaseRadians, clockHour, timestampMs) {
+  _state = {
+    ..._state,
+    phaseRadians:       wrapPhase(phaseRadians),
+    referenceClockHour: clockHour,
+    referenceEpochMs:   timestampMs,
+    lastUpdateMs:       timestampMs,
+  };
+}
+
+/**
+ * Convert a civil clock hour to circadian phase, relative to the established anchor.
+ * Requires anchor() to have been called.
+ *
+ * @param {number} clockHour — civil time (hours; may be negative or > 24)
+ * @returns {number} — phase in [0, 2π)
+ */
+function clockToPhase(clockHour) {
+  return wrapPhase(_state.phaseRadians + getOmega() * (clockHour - _state.referenceClockHour));
+}
+
+/**
+ * Convert a circadian phase to the corresponding civil clock hour.
+ * Requires anchor() to have been called.
+ *
+ * @param {number} phi — circadian phase (radians, any range)
+ * @returns {number} — civil clock hour (may be outside [0, 24); caller normalises)
+ */
+function phaseToClockHour(phi) {
+  const deltaPhi = shortestArc(wrapPhase(phi) - _state.phaseRadians);
+  return _state.referenceClockHour + deltaPhi / getOmega();
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────
@@ -550,7 +619,11 @@ module.exports = {
   update,
   project,
   simulateShift,
-  // Configuration API (new in this revision).
+  // Clock–phase coordinate mapping.
+  anchor,
+  clockToPhase,
+  phaseToClockHour,
+  // Configuration API.
   getConfig,
   setConfig,
   // Expose PRC for external analysis / validation.
@@ -561,11 +634,15 @@ module.exports = {
     bayesianCorrect,
     decayConfidence,
     wrapPhase,
+    shortestArc,
     labelFromPhase,
     prcDelta,
     lightPhaseGain,
     sleepPhaseObservation,
     caffeinePhaseObservation,
+    anchor,
+    clockToPhase,
+    phaseToClockHour,
     // Getters so tests remain accurate even after setConfig() calls.
     get OMEGA()        { return getOmega(); },
     get LAMBDA()       { return _config.lambda; },
