@@ -4,7 +4,7 @@
  *
  * Models the endogenous circadian oscillator as a continuous phase on [0, 2π).
  * Phase propagation uses a first-order ODE approximation (van Gelder & Buijs, 2011).
- * Bayesian correction uses a gain-weighted correction on S¹ with phase-wrapped innovation (Brown et al., 2003).
+ * Gain-weighted phase correction on S¹ with phase-wrapped innovation (Brown et al., 2003).
  * Confidence decay uses an exponential forgetting curve (Borbély & Achermann, 1999).
  * Light entrainment uses a first-order PRC approximation (Kronauer et al., 1999;
  * Jewett & Kronauer, 1998).
@@ -29,9 +29,9 @@ let _config = {
   // C(t) = C₀ · e^(−λ · Δt). λ = 0.08 → half-confidence at ≈ 8.7 h.
   lambda: 0.08,
 
-  // Bayesian correction gain (reliability weight) per entrainment signal class.
+  // Phase correction gain (reliability weight) per entrainment signal class.
   // Higher K → stronger gain-weighted pull toward the observed phase.
-  kalmanGain: {
+  correctionGain: {
     sleep:    0.9,  // Sleep onset/offset — dominant zeitgeber
     light:    0.6,  // Photic input via ipRGC / melanopsin pathway
     caffeine: 0.4,  // Adenosine antagonism; weaker phase-shifting effect
@@ -60,11 +60,11 @@ let _config = {
 
 /**
  * Return a shallow copy of the current configuration.
- * kalmanGain sub-object is also cloned.
+ * correctionGain sub-object is also cloned.
  * @returns {object}
  */
 function getConfig() {
-  return { ..._config, kalmanGain: { ..._config.kalmanGain } };
+  return { ..._config, correctionGain: { ..._config.correctionGain } };
 }
 
 /**
@@ -78,9 +78,9 @@ function setConfig(overrides) {
   const known = Object.keys(_config);
   for (const key of known) {
     if (!(key in overrides)) continue;
-    if (key === 'kalmanGain') {
+    if (key === 'correctionGain') {
       // Deep merge the gain sub-object.
-      _config.kalmanGain = { ..._config.kalmanGain, ...overrides.kalmanGain };
+      _config.correctionGain = { ..._config.correctionGain, ...overrides.correctionGain };
     } else {
       _config[key] = overrides[key];
     }
@@ -174,7 +174,7 @@ function propagatePhase(phi0, deltaHours) {
 }
 
 /**
- * Apply a gain-weighted Bayesian correction on S¹ with phase-wrapped innovation.
+ * Apply a gain-weighted phase correction on S¹ with phase-wrapped innovation.
  *   φ_posterior = φ_prior + K · (φ_observed − φ_prior)
  *
  * The innovation is the shortest arc on the circle S¹ to handle the 0/2π wrap.
@@ -184,7 +184,7 @@ function propagatePhase(phi0, deltaHours) {
  * @param {number} K           — correction gain ∈ [0, 1]
  * @returns {number} — posterior phase in [0, 2π)
  */
-function bayesianCorrect(phiPrior, phiObserved, K) {
+function gainWeightedPhaseCorrect(phiPrior, phiObserved, K) {
   // Shortest-arc innovation via shortestArc() — algebraically equiv. to the
   // if-chain form; both produce the same result for all finite IEEE 754 inputs.
   const innovation = shortestArc(phiObserved - phiPrior);
@@ -309,7 +309,7 @@ function prcDelta(phi, lux) {
  * night phase (π, 2π) uses max(0, sin(φ − π)).
  *
  * @param {number} phi   — current circadian phase (radians)
- * @param {number} kBase — baseline light gain from config (kalmanGain.light)
+ * @param {number} kBase — baseline light gain from config (correctionGain.light)
  * @returns {number} — effective gain in [0, kBase]
  */
 function lightPhaseGain(phi, kBase) {
@@ -365,7 +365,7 @@ function caffeinePhaseObservation(caffeineMs, nowMs) {
   // Exponential decay with configured half-life.
   const effectiveness  = Math.exp(-Math.LN2 * hoursElapsed / _config.caffeineHalfLifeHours);
   const target         = (3 * Math.PI) / 4; // BALANCE midpoint
-  return { phiObserved: target, effectiveK: _config.kalmanGain.caffeine * effectiveness };
+  return { phiObserved: target, effectiveK: _config.correctionGain.caffeine * effectiveness };
 }
 
 // ─── Clock–phase coordinate mapping ──────────────────────────────────────
@@ -443,7 +443,7 @@ function getCurrentPhase(timestamp = Date.now()) {
 }
 
 /**
- * Feed new entrainment inputs and apply Bayesian correction to model state.
+ * Feed new entrainment inputs and apply gain-weighted phase correction to model state.
  * Light correction uses the Phase Response Curve (see prcDelta()).
  *
  * @param {{
@@ -467,8 +467,8 @@ function update(inputs = {}) {
   // Step 2: sleep entrainment (highest reliability).
   if (inputs.sleepOnset != null && inputs.sleepOffset != null) {
     const phiObs = sleepPhaseObservation(inputs.sleepOnset, inputs.sleepOffset);
-    const K      = _config.kalmanGain.sleep;
-    phi  = bayesianCorrect(phi, phiObs, K);
+    const K      = _config.correctionGain.sleep;
+    phi  = gainWeightedPhaseCorrect(phi, phiObs, K);
     conf = Math.min(1.0, conf + K * (1 - conf));
     correctionApplied.push({ source: 'sleep', K, phiObserved: phiObs });
   }
@@ -482,7 +482,7 @@ function update(inputs = {}) {
     if (direction !== 'DEAD_ZONE') {
       // Phase-dependent gain: see lightPhaseGain(). Positive in ADVANCE tail [0,π/6)
       // and night phase (π,2π); zero in dead zone [π/6,π].
-      const K = lightPhaseGain(phi, _config.kalmanGain.light);
+      const K = lightPhaseGain(phi, _config.correctionGain.light);
       if (K > 0) {
         phi  = wrapPhase(phi + K * deltaRad);
         conf = Math.min(1.0, conf + K * (1 - conf));
@@ -495,7 +495,7 @@ function update(inputs = {}) {
   // Step 4: caffeine phase cue.
   if (inputs.caffeineTimestamp != null) {
     const { phiObserved, effectiveK } = caffeinePhaseObservation(inputs.caffeineTimestamp, nowMs);
-    phi  = bayesianCorrect(phi, phiObserved, effectiveK);
+    phi  = gainWeightedPhaseCorrect(phi, phiObserved, effectiveK);
     conf = Math.min(1.0, conf + effectiveK * (1 - conf));
     correctionApplied.push({ source: 'caffeine', K: effectiveK, phiObserved });
   }
@@ -631,7 +631,7 @@ module.exports = {
   // Internal access for unit tests and validation module only.
   _internal: {
     propagatePhase,
-    bayesianCorrect,
+    gainWeightedPhaseCorrect,
     decayConfidence,
     wrapPhase,
     shortestArc,
@@ -646,7 +646,7 @@ module.exports = {
     // Getters so tests remain accurate even after setConfig() calls.
     get OMEGA()        { return getOmega(); },
     get LAMBDA()       { return _config.lambda; },
-    get KALMAN_GAIN()  { return { ..._config.kalmanGain }; },
+    get CORRECTION_GAIN()  { return { ..._config.correctionGain }; },
     getState:  ()  => ({ ..._state }),
     setState:  (s) => { _state = { ..._state, ...s }; },
   },

@@ -386,7 +386,7 @@ The phase-dependent gain replaces the constant K_light with:
 K(φ) = K_base · max(0, sin(φ − π))
 
 where:
-  K_base = kalmanGain.light     (configurable; default 0.6)
+  K_base = correctionGain.light     (configurable; default 0.6)
   π      = gain-null reference point (CT12 analogue in this model)
 ```
 

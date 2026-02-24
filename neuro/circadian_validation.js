@@ -197,7 +197,7 @@ function scenario_sleep_delay_shift() {
     confidenceTrajectory,
     notes: [
       'Positive deltaHours = phase advance; negative = phase delay.',
-      `K_sleep = ${_internal.KALMAN_GAIN.sleep} (Bayesian gain for sleep anchor)`,
+      `K_sleep = ${_internal.CORRECTION_GAIN.sleep} (correction gain for sleep anchor)`,
       `Baseline final confidence: ${baselineConf}`,
     ],
   };

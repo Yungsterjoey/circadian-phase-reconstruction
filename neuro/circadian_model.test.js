@@ -77,27 +77,27 @@ test('T1 — Phase propagates forward at intrinsic rate ω = 2π/τ', () => {
   approx(phiHalf, Math.PI, 1e-10, 'Half-period should reach φ=π');
 });
 
-// T2: Bayesian correction pulls prior toward observed with gain K
-test('T2 — Bayesian correction applies Kalman gain correctly (sleep K=0.9)', () => {
-  const K           = _internal.KALMAN_GAIN.sleep; // 0.9
+// T2: gain-weighted phase correction pulls prior toward observed with correction gain K
+test('T2 — gain-weighted phase correction applies correction gain correctly (sleep K=0.9)', () => {
+  const K           = _internal.CORRECTION_GAIN.sleep; // 0.9
   const phiPrior    = 0;                            // ACTIVATION start
   const phiObserved = Math.PI;                      // BRAKE start
 
   // Expected: φ_post = 0 + 0.9 * (π - 0) = 0.9π
   const expected = _internal.wrapPhase(0 + K * (Math.PI - 0));
-  const actual   = _internal.bayesianCorrect(phiPrior, phiObserved, K);
+  const actual   = _internal.gainWeightedPhaseCorrect(phiPrior, phiObserved, K);
   approx(actual, expected, 1e-10, 'Kalman correction magnitude');
 
   // With K=1 (full trust) the posterior should equal the observation exactly.
-  const fullTrust = _internal.bayesianCorrect(0, Math.PI, 1.0);
+  const fullTrust = _internal.gainWeightedPhaseCorrect(0, Math.PI, 1.0);
   approx(fullTrust, Math.PI, 1e-10, 'K=1 → posterior = observed');
 
   // With K=0 (zero gain) the posterior should equal the prior.
-  const zeroGain = _internal.bayesianCorrect(1.5, Math.PI / 3, 0.0);
+  const zeroGain = _internal.gainWeightedPhaseCorrect(1.5, Math.PI / 3, 0.0);
   approx(zeroGain, 1.5, 1e-10, 'K=0 → posterior = prior');
 
   // Wrap-around test: prior=5.5 rad, observed=0.2 rad (short arc crosses 2π).
-  const wrapped = _internal.bayesianCorrect(5.5, 0.2, 0.5);
+  const wrapped = _internal.gainWeightedPhaseCorrect(5.5, 0.2, 0.5);
   assert.ok(wrapped >= 0 && wrapped < 2 * Math.PI, 'Wrapped correction must stay in [0,2π)');
   // Shortest arc from 5.5 → 0.2 is +0.983 rad (forward), not -5.3 rad.
   // Expected: 5.5 + 0.5 * 0.983 ≈ 5.99 rad, wrapped.
@@ -397,7 +397,7 @@ test('T10 — Sensitivity sweep: λ ∈ [0.02,0.20], τ ∈ [23.8,24.5], K ±20%
   const EVAL_TIME    = T0 + 48 * ONE_HOUR;
 
   // Compute nominal phase at 48h with one sleep correction.
-  model.setConfig({ tauHours: TAU_NOM, lambda: 0.08, kalmanGain: { sleep: 0.9, light: 0.6, caffeine: 0.4 } });
+  model.setConfig({ tauHours: TAU_NOM, lambda: 0.08, correctionGain: { sleep: 0.9, light: 0.6, caffeine: 0.4 } });
   _internal.setState({ phaseRadians: 0, confidence: 1.0, lastUpdateMs: T0 });
   model.update({ sleepOnset: SLEEP_ONSET, sleepOffset: SLEEP_OFFSET, timestamp: SLEEP_OFFSET });
   const nominalPhase = model.getCurrentPhase(EVAL_TIME).phaseRadians;
@@ -410,7 +410,7 @@ test('T10 — Sensitivity sweep: λ ∈ [0.02,0.20], τ ∈ [23.8,24.5], K ±20%
         model.setConfig({
           tauHours: tau,
           lambda:   lam,
-          kalmanGain: { sleep: 0.9 * ks, light: 0.6 * ks, caffeine: 0.4 * ks },
+          correctionGain: { sleep: 0.9 * ks, light: 0.6 * ks, caffeine: 0.4 * ks },
         });
         _internal.setState({ phaseRadians: 0, confidence: 1.0, lastUpdateMs: T0 });
         model.update({ sleepOnset: SLEEP_ONSET, sleepOffset: SLEEP_OFFSET, timestamp: SLEEP_OFFSET });
@@ -536,7 +536,7 @@ test('T11 — Boundary conditions: labels and corrections continuous across 0/2�
 // T12: Light pulse at φ=0.05 rad (ADVANCE tail) — fix verification (pre/post).
 test('T12 — Light pulse at φ=0.05 rad (ADVANCE tail): |Δφ|>0, direction=ADVANCE', () => {
   const PHI_ADVANCE = 0.05; // φ ∈ [0, π/6) ADVANCE tail
-  const kBase = _internal.KALMAN_GAIN.light; // 0.6
+  const kBase = _internal.CORRECTION_GAIN.light; // 0.6
 
   // Show the bug was real: old formula returns 0 for any φ ∈ [0, π].
   const oldGain = kBase * Math.max(0, Math.sin(PHI_ADVANCE - Math.PI));
@@ -570,7 +570,7 @@ test('T12 — Light pulse at φ=0.05 rad (ADVANCE tail): |Δφ|>0, direction=ADV
 
 // T13: Gain continuity at φ=π; deliberate gate at 2π/0 boundary documented.
 test('T13 — Gain continuity at φ=π: smooth zero crossing; 2π/0 gate documented', () => {
-  const kBase = _internal.KALMAN_GAIN.light;
+  const kBase = _internal.CORRECTION_GAIN.light;
   const EPS = 1e-6;
 
   // φ = π is the gain-null reference point (BRAKE onset, CT12 analogue).
