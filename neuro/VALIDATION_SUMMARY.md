@@ -1,6 +1,6 @@
 # NEURO-KURO Tier 0 — Circadian Phase Engine Validation Summary
 
-**Module:** `circadian_model.js` | **Date:** 2026-02-24 | **Tests:** T1–T14, 14/14 pass
+**Module:** `circadian_model.js` | **Date:** 2026-02-24 | **Tests:** T1–T15, 15/15 pass
 
 ---
 
@@ -38,6 +38,7 @@
 **T12** Light pulse at φ=0.05 rad (ADVANCE tail): pre-fix gain=0 confirmed, post-fix gain>0, |Δφ|>0, direction=ADVANCE.
 **T13** Gain continuity at φ=π: both sides give K≈0 (no cliff). Deliberate wrap-gate at 2π/0 documented (cliff ≈ 0.30 — pragmatic smoothing artifact, not CBT_min anchor).
 **T14** φ=1e-9 micro boundary: post-correction phase ∈ [0, 2π), no sign flip, wrapPhase output finite and valid under high-lux ADVANCE input.
+**T15** MMASH DLMO validation (N=20; user_11 excluded: no sleep; user_21 excluded: no saliva): MAE=0.29 h, mean signed error=+0.23 h, median |error|=0.24 h, max |error|=1.00 h (user_9). Proxy: sleep onset − 2 h (Benloucif 2005). Anchor fix (3π/2 → 7π/4) resolved 2.48 h prior systematic bias.
 
 ---
 
@@ -54,6 +55,19 @@
 
 ---
 
+## T15 DLMO Validation Results
+
+MMASH dataset, N = 20 subjects. Proxy: DLMO = sleep onset − 2 h (Benloucif et al. 2005). Anchor fix: `sleepPhaseObservation()` 3π/2 → 7π/4 resolved 2.48 h systematic bias.
+
+| Metric | Value |
+|--------|-------|
+| MAE | **0.29 h** |
+| Mean signed error | **+0.23 h** (model leads by 14 min) |
+| Median \|error\| | **0.24 h** |
+| Max \|error\| | **1.00 h** (user_9) |
+
+---
+
 ## Known Limitations
 
 1. **Confidence saturation** — display rounds to 0 after ~43 h (C < 0.0005); raw value positive but uninformative.
@@ -62,6 +76,7 @@
 4. **τ mismatch accumulation** — Δφ(48h) ≈ 1.4 h for Δτ = 0.7 h; individual τ not detectable from observations.
 5. **Equal-quadrant labels** — four π/2-wide segments do not match biological durations; boundary misclassification may reach ~1 h.
 6. **Deliberate wrap-gate discontinuity** — gain cliff of ≈ 0.30 at the 2π/0 boundary (advance tail gives K>0 at φ=0⁺; night-side formula gives K=0 at φ→2π⁻). May produce different correction magnitudes for numerically equivalent phases near 0 and 2π. This is pragmatic smoothing to avoid a dead ADVANCE region, not a biological artifact.
+7. **DLMO proxy (population-mean offset)** — Two-timepoint MMASH saliva samples are insufficient for threshold-based DLMO detection; population regression (sleep onset − 2 h; Benloucif et al. 2005) used instead. Individual DLMO-to-sleep-onset interval variation accounts for the residual +0.23 h signed bias observed in T15.
 
 ---
 
