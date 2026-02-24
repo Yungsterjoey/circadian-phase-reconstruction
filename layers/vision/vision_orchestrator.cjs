@@ -202,8 +202,12 @@ async function generate(req, res, auditFn) {
         genResult = data;
       } catch (e) {
         clearInterval(genInterval);
-        sse(res, { type: 'vision_phase', phase: 'generate', status: 'error', data: { error: e.message } });
-        throw new Error(`FLUX generation failed: ${e.message}`);
+        const status = e?.response?.status;
+        const fluxErr = e?.response?.data?.error || e.message;
+        sse(res, { type: 'vision_phase', phase: 'generate', status: 'error', data: { error: fluxErr, status } });
+        const err = new Error(`FLUX generation failed: ${fluxErr}`);
+        if (status) err.status = status;
+        throw err;
       }
       clearInterval(genInterval);
 
@@ -363,14 +367,14 @@ async function generate(req, res, auditFn) {
     }
 
   } catch (err) {
-    sse(res, { type: 'error', message: err.message });
+    sse(res, { type: 'error', message: err.message, status: err.status });
 
     if (auditFn) {
       auditFn({
         agent: 'vision',
         action: 'generate',
         result: 'error',
-        meta: { requestId, error: err.message, elapsed: Date.now() - t0 }
+        meta: { requestId, error: err.message, status: err.status, elapsed: Date.now() - t0 }
       });
     }
   } finally {

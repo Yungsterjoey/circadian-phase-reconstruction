@@ -20,7 +20,7 @@ const { generate } = require('./vision_orchestrator.cjs');
 const gpuMutex = require('./vision_gpu_mutex.cjs');
 const storage = require('./vision_storage.cjs');
 
-function mountVisionRoutes(app, logEvent, authMiddleware, tierGate) {
+function mountVisionRoutes(app, logEvent, authMiddleware, tierGate, preflightVisionVRAM) {
 
   // ── POST /api/vision/generate ────────────────────────────────────────
   // SSE stream. Body: { prompt, sessionId?, profile?, seed?, width?, height?, steps? }
@@ -108,6 +108,18 @@ function mountVisionRoutes(app, logEvent, authMiddleware, tierGate) {
     req.on('close', () => {
       // Will be cleaned up by orchestrator's finally block
     });
+
+    // VRAM preflight gate (right before FLUX pipeline)
+    if (typeof preflightVisionVRAM === 'function') {
+      try {
+        await preflightVisionVRAM({
+          preset: req.body?.preset || 'draft',
+          n: req.body?.n || 1,
+        });
+      } catch (e) {
+        console.warn(`[VISION:PREFLIGHT] failed: ${e.message}`);
+      }
+    }
 
     await generate(req, res, logEvent);
 

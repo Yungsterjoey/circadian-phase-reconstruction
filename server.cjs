@@ -312,6 +312,8 @@ const PORT = parseInt(process.env.KURO_PORT || process.env.PORT || '3100', 10);
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const DATA_DIR = process.env.KURO_DATA || '/var/lib/kuro';
 const CODE_DIR = process.env.KURO_CODE || '/opt/kuro';
+const VISION_DIR = path.join(DATA_DIR, 'vision');
+const VECTOR_DIR = path.join(DATA_DIR, 'vectors');
 
 // ── VRAM strategy config ────────────────────────────────────────────────────
 const FLUX_URL = process.env.FLUX_URL || 'http://localhost:3200';
@@ -324,11 +326,59 @@ const VISION_VRAM_THRESHOLD = parseInt(process.env.KURO_VISION_VRAM_THRESHOLD_MB
 const visionActiveUsers = new Set();
 // Structured metrics
 const visionMetrics = { jobs: 0, unloads: 0, totalMs: 0, errors: 0 };
-const VECTOR_DIR = path.join(DATA_DIR, 'vectors');
 
-[DATA_DIR, VECTOR_DIR, path.join(DATA_DIR, 'sessions'), path.join(DATA_DIR, 'uploads'), path.join(DATA_DIR, 'docs'), path.join(DATA_DIR, 'patches'), path.join(DATA_DIR, 'sandboxes')].forEach(d => {
-  if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
-});
+function maybeFixDirPerms(dir) {
+  try {
+    const st = fs.statSync(dir);
+    if (typeof process.getuid === 'function' && st.uid === process.getuid()) {
+      const mode = st.mode & 0o777;
+      if (!(mode & 0o200)) fs.chmodSync(dir, mode | 0o200);
+    }
+  } catch {}
+}
+
+function ensureDir(dir, label) {
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const st = fs.statSync(dir);
+    if (!st.isDirectory()) throw new Error('Path exists but is not a directory');
+  } catch (e) {
+    console.error(`[FATAL] ${label || dir} unavailable: ${e.message}`);
+    process.exit(1);
+  }
+}
+
+function writeProbe(dir, label) {
+  const probe = path.join(dir, `.kuro_write_probe_${process.pid}_${Date.now()}`);
+  try {
+    fs.writeFileSync(probe, 'ok');
+    fs.unlinkSync(probe);
+  } catch (e) {
+    console.error(`[FATAL] ${label || dir} is not writable by this service user.`);
+    console.error(`[FATAL] ${e.message}`);
+    console.error(`[FATAL] Fix: ensure write permissions for ${label || dir} (e.g., chown/chmod for the service user).`);
+    process.exit(1);
+  }
+}
+
+const REQUIRED_DIRS = [
+  DATA_DIR,
+  VISION_DIR,
+  path.join(DATA_DIR, 'uploads'),
+  path.join(DATA_DIR, 'docs'),
+  path.join(DATA_DIR, 'sandboxes'),
+  path.join(DATA_DIR, 'sessions'),
+  path.join(DATA_DIR, 'patches'),
+  VECTOR_DIR,
+];
+
+for (const dir of REQUIRED_DIRS) {
+  ensureDir(dir);
+  maybeFixDirPerms(dir);
+}
+
+// Mandatory write-probe (hard fail if unwritable)
+writeProbe(VISION_DIR, '/var/lib/kuro/vision');
 
 const MODEL_REGISTRY = {
   // ═══ GCP NVIDIA L4 (24GB VRAM) — Router + Brain Architecture ═══
@@ -383,6 +433,78 @@ async function checkOllama() {
     ollamaHealth.healthy = ollamaHealth.failures < 3;
     return ollamaHealth.healthy;
   }
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function getFluxHealth() {
+  try {
+    const { data } = await axios.get(`${FLUX_URL}/health`, { timeout: 3000 });
+    return data || null;
+  } catch {
+    return null;
+  }
+}
+
+async function unloadOllamaModels(preferred = []) {
+  let models = [];
+  try {
+    const { data } = await axios.get(`${OLLAMA_URL}/api/ps`, { timeout: 3000 });
+    if (Array.isArray(data?.models)) {
+      models = data.models.map(m => m.name).filter(Boolean);
+    } else if (Array.isArray(data?.processes)) {
+      models = data.processes.map(m => m.name || m.model).filter(Boolean);
+    }
+  } catch {}
+
+  if (!models.length && preferred?.length) models = preferred.filter(Boolean);
+  const uniq = [...new Set(models)];
+  if (!uniq.length) return { unloaded: [], attempted: 0 };
+
+  for (const model of uniq) {
+    try { await axios.post(`${OLLAMA_URL}/api/generate`, { model, keep_alive: 0 }, { timeout: 8000 }); }
+    catch {}
+  }
+  return { unloaded: uniq, attempted: uniq.length };
+}
+
+async function preflightVisionVRAM({ preset = 'draft', n = 1, modelFallback } = {}) {
+  if (!VISION_FORCE_UNLOAD) {
+    console.log(`[VISION:PREFLIGHT] vram_free_mb=? threshold=${VISION_VRAM_THRESHOLD} preset=${preset} n=${n} decision=skip reason=force_unload_disabled`);
+    return { didUnload: false, reason: 'force_unload_disabled' };
+  }
+
+  const health = await getFluxHealth();
+  const vramFree = typeof health?.vram_free_mb === 'number' ? health.vram_free_mb : null;
+
+  let shouldUnload = false;
+  const reasons = [];
+
+  if (preset === 'pro') { shouldUnload = true; reasons.push('preset=pro'); }
+  if (!shouldUnload && n > 1) { shouldUnload = true; reasons.push('n>1'); }
+  if (!shouldUnload) {
+    if (vramFree === null) { shouldUnload = true; reasons.push('vram_unknown'); }
+    else if (vramFree < VISION_VRAM_THRESHOLD) { shouldUnload = true; reasons.push('vram_below_threshold'); }
+  }
+
+  const reason = reasons.join('|') || 'sufficient';
+  console.log(`[VISION:PREFLIGHT] vram_free_mb=${vramFree} threshold=${VISION_VRAM_THRESHOLD} preset=${preset} n=${n} decision=${shouldUnload ? 'unload' : 'skip'} reason=${reason}`);
+
+  if (!shouldUnload) return { didUnload: false, reason };
+
+  const unloadRes = await unloadOllamaModels(modelFallback ? [modelFallback] : []);
+  if (unloadRes.attempted > 0) visionMetrics.unloads++;
+
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    const h = await getFluxHealth();
+    const v = typeof h?.vram_free_mb === 'number' ? h.vram_free_mb : null;
+    console.log(`[VISION:PREFLIGHT] wait vram_free_mb=${v} threshold=${VISION_VRAM_THRESHOLD}`);
+    if (v !== null && v >= VISION_VRAM_THRESHOLD) break;
+    await sleep(500);
+  }
+
+  return { didUnload: true, reason, unloaded: unloadRes.unloaded };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1027,24 +1149,11 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
               try { const { stmts: _vs } = require('./layers/auth/db.cjs'); _savedVP = user?.userId ? _vs.getVisionProfile.get(user.userId) : null; } catch {}
               const vPreset = args.preset || req.body.visionPreset || _savedVP?.preset || 'draft';
               const vAspect = args.aspect_ratio || req.body.visionAspect || _savedVP?.aspect_ratio || '1:1';
+              const vN = args.n || req.body.visionN || 1;
 
-              // ── Conditional Ollama unload ─────────────────────────────────
-              if (VISION_FORCE_UNLOAD) {
-                let doUnload = vPreset === 'pro'; // always unload for pro (needs max VRAM)
-                if (!doUnload) {
-                  try {
-                    const { data: hData } = await axios.get(`${FLUX_URL}/health`, { timeout: 3000 });
-                    doUnload = hData.vram_free_mb === null || hData.vram_free_mb < VISION_VRAM_THRESHOLD;
-                  } catch { doUnload = true; } // if health check fails, unload to be safe
-                }
-                if (doUnload) {
-                  try { await axios.post(`${OLLAMA_URL}/api/generate`, { model: cfg.ollama, keep_alive: 0 }, { timeout: 8000 }); } catch(_) {}
-                  visionMetrics.unloads++;
-                  console.log(`[VISION:VRAM] Ollama unloaded — preset=${vPreset} unloads=${visionMetrics.unloads}`);
-                } else {
-                  console.log(`[VISION:VRAM] Skipped unload — VRAM sufficient for preset=${vPreset}`);
-                }
-              }
+              // ── VRAM preflight gate (immediately before FLUX) ─────────────
+              try { await preflightVisionVRAM({ preset: vPreset, n: vN, modelFallback: cfg.ollama }); }
+              catch (e) { console.warn(`[VISION:PREFLIGHT] failed: ${e.message}`); }
 
               // Strip the raw JSON from the token stream display
               sendSSE(res, { type: 'token', content: '\0' }); // flush trick
@@ -1056,7 +1165,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
                   prompt,
                   preset:          vPreset,
                   aspect_ratio:    vAspect,
-                  n:               args.n               || req.body.visionN               || 1,
+                  n:               vN,
                   seed:            args.seed            ?? req.body.visionSeed            ?? undefined,
                   steps:           args.steps           || undefined,
                   guidance_scale:  args.guidance_scale  ?? undefined,
@@ -1085,6 +1194,14 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
                 visionMetrics.errors++;
                 const err = visionEvents.find(e => e.type === 'error');
                 sendSSE(res, { type: 'token', content: `\n**Vision failed**: ${err?.message || 'unknown error'}` });
+              }
+
+              // ── OOM/mixed-device recovery trigger ────────────────────────
+              const errEvent = visionEvents.find(e => e.type === 'error' && ((e.status === 503) || (e.data?.status === 503)));
+              if (errEvent) {
+                console.warn(`[VISION:RECOVER] Retriable vision error detected (status=503) — triggering FLUX reset + Ollama unload`);
+                axios.post(`${FLUX_URL}/reset`, { reason: 'vision_oom' }, { timeout: 2000 }).catch(() => {});
+                unloadOllamaModels([cfg.ollama]).catch(() => {});
               }
 
               // ── Structured metrics ────────────────────────────────────────
@@ -1231,7 +1348,7 @@ app.post('/api/shadow/toggle', auth.required, (req, res) => {
 // LIVEEDIT + VISION + PREEMPT ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 try { mountLiveEditRoutes(app, logEvent); } catch(e) { console.warn('[WARN] LiveEdit routes:', e.message); }
-try { mountVisionRoutes(app, logEvent, null, tierGate); } catch(e) { console.warn('[WARN] Vision routes:', e.message); }
+try { mountVisionRoutes(app, logEvent, null, tierGate, preflightVisionVRAM); } catch(e) { console.warn('[WARN] Vision routes:', e.message); }
 try {
   // Preempt needs model config + session context + token validation
   const validateTokenForPreempt = (token) => {

@@ -26,6 +26,18 @@ let passed = 0, failed = 0;
 function ok(label) { console.log(`  [PASS] ${label}`); passed++; }
 function fail(label, reason) { console.error(`  [FAIL] ${label}: ${reason}`); failed++; }
 
+function writeProbe(dir) {
+  const fp = path.join(dir, `.kuro_write_probe_${process.pid}_${Date.now()}`);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(fp, 'ok');
+    fs.unlinkSync(fp);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 async function get(url) {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
@@ -131,10 +143,19 @@ function testExtractVisionCall() {
   }
 }
 
-// ─── 2. FLUX health ───────────────────────────────────────────────────────────
+// ─── 2. Vision dir write probe ───────────────────────────────────────────────
+
+function testVisionDirWrite() {
+  console.log('\n[2] Vision dir write probe');
+  const r = writeProbe(VISION_DIR);
+  if (r.ok) ok(`Writable: ${VISION_DIR}`);
+  else fail('vision dir write probe', r.error);
+}
+
+// ─── 3. FLUX health ───────────────────────────────────────────────────────────
 
 async function testFluxHealth() {
-  console.log('\n[2] FLUX /health');
+  console.log('\n[3] FLUX /health');
   try {
     const { status, body } = await get(`${FLUX_URL}/health`);
     const d = JSON.parse(body);
@@ -143,10 +164,22 @@ async function testFluxHealth() {
   } catch(e) { fail('FLUX health', e.message); }
 }
 
-// ─── 3. FLUX /generate ────────────────────────────────────────────────────────
+// ─── 4. FLUX /reset (OOM recovery hook) ──────────────────────────────────────
+
+async function testFluxReset() {
+  console.log('\n[4] FLUX /reset');
+  try {
+    const { status, body } = await post(`${FLUX_URL}/reset`, { reason: 'test', warm: true });
+    const d = JSON.parse(body);
+    if (status === 200 && d.ok) ok(`FLUX reset ok (warmed=${d.warmed})`);
+    else fail('FLUX reset', `HTTP ${status} ${body}`);
+  } catch(e) { fail('FLUX reset', e.message); }
+}
+
+// ─── 5. FLUX /generate ────────────────────────────────────────────────────────
 
 async function testFluxGenerate() {
-  console.log('\n[3] FLUX /generate');
+  console.log('\n[5] FLUX /generate');
   try {
     const { status, body } = await post(`${FLUX_URL}/generate`, {
       prompt: 'a simple red circle on white background',
@@ -162,10 +195,10 @@ async function testFluxGenerate() {
   } catch(e) { fail('FLUX generate', e.message); return null; }
 }
 
-// ─── 4. File exists ───────────────────────────────────────────────────────────
+// ─── 6. File exists ───────────────────────────────────────────────────────────
 
 function testFileExists(filename) {
-  console.log('\n[4] File exists on disk');
+  console.log('\n[6] File exists on disk');
   if (!filename) { fail('file exists', 'no filename to check'); return; }
   const fp = path.join(VISION_DIR, filename);
   if (fs.existsSync(fp)) {
@@ -176,10 +209,10 @@ function testFileExists(filename) {
   }
 }
 
-// ─── 5. Image URL reachable ───────────────────────────────────────────────────
+// ─── 7. Image URL reachable ───────────────────────────────────────────────────
 
 async function testImageUrl(filename) {
-  console.log('\n[5] /api/vision/image/:filename reachable');
+  console.log('\n[7] /api/vision/image/:filename reachable');
   if (!filename) { fail('image URL', 'no filename to check'); return; }
   try {
     const { status } = await get(`${KURO_URL}/api/vision/image/${filename}`);
@@ -188,10 +221,10 @@ async function testImageUrl(filename) {
   } catch(e) { fail('image URL', e.message); }
 }
 
-// ─── 6. Duplicate tool ID ignored ────────────────────────────────────────────
+// ─── 8. Duplicate tool ID ignored ────────────────────────────────────────────
 
 function testDedup() {
-  console.log('\n[6] Duplicate tool ID dedup');
+  console.log('\n[8] Duplicate tool ID dedup');
 
   // Simulate the executedToolIds Set logic from KuroChatApp.jsx
   const executedToolIds = new Set();
@@ -220,7 +253,9 @@ async function main() {
   console.log('=== KURO Vision Pipeline Test ===\n');
 
   testExtractVisionCall();
+  testVisionDirWrite();
   await testFluxHealth();
+  await testFluxReset();
   const filename = await testFluxGenerate();
   testFileExists(filename);
   await testImageUrl(filename);
