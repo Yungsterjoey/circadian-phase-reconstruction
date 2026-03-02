@@ -49,9 +49,10 @@ function mountPreemptRoutes(app, logEvent, MODELS, validateToken, getSessionCont
         return res.status(400).json({ error: 'Input too long for speculation' });
       }
 
+      // Resolve model: prefer tier-based keys (kuro-free, kuro-pro, kuro-sov)
       const modelKey = mode === 'dev' ? 'dev' : 'main';
       const modelConfig = {
-        ...(MODELS[modelKey] || MODELS.main),
+        ...(MODELS[modelKey] || MODELS['kuro-free'] || Object.values(MODELS).find(m => m.tier === 'free' && !m.embedding)),
         mode: modelKey
       };
 

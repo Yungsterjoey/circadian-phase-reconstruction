@@ -68,9 +68,9 @@ function AppWindow({ appId, app, win }) {
       style={{
         position: 'absolute',
         left: isMax ? 0 : win.x,
-        top: isMax ? 32 : win.y,
+        top: isMax ? 44 : win.y,
         width: isMax ? '100%' : win.width,
-        height: isMax ? 'calc(100% - 32px)' : win.height,
+        height: isMax ? 'calc(100% - 44px)' : win.height,
         zIndex: win.zIndex,
       }}
       onMouseDown={() => { focusWindow(appId); setFocused(true); }}
@@ -150,7 +150,7 @@ export default function WindowManager() {
   const { apps, windows, windowOrder } = useOSStore();
 
   return (
-    <div className="wm" style={{ position: 'absolute', inset: '32px 0 0 0', zIndex: 10 }}>
+    <div className="wm" style={{ position: 'absolute', inset: '44px 0 0 0', zIndex: 10 }}>
       {windowOrder.map(appId => {
         const win = windows[appId];
         const app = apps.find(a => a.id === appId);

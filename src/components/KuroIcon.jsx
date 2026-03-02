@@ -20,6 +20,9 @@ const ICON_PATHS = {
   auth:     'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   admin:    'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4m0 4h.01',
   git:      'M6 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 7v10M6 9c4 0 12-1 12 3v3',
+  phone:    'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+  messages: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h6',
+  wager:    'M2 20h20M6 16V8M10 16V4M14 16V10M18 16V6',
 
   /* ── UI / system icons ── */
   lock:         'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4',
@@ -42,7 +45,7 @@ const EMOJI_MAP = {
   '⚙️': 'settings', '🔮': 'about', '🎨': 'vision',  '🌐': 'browser',
   '🔧': 'paxsilica', '🔐': 'auth', '🛡️': 'admin',
   // New mappings
-  '🔀': 'git',
+  '🔀': 'git',    '📞': 'phone',  '✉️': 'messages',
   '🔒': 'lock',  '🛡': 'shield',
   '💾': 'install', '⌘': 'copy',
   '✉': 'mail',   '⚡': 'bolt',
@@ -57,6 +60,7 @@ const APP_MAP = {
   'kuro.sandbox': 'sandbox', 'kuro.settings': 'settings', 'kuro.about': 'about',
   'kuro.vision': 'vision',   'kuro.browser': 'browser', 'kuro.paxsilica': 'paxsilica',
   'kuro.auth': 'auth',       'kuro.admin': 'admin',     'kuro.git': 'git',
+  'kuro.phone': 'phone',     'kuro.messages': 'messages',  'kuro.wager': 'wager',
 };
 
 export default function KuroIcon({ name, size = 20, color = 'currentColor', className = '', style = {} }) {

@@ -1,25 +1,23 @@
 import { create } from 'zustand';
 
 const SYSTEM_APPS = [
-  { id: 'kuro.chat',      name: 'KURO Chat',   icon: '💬', component: 'KuroChatApp',     defaultWidth: 800, defaultHeight: 600, minTier: 'free' },
-  { id: 'kuro.paxsilica', name: 'Pax Silica',  icon: '🔧', component: 'PaxSilicaApp',    defaultWidth: 900, defaultHeight: 700, minTier: 'free' },
-  { id: 'kuro.files',     name: 'Files',        icon: '📁', component: 'FileExplorerApp', defaultWidth: 700, defaultHeight: 500, minTier: 'pro' },
-  { id: 'kuro.browser',   name: 'Browser',      icon: '🌐', component: 'BrowserApp',      defaultWidth: 900, defaultHeight: 700, minTier: 'pro' },
-  { id: 'kuro.vision',    name: 'Vision',       icon: '🎨', component: 'VisionApp',       defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
-  { id: 'kuro.terminal',  name: 'Terminal',     icon: '⌨️', component: 'TerminalApp',     defaultWidth: 800, defaultHeight: 500, minTier: 'sovereign' },
-  { id: 'kuro.sandbox',   name: 'Sandbox',      icon: '🧪', component: 'SandboxApp',      defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
-  { id: 'kuro.about',     name: 'About KURO',   icon: '🔮', component: 'AboutApp',        defaultWidth: 680, defaultHeight: 580, minTier: 'free' },
-  { id: 'kuro.admin',     name: 'Admin',        icon: '🛡️', component: 'AdminApp',       defaultWidth: 700, defaultHeight: 500, minTier: 'sovereign' },
-  { id: 'kuro.git',       name: 'Git Patches',  icon: '🔀', component: 'GitPatchApp',     defaultWidth: 920, defaultHeight: 620, minTier: 'pro' },
-  { id: 'kuro.settings',  name: 'Settings',     icon: '⚙️', component: 'SettingsApp',    defaultWidth: 600, defaultHeight: 500, minTier: 'free' },
-  // kuro.auth is a virtual window — not in SYSTEM_APPS, managed by App.jsx directly
+  { id: 'kuro.auth',      name: 'Sign In',      icon: 'kuro.auth',      component: 'AuthGateApp',     defaultWidth: 440, defaultHeight: 620, minTier: 'guest' },
+  { id: 'kuro.chat',      name: 'KURO Chat',   icon: 'kuro.chat',      component: 'KuroChatApp',     defaultWidth: 800, defaultHeight: 600, minTier: 'free' },
+  { id: 'kuro.files',     name: 'Files',        icon: 'kuro.files',     component: 'FileExplorerApp', defaultWidth: 700, defaultHeight: 500, minTier: 'pro' },
+  { id: 'kuro.sandbox',   name: 'Sandbox',      icon: 'kuro.sandbox',   component: 'SandboxApp',      defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
+  { id: 'kuro.about',     name: 'About KURO',   icon: 'kuro.about',     component: 'AboutApp',        defaultWidth: 680, defaultHeight: 580, minTier: 'guest' },
+  { id: 'kuro.admin',     name: 'Admin',        icon: 'kuro.admin',     component: 'AdminApp',        defaultWidth: 700, defaultHeight: 500, minTier: 'sovereign' },
+  { id: 'kuro.git',       name: 'Git Patches',  icon: 'kuro.git',       component: 'GitPatchApp',     defaultWidth: 920, defaultHeight: 620, minTier: 'pro' },
+  { id: 'kuro.phone',     name: 'Phone',        icon: 'kuro.phone',     component: 'PhoneApp',        defaultWidth: 400, defaultHeight: 700, minTier: 'sovereign' },
+  { id: 'kuro.messages',  name: 'Messages',     icon: 'kuro.messages',  component: 'MessagesApp',     defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
+  { id: 'kuro.wager',    name: 'WAGER',        icon: 'kuro.wager',    component: 'WagerApp',        defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
 ];
 
-const TIER_LEVEL = { free: 0, pro: 1, sovereign: 2 };
+const TIER_LEVEL = { guest: -1, free: 0, pro: 1, sovereign: 2 };
 
 // ─── Persistence helpers ────────────────────────────────────────────────────
 const DEFAULT_APP_ORDER = SYSTEM_APPS.map(a => a.id);
-const DEFAULT_PINNED    = ['kuro.chat', 'kuro.files', 'kuro.terminal', 'kuro.sandbox', 'kuro.about'];
+const DEFAULT_PINNED    = ['kuro.chat', 'kuro.phone', 'kuro.messages', 'kuro.files', 'kuro.about'];
 const MAX_BG_APPS       = 4; // LRU eviction limit for background apps
 
 function loadLS(key, fallback) {
@@ -68,6 +66,10 @@ export const useOSStore = create((set, get) => ({
   windowOrder: [],
   nextZIndex: 100,
 
+  // ── App transition (launch/close animation) ────────────────────────────────
+  // { appId, fromRect: { top, right, bottom, left }, phase: 'launching' | 'closing' }
+  appTransition: null,
+
   // ── Mode ───────────────────────────────────────────────────────────────────
   modelMode: 'main',
   powerDial: 'sovereign',
@@ -77,7 +79,8 @@ export const useOSStore = create((set, get) => ({
   canAccessApp: (appId, userTier) => {
     const app = get().apps.find(a => a.id === appId);
     if (!app) return false;
-    return (TIER_LEVEL[userTier] || 0) >= (TIER_LEVEL[app.minTier] || 0);
+    const effectiveTier = userTier || 'guest';
+    return (TIER_LEVEL[effectiveTier] ?? -1) >= (TIER_LEVEL[app.minTier] ?? -1);
   },
 
   // ─── iOS-style app open: sets visibleAppId, adds to openApps ────────────────
@@ -236,6 +239,13 @@ export const useOSStore = create((set, get) => ({
   }),
 
   // ─── Misc ──────────────────────────────────────────────────────────────────
+  // ─── Launch animation ──────────────────────────────────────────────────
+  launchApp: (appId, fromRect) => {
+    set({ appTransition: { appId, fromRect, phase: 'launching' } });
+    get().openApp(appId);
+  },
+  clearTransition: () => set({ appTransition: null }),
+
   toggleGlassPanel: () => set(s => ({ glassPanelOpen: !s.glassPanelOpen })),
   setModelMode:     (mode) => set({ modelMode: mode }),
   setPowerDial:     (dial) => set({ powerDial: dial }),

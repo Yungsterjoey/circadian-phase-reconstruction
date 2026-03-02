@@ -58,7 +58,8 @@ try { ({ fireControlCheck } = require('./layers/fire_control.js')); } catch(e) {
 try { ({ recall, inscribe } = require('./layers/edubba_archive.js')); } catch(e) { recall = () => ({ found:false }); inscribe = () => {}; }
 try { ({ purify } = require('./layers/maat_refiner.js')); } catch(e) { purify = (x) => x; }
 try { ({ enhanceOutput } = require('./layers/output_enhancer.js')); } catch(e) { enhanceOutput = (x) => x; }
-try { ({ stripThinkBlocks, createThinkStreamEmitter } = require('./layers/thinking_stream.js')); } catch(e) { stripThinkBlocks = (x) => x; createThinkStreamEmitter = () => ({ emit:()=>{}, flush:()=>null }); }
+let createThinkContentFilter;
+try { ({ stripThinkBlocks, createThinkStreamEmitter, createThinkContentFilter } = require('./layers/thinking_stream.js')); } catch(e) { stripThinkBlocks = (x) => x; createThinkStreamEmitter = () => ({ emit:()=>{}, flush:()=>null }); createThinkContentFilter = () => ({ push: (x) => x, flush: () => '', reset: () => {} }); }
 
 let routeToAgent, buildSkillGates, AGENTS;
 try { ({ routeToAgent, buildSkillGates, AGENTS } = require('./layers/agent_orchestrator.js')); }
@@ -74,7 +75,12 @@ catch(e) { createGatedConnectors=()=>({file:{},terminal:{},session:{}}); fileCon
 
 // Auth — v2: session cookie + legacy token waterfall
 let auth, resolveUser, fingerprint;
-try { const am=require('./layers/auth/auth_middleware.cjs'); auth=am.auth; resolveUser=am.resolveUser; fingerprint=am.fingerprint; }
+try {
+  const am=require('./layers/auth/auth_middleware.cjs');
+  auth=am.auth; resolveUser=am.resolveUser; fingerprint=am.fingerprint;
+  // Wire legacy token fallback (X-KURO-Token / Bearer / tokens.json)
+  try { am.initLegacyFallback(require('./layers/auth_middleware.js')); } catch(e2) {}
+}
 catch(e) {
   // Fallback: try flat layers/ path (backwards compat)
   try { const am=require('./layers/auth_middleware.js'); auth=am.auth; resolveUser=am.resolveUser; fingerprint=am.fingerprint; }
@@ -199,9 +205,14 @@ try { ({ mountSnapshotRoutes } = require('./layers/cognitive_snapshots.js')); }
 catch(e) { mountSnapshotRoutes = () => {}; }
 
 // B5: Predictive Model Warming
-let predictiveWarm, setStreaming, warmStats;
-try { ({ predictiveWarm, setStreaming, warmStats } = require('./layers/model_warmer.js')); }
-catch(e) { predictiveWarm = async () => ({}); setStreaming = () => {}; warmStats = () => ({}); }
+let predictiveWarm, setStreaming, warmStats, startupWarm;
+try { ({ predictiveWarm, setStreaming, warmStats, startupWarm } = require('./layers/model_warmer.js')); }
+catch(e) { predictiveWarm = async () => ({}); setStreaming = () => {}; warmStats = () => ({}); startupWarm = async () => []; }
+
+// ═══ SHADOW NETWORK ═══
+let shadowBoot;
+try { shadowBoot = require('./layers/shadow/shadowBoot.js'); }
+catch(e) { shadowBoot = async () => ({ status: 'DISABLED', modules: {}, activeCount: 0, totalCount: 7 }); console.warn('[SHADOW] shadowBoot not loaded:', e.message); }
 
 // ═══ FUSION MODULES (Phase 1-3) ═══
 let shouldUseFrontier, streamFrontier, consumeFrontierQuota, getActiveProvider;
@@ -262,7 +273,8 @@ const KURO_INJECT_BLOCK = (process.env.KURO_INJECT_BLOCK ?? 'false').toLowerCase
 // EXPRESS APP
 // ═══════════════════════════════════════════════════════════════════════════
 const app = express();
-const corsOpts = { origin: PROFILE.corsOrigin==='*'?true:PROFILE.corsOrigin==='same'?false:ALLOWED_ORIGINS.length?ALLOWED_ORIGINS:true, credentials:true, maxAge:86400 };
+app.set('trust proxy', 1); // Behind Cloudflare / reverse proxy — trust first hop
+const corsOpts = { origin: PROFILE.corsOrigin==='*'?true:PROFILE.corsOrigin==='same'?false:ALLOWED_ORIGINS.length?ALLOWED_ORIGINS:false, credentials:true, maxAge:86400 };
 app.use(cors(corsOpts));
 app.use(securityHeaders);
 app.use(requestIdMw);
@@ -305,8 +317,16 @@ try {
   console.log('[RATE_LIMIT] Global 200/min, auth 20/15min');
 } catch(e) { console.warn('[WARN] Rate limiting not loaded:', e.message); }
 
-// Serve built frontend assets
-app.use(express.static(path.join(__dirname, 'dist'), { index: false }));
+// Serve built frontend assets (hashed filenames — cache forever)
+app.use(express.static(path.join(__dirname, 'dist'), {
+  index: false,
+  setHeaders(res, filePath) {
+    if (/\/assets\//.test(filePath)) res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}));
+
+// If a hashed asset is missing (old cached HTML referencing deleted bundles), return 404 not SPA fallback
+app.use('/assets', (req, res) => res.status(404).end());
 
 const PORT = parseInt(process.env.KURO_PORT || process.env.PORT || '3100', 10);
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
@@ -348,16 +368,21 @@ function ensureDir(dir, label) {
   }
 }
 
-function writeProbe(dir, label) {
+function writeProbe(dir, label, { fatal = true } = {}) {
   const probe = path.join(dir, `.kuro_write_probe_${process.pid}_${Date.now()}`);
   try {
     fs.writeFileSync(probe, 'ok');
     fs.unlinkSync(probe);
+    return true;
   } catch (e) {
-    console.error(`[FATAL] ${label || dir} is not writable by this service user.`);
-    console.error(`[FATAL] ${e.message}`);
-    console.error(`[FATAL] Fix: ensure write permissions for ${label || dir} (e.g., chown/chmod for the service user).`);
-    process.exit(1);
+    if (fatal) {
+      console.error(`[FATAL] ${label || dir} is not writable by this service user.`);
+      console.error(`[FATAL] ${e.message}`);
+      console.error(`[FATAL] Fix: ensure write permissions for ${label || dir} (e.g., chown/chmod for the service user).`);
+      process.exit(1);
+    }
+    console.warn(`[WARN] ${label || dir} is not writable: ${e.message}`);
+    return false;
   }
 }
 
@@ -377,45 +402,89 @@ for (const dir of REQUIRED_DIRS) {
   maybeFixDirPerms(dir);
 }
 
-// Mandatory write-probe (hard fail if unwritable)
-writeProbe(VISION_DIR, '/var/lib/kuro/vision');
+// Vision write-probe — non-fatal (vision is optional, server boots without it)
+const VISION_WRITABLE = writeProbe(VISION_DIR, '/var/lib/kuro/vision', { fatal: false });
 
+// ═══ V7 MODEL REGISTRY — RT-GPU-01 RTX 5090 (32GB VRAM) ═══
+// Router:  llama3.2:3b                                          ~2GB  (intent classification)
+// Core:    huihui-moe-abliterated:24b-a8b-Q4_K_M               ~14GB (ALL tiers — MoE, one VRAM slot)
+//          Tier differences: ctx budget + thinking enabled/disabled server-side
+// Vision:  huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4  ~6GB  (lazy load, Pro+)
+// Embed:   nomic-embed-text                                     ~0.3GB (always on)
 const MODEL_REGISTRY = {
-  // ═══ GCP NVIDIA L4 (24GB VRAM) — Router + Brain Architecture ═══
-  // Router: fast intent classification (Gemma3 4B abliterated, ~3GB VRAM)
-  // Brain: heavy reasoning (Qwen3-30B-A3B VL abliterated, ~10GB active VRAM)
-  // Budget: 3 + 10 + 4 (KV cache) = 17GB used, 7GB headroom
-
-  'kuro-router':   { name: 'KURO::ROUTER',  ollama: 'llama3.2:3b',                                                    ctx: 4096,  thinking: false, tier: 'system',     desc: 'Intent classifier (Llama 3.2 3B)', vram: 2 },
-  'kuro-core':     { name: 'KURO::CORE',     ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',        ctx: 8192,  thinking: false, tier: 'brain',      desc: 'Sovereign base intelligence (Qwen3-30B-A3B VL Abliterated)', vram: 22 },
-  'kuro-embed':    { name: 'KURO::EMBED',     ollama: 'nomic-embed-text',                                              ctx: 2048,  embedding: true, tier: 'subconscious' }
+  'kuro-router': {
+    name: 'KURO::ROUTER', ollama: 'llama3.2:3b',
+    ctx: 4096, thinking: false, tier: 'system',
+    desc: 'Intent classifier (Llama 3.2 3B)', vram: 2
+  },
+  'kuro-free': {
+    name: 'KURO::FREE', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
+    ctx: 16384, thinking: false, tier: 'free',
+    desc: 'Sovereign intelligence — Free tier (no thinking)', vram: 14, abliterated: true
+  },
+  'kuro-pro': {
+    name: 'KURO::PRO', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
+    ctx: 16384, thinking: true, tier: 'pro',
+    desc: 'Sovereign intelligence — Pro tier (thinking enabled)', vram: 14, abliterated: true
+  },
+  'kuro-sov': {
+    name: 'KURO::SOVEREIGN', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
+    ctx: 16384, thinking: true, tier: 'sovereign',
+    desc: 'Sovereign intelligence — Sovereign tier (thinking enabled)', vram: 14, abliterated: true
+  },
+  'kuro-vision': {
+    name: 'KURO::VISION', ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',
+    ctx: 16384, thinking: false, vision: true, tier: 'pro',
+    desc: 'Vision analysis — Pro+ tier (Qwen3-VL abliterated)', vram: 6, abliterated: true
+  },
+  'kuro-embed': {
+    name: 'KURO::EMBED', ollama: 'nomic-embed-text',
+    ctx: 8192, embedding: true, tier: 'free',
+    desc: 'Embedding model', vram: 0.3
+  }
 };
 
-// Skill → Model routing (all skills → kuro-core except creative/unrestricted → kuro-moe)
+// V6: Tier → model mapping
+const TIER_MODEL_MAP = {
+  guest:     'kuro-free',
+  free:      'kuro-free',
+  pro:       'kuro-pro',
+  sovereign: 'kuro-sov'
+};
+
+// Skill → Model routing
 const SKILL_MODELS = {
-  chat: 'kuro-core', general: 'kuro-core', code: 'kuro-core', dev: 'kuro-core',
-  reasoning: 'kuro-core', research: 'kuro-core', analysis: 'kuro-core',
-  vision: 'kuro-core', image: 'kuro-core', crypto: 'kuro-core', security: 'kuro-core',
-  stealth: 'kuro-core', opsec: 'kuro-core', creative: 'kuro-core', unrestricted: 'kuro-core',
-  exec: 'kuro-core', fast: 'kuro-core', triage: 'kuro-core',
+  chat: null, general: null, code: null, dev: null,
+  reasoning: null, research: null, analysis: null,
+  vision: 'kuro-vision', image: 'kuro-vision',
+  crypto: null, security: null, stealth: null, opsec: null,
+  creative: null, unrestricted: null, exec: null, fast: null, triage: null,
 };
 
-// Tier enforcement: free=core only, pro=core, sovereign=core+moe
+// Tier enforcement
 const MODEL_TIER_ACCESS = {
   'kuro-router':   'free',
-  'kuro-core':     'free',
+  'kuro-free':     'free',
+  'kuro-pro':      'pro',
+  'kuro-sov':      'sovereign',
+  'kuro-vision':   'pro',
+  'kuro-embed':    'free'
 };
 const TIER_NUM = { free: 0, pro: 1, sovereign: 2 };
 
 function resolveModel(skill, intent, userTier = 'free') {
-  let modelId = 'kuro-core';
+  // V6: Skill-specific override first
+  let modelId = null;
   if (skill && SKILL_MODELS[skill]) modelId = SKILL_MODELS[skill];
   else if (intent && SKILL_MODELS[intent]) modelId = SKILL_MODELS[intent];
 
-  // Tier gate — downgrade to core if user can't access the model
+  // If no skill-specific model, use tier-based mapping
+  if (!modelId) modelId = TIER_MODEL_MAP[userTier] || 'kuro-free';
+
+  // Tier gate — downgrade to free tier if user can't access the model
   const requiredTier = MODEL_TIER_ACCESS[modelId] || 'sovereign';
   if ((TIER_NUM[userTier] || 0) < (TIER_NUM[requiredTier] || 0)) {
-    return 'kuro-core'; // safe fallback
+    return TIER_MODEL_MAP[userTier] || 'kuro-free';
   }
   return modelId;
 }
@@ -438,6 +507,7 @@ async function checkOllama() {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function getFluxHealth() {
+  if (process.env.KURO_FLUX_ENABLED === 'false') return null;
   try {
     const { data } = await axios.get(`${FLUX_URL}/health`, { timeout: 3000 });
     return data || null;
@@ -511,10 +581,10 @@ async function preflightVisionVRAM({ preset = 'draft', n = 1, modelFallback } = 
 // PROMPTS
 // ═══════════════════════════════════════════════════════════════════════════
 const MODE_PROMPTS = {
-  main: 'You are KURO, a sovereign AI intelligence running on-premises.\n\nCOMMUNICATION:\n- Direct and genuine\n- Match response length to query complexity\n- Use <think>...</think> for complex reasoning only\n- Address user as Operator when appropriate\n\nIMAGE GENERATION:\nYou can generate images using the FLUX vision pipeline. When the user asks you to create, draw, generate, or make an image/picture/photo/illustration, output a JSON tool call:\n{"kuro_tool_call":{"id":"vision-1","name":"vision.generate","args":{"prompt":"detailed image description here"}}}\nWrite a rich, detailed prompt describing the image. Do NOT say you cannot generate images — you CAN via the vision tool.',
-  dev: 'You are KURO::DEV, autonomous coding mode.\n\nPROTOCOL:\n1. Plan first — use <plan>...</plan> tags\n2. Execute without asking permission\n3. Debug autonomously\n\nOUTPUT FORMAT:\n- Terminal: <terminal>$ command</terminal>\n- Files: <file path="..." action="create|modify|delete">content</file>',
-  bloodhound: 'You are KURO::BLOODHOUND, deep research mode.\nMethodical, cross-reference sources.\nUse <research>...</research> for analysis.',
-  war_room: 'You are KURO::WAR_ROOM, strategic planning mode.\nAll angles, risks, countermeasures.\nUse <strategy>...</strategy> for planning.'
+  main: 'You are KURO, a sovereign AI intelligence running on-premises.\n\nCOMMUNICATION:\n- Direct and genuine\n- Match response length to query complexity\n- Use <think>...</think> for complex reasoning only\n- Address user as Operator when appropriate\n- Always respond in English unless the Operator explicitly requests another language\n\nIMAGE GENERATION:\nYou can generate images using the FLUX vision pipeline. When the user asks you to create, draw, generate, or make an image/picture/photo/illustration, output a JSON tool call:\n{"kuro_tool_call":{"id":"vision-1","name":"vision.generate","args":{"prompt":"detailed image description here"}}}\nWrite a rich, detailed prompt describing the image. Do NOT say you cannot generate images — you CAN via the vision tool.',
+  dev: 'You are KURO::DEV, autonomous coding mode.\n\nPROTOCOL:\n1. Plan first — use <plan>...</plan> tags\n2. Execute without asking permission\n3. Debug autonomously\n4. Always respond in English unless the Operator explicitly requests another language\n\nOUTPUT FORMAT:\n- Terminal: <terminal>$ command</terminal>\n- Files: <file path="..." action="create|modify|delete">content</file>',
+  bloodhound: 'You are KURO::BLOODHOUND, deep research mode.\nMethodical, cross-reference sources.\nAlways respond in English unless the Operator explicitly requests another language.\nUse <research>...</research> for analysis.',
+  war_room: 'You are KURO::WAR_ROOM, strategic planning mode.\nAll angles, risks, countermeasures.\nAlways respond in English unless the Operator explicitly requests another language.\nUse <strategy>...</strategy> for planning.'
 };
 if (PROFILE.safety) { Object.keys(MODE_PROMPTS).forEach(k => { MODE_PROMPTS[k] = 'POLICY: Respond within organisational guidelines. Decline requests violating data governance, privacy, or safety policies.\n\n' + MODE_PROMPTS[k]; }); }
 
@@ -575,7 +645,7 @@ function chunkText(t, s = 500, o = 50) { const c = [], w = t.split(/\s+/); for (
 
 function sendSSE(r, d) { try { r.write('data: ' + JSON.stringify(d) + '\n\n'); } catch(e) {} }
 function sendLayer(r, n, s, x, ct) { if (ct === 'chat') return; const p = { type: 'layer', layer: n, name: LAYERS[n] || `L${n}`, status: s }; if (x) Object.assign(p, x); sendSSE(r, p); }
-function buildSystemPrompt(mode, skill, opts, rag, am) { let p = MODE_PROMPTS[mode] || MODE_PROMPTS.main; p += `\nRunning as KURO::CORE [${mode.toUpperCase()}]`; if (am?.agent) { p += ` via ${am.agent.name}`; if (am.downgraded) p += ` [DOWNGRADED: ${am.reason}]`; } p += `\nProfile: ${PROFILE.name}\n`; if (skill && SKILL_BEHAVIORS[skill]) p += '\n' + SKILL_BEHAVIORS[skill] + '\n'; if (opts.thinking) p += GHOST_PROTOCOLS.thinking; if (opts.reasoning) p += GHOST_PROTOCOLS.reasoning; if (opts.incubation) p += GHOST_PROTOCOLS.incubation; if (opts.redTeam) p += GHOST_PROTOCOLS.redTeam; if (opts.nuclearFusion) p += GHOST_PROTOCOLS.nuclearFusion; if (rag?.length) { p += '\n[RETRIEVED CONTEXT]\n'; rag.forEach((d, i) => p += `<context id="${i + 1}" score="${d.score?.toFixed(2) || '?'}">\n${d.document}\n</context>\n`); p += '\nUse above context when relevant.\n'; } return p; }
+function buildSystemPrompt(mode, skill, opts, rag, am) { let p = MODE_PROMPTS[mode] || MODE_PROMPTS.main; p += `\nRunning as KURO::CORE [${mode.toUpperCase()}]`; if (am?.agent) { p += ` via ${am.agent.name}`; if (am.downgraded) p += ` [DOWNGRADED: ${am.reason}]`; } p += `\nProfile: ${PROFILE.name}\nLANGUAGE: Always respond in English.\n`; if (skill && SKILL_BEHAVIORS[skill]) p += '\n' + SKILL_BEHAVIORS[skill] + '\n'; if (opts.thinking) p += GHOST_PROTOCOLS.thinking; if (opts.reasoning) p += GHOST_PROTOCOLS.reasoning; if (opts.incubation) p += GHOST_PROTOCOLS.incubation; if (opts.redTeam) p += GHOST_PROTOCOLS.redTeam; if (opts.nuclearFusion) p += GHOST_PROTOCOLS.nuclearFusion; if (rag?.length) { p += '\n[RETRIEVED CONTEXT]\n'; rag.forEach((d, i) => p += `<context id="${i + 1}" score="${d.score?.toFixed(2) || '?'}">\n${d.document}\n</context>\n`); p += '\nUse above context when relevant.\n'; } return p; }
 
 // Balanced-brace JSON extractor for vision tool calls.
 // Replaces the fragile regex that broke on } inside prompt text or extra whitespace.
@@ -965,9 +1035,9 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     const thermal = thermalAdvisory();
     if (thermal.status === 'hot' || thermal.status === 'critical') {
       thermalOverride = { original: modelId, reason: `GPU ${thermal.temperature}°C (${thermal.status})` };
-      logEvent({ agent: 'telemetry', action: 'thermal_downgrade', userId: user.userId, requestId: req.requestId, meta: { original: modelId, downgraded: 'kuro-core', temp: thermal.temperature } });
+      logEvent({ agent: 'telemetry', action: 'thermal_downgrade', userId: user.userId, requestId: req.requestId, meta: { original: modelId, downgraded: 'kuro-free', temp: thermal.temperature } });
     }
-    const cfg = MODEL_REGISTRY[thermalOverride ? 'kuro-core' : modelId] || MODEL_REGISTRY['kuro-core'];
+    const cfg = MODEL_REGISTRY[thermalOverride ? 'kuro-free' : modelId] || MODEL_REGISTRY['kuro-free'];
     sendLayer(res, 5, 'complete', { agent: ar.agent.name, agentId: ar.agentId, mode: ar.mode, downgraded: ar.downgraded, skills: ar.agent.skills, profile: ACTIVE_PROFILE, model: modelId }, clientType);
     sendSSE(res, { type: 'model', model: modelId, name: cfg.name, agent: ar.agent.name, agentId: ar.agentId, mode: ar.mode, skills: ar.agent.skills, downgraded: ar.downgraded, profile: ACTIVE_PROFILE });
     if (ar.downgraded) { sendSSE(res, { type: 'policy_notice', level: 'warning', message: `Action scope limited: ${ar.reason || 'insufficient permissions'}. Running in ${ar.agent.name} mode.`, originalMode: mode, effectiveMode: ar.mode, effectiveAgent: ar.agentId }); }
@@ -1056,7 +1126,7 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
     // Send capability policy info to client
     sendSSE(res, { type: 'capability', profile: capPolicy.profile, requested: powerDial, downgraded: capPolicy.downgraded, reason: capPolicy.downgradeReason, ctx: capCfg.ctx || cfg.ctx });
 
-    let full = '', tc = 0, resolvedModel = cfg.name, sentVisibleToken = false; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e));
+    let full = '', tc = 0, resolvedModel = cfg.name, sentVisibleToken = false; const thinkEmitter = createThinkStreamEmitter(e => sendSSE(res, e)); const thinkFilter = createThinkContentFilter();
     setStreaming(true); // B5: prevent model warming during active inference
     
     // ═══ FRONTIER ASSIST PATH ═══
@@ -1070,9 +1140,8 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
               onToken: (token) => {
                 full += token; tc++;
                 thinkEmitter.pushText(token);
-                sendSSE(res, { type: 'token', content: token });
-                sentVisibleToken = true;
-                streamController.appendPartial(sid, token);
+                const visible = thinkFilter.push(token);
+                if (visible) { sendSSE(res, { type: 'token', content: visible }); sentVisibleToken = true; streamController.appendPartial(sid, visible); }
               },
               onDone: (info) => {
                 thinkEmitter.reset();
@@ -1105,16 +1174,16 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
       recordLocal(); // B3: sovereignty tracking
 
     try {
-      const resp = await axios({ method: 'post', url: `${OLLAMA_URL}/api/chat`, data: { model: cfg.ollama, messages: ollMsgs, stream: true, options: { temperature: fTemp, num_ctx: capCfg.ctx || cfg.ctx } }, responseType: 'stream', timeout: 300000, signal: streamAbort.signal });
+      const resp = await axios({ method: 'post', url: `${OLLAMA_URL}/api/chat`, data: { model: cfg.ollama, messages: ollMsgs, stream: true, keep_alive: '30m', think: cfg.thinking === true, options: { temperature: fTemp, num_ctx: capCfg.ctx || cfg.ctx } }, responseType: 'stream', timeout: 300000, signal: streamAbort.signal });
       let buf = '';
       for await (const chunk of resp.data) {
         if (aborted) break;
         const correction = streamController.checkCorrection(sid);
         if (correction) { sendSSE(res, { type: 'aborted_for_correction', correction, partial: streamController.getPartial(sid) }); streamAbort.abort(); break; }
         buf += chunk.toString(); const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); sendSSE(res, { type: 'token', content: d.message.content }); sentVisibleToken = true; streamController.appendPartial(sid, d.message.content); } if (d.done) { thinkEmitter.reset(); /* done sent below after vision check */ } } catch(e) {} }
+        for (const line of lines) { if (!line.trim()) continue; try { const d = JSON.parse(line); if (d.message?.thinking) { thinkEmitter.pushText(d.message.thinking); } if (d.message?.content) { full += d.message.content; tc++; thinkEmitter.pushText(d.message.content); const visible = thinkFilter.push(d.message.content); if (visible) { sendSSE(res, { type: 'token', content: visible }); sentVisibleToken = true; streamController.appendPartial(sid, visible); } } if (d.done) { thinkEmitter.reset(); const trailing = thinkFilter.flush(); if (trailing) { sendSSE(res, { type: 'token', content: trailing }); sentVisibleToken = true; streamController.appendPartial(sid, trailing); } } } catch(e) {} }
       }
-      if (buf.trim()) { try { const d = JSON.parse(buf); if (d.message?.content) { full += d.message.content; tc++; sendSSE(res, { type: 'token', content: d.message.content }); sentVisibleToken = true; } } catch(e) {} }
+      if (buf.trim()) { try { const d = JSON.parse(buf); if (d.message?.content) { full += d.message.content; tc++; const visible = thinkFilter.push(d.message.content); if (visible) { sendSSE(res, { type: 'token', content: visible }); sentVisibleToken = true; } } } catch(e) {} }
     } catch(se) {
       if (se.name === 'CanceledError' || se.code === 'ERR_CANCELED') { streamController.unregisterStream(sid); }
       else { sendSSE(res, { type: 'error', message: se.message }); ollamaHealth.failures++; }
@@ -1123,9 +1192,10 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
 
     // ── Server-side vision tool call detection ─────────────────────────────────
     // Runs BEFORE done is sent so the client stays connected for the image.
+    // V6: Vision/FLUX disabled by env flag
     // Loop guard: if history already contains a vision call from this session,
     // strip it without re-running to break any re-emission cycle.
-    if (full) {
+    if (full && process.env.KURO_VISION_ENABLED !== 'false' && process.env.KURO_FLUX_ENABLED !== 'false') {
       const visionCall = extractVisionCall(full);
       if (visionCall) {
         full = full.replace(visionCall.raw, '').trim(); // Always strip (loop guard)
@@ -1272,9 +1342,14 @@ app.get('/api/patches', auth.analyst, (_, res) => { const pd = path.join(DATA_DI
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILITY + GUEST-AWARE ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════
-app.get('/api/models', guestOrAuth(resolveUser), async (req, res) => { const conf = Object.entries(MODEL_REGISTRY).map(([id, c]) => ({ id, name: c.name, desc: c.desc || '', ctx: c.ctx, thinking: !!c.thinking, embedding: !!c.embedding, vision: !!c.vision, tier: c.tier, minTier: MODEL_TIER_ACCESS[id] || 'sovereign', available: true })); try { const { data } = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 }); const av = new Set((data.models || []).map(m => m.name)); conf.forEach(m => { const c = MODEL_REGISTRY[m.id]; m.available = av.has(c.ollama) || av.has(c.ollama.split(':')[0]); }); } catch(e) {} res.json({ configured: conf, default: 'kuro-core', skillRouting: SKILL_MODELS, architecture: 'SOVEREIGN_AGENT_v7.0.3', agents: AGENTS, profile: { active: ACTIVE_PROFILE, ...PROFILE }, isGuest: !!req.isGuest }); });
+app.get('/api/models', guestOrAuth(resolveUser), async (req, res) => { const conf = Object.entries(MODEL_REGISTRY).map(([id, c]) => ({ id, name: c.name, desc: c.desc || '', ctx: c.ctx, thinking: !!c.thinking, embedding: !!c.embedding, vision: !!c.vision, tier: c.tier, minTier: MODEL_TIER_ACCESS[id] || 'sovereign', available: true })); try { const { data } = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 }); const av = new Set((data.models || []).map(m => m.name)); conf.forEach(m => { const c = MODEL_REGISTRY[m.id]; m.available = av.has(c.ollama) || av.has(c.ollama.split(':')[0]) || av.has(c.ollama + ':latest') || av.has(c.ollama.split(':')[0] + ':latest'); }); } catch(e) {} res.json({ configured: conf, default: 'kuro-free', tierMap: TIER_MODEL_MAP, skillRouting: SKILL_MODELS, architecture: 'SOVEREIGN_AGENT_v7.0.3', agents: AGENTS, profile: { active: ACTIVE_PROFILE, ...PROFILE }, isGuest: !!req.isGuest }); });
 
-app.get('/api/health', (_, res) => { res.json({ status: 'ok', version: 'v9.0', architecture: 'SOVEREIGN_AGENT', profile: ACTIVE_PROFILE, model: 'kuro-core', ollama: ollamaHealth.healthy ? 'connected' : 'degraded', stores: { namespaced: true, userCount: _userVectorStores.size }, audit: { chainValid: verifyAll().allValid }, fusion: { frontier: getActiveProvider().configured, webSearch: !!webSearch, lab: typeof mountLabRoutes === 'function', artifacts: typeof mountArtifactRoutes === 'function', contextReactor: !!ingestFile, synthesis: !!synthesize, telemetry: typeof mountTelemetryRoutes === 'function', sovereignty: typeof mountSovereigntyRoutes === 'function', snapshots: typeof mountSnapshotRoutes === 'function', warmer: typeof predictiveWarm === 'function', selfHeal: !!selfHeal }, guests: guestStats(), uptime: Math.floor(process.uptime()), timestamp: Date.now() }); });
+app.get('/api/health', (req, res) => {
+  // Unauthed: minimal response only
+  const user = resolveUser(req);
+  if (!user || !user.canAdmin) return res.json({ status: 'ok' });
+  res.json({ status: 'ok', version: 'v9.0', architecture: 'SOVEREIGN_AGENT', profile: ACTIVE_PROFILE, model: 'kuro-free', tierMap: TIER_MODEL_MAP, ollama: ollamaHealth.healthy ? 'connected' : 'degraded', stores: { namespaced: true, userCount: _userVectorStores.size }, audit: { chainValid: verifyAll().allValid }, fusion: { frontier: getActiveProvider().configured, webSearch: !!webSearch, lab: typeof mountLabRoutes === 'function', artifacts: typeof mountArtifactRoutes === 'function', contextReactor: !!ingestFile, synthesis: !!synthesize, telemetry: typeof mountTelemetryRoutes === 'function', sovereignty: typeof mountSovereigntyRoutes === 'function', snapshots: typeof mountSnapshotRoutes === 'function', warmer: typeof predictiveWarm === 'function', selfHeal: !!selfHeal }, guests: guestStats(), shadow: { status: shadowStatus.status, active: shadowStatus.activeCount, total: shadowStatus.totalCount, modules: Object.fromEntries(Object.entries(shadowStatus.modules || {}).map(([k,v]) => [k, v.status])) }, uptime: Math.floor(process.uptime()), timestamp: Date.now() });
+});
 
 app.post('/api/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
   const fn = sanitizeFilename(req.headers['x-filename']);
@@ -1290,7 +1365,7 @@ app.post('/api/upload', auth.required, express.raw({ type: '*/*', limit: '50mb' 
   }
   logEvent({ agent: 'system', action: 'upload', target: fn, userId, requestId: req.requestId });
   try { fs.writeFileSync(up, req.body); res.json({ success: true, path: up, size: req.body.length }); }
-  catch(e) { res.status(500).json({ error: e.message }); }
+  catch(e) { console.error(`[ERROR] ${req.requestId}:`, e); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.get('/api/files', auth.required, (req, res) => { const dp = req.query.path || DATA_DIR; const resolved = path.resolve(dp); if (!resolved.startsWith(path.resolve(DATA_DIR)) && !resolved.startsWith(path.resolve(CODE_DIR))) return res.status(403).json({ error: 'Path outside allowed scope' }); const scope = req.user.devAllowed ? 'actions' : (req.user.level >= 2 ? 'analysis' : 'insights'); try { const f = fileConn.list ? fileConn.list(dp, req.user.userId, scope) : []; res.json({ files: f, path: dp }); } catch(e) { res.status(404).json({ error: e.message }); } });
@@ -1304,7 +1379,7 @@ app.get('/api/vision/profile', auth.required, (req, res) => {
     const { stmts } = require('./layers/auth/db.cjs');
     const p = stmts.getVisionProfile.get(req.user.userId);
     res.json({ profile: p || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(`[ERROR] ${req.requestId}:`, e); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 app.post('/api/vision/profile', auth.required, (req, res) => {
@@ -1321,7 +1396,7 @@ app.post('/api/vision/profile', auth.required, (req, res) => {
     const { stmts } = require('./layers/auth/db.cjs');
     stmts.upsertVisionProfile.run(req.user.userId, safePreset, safeAspect, safeBase, safeGuidance, safeSteps, safeNeg, Date.now());
     res.json({ ok: true, saved: { preset: safePreset, aspect_ratio: safeAspect } });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(`[ERROR] ${req.requestId}:`, e); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1334,7 +1409,7 @@ function isShadowActive() { try { return fs.existsSync('/sys/class/net/wg0'); } 
 app.get('/api/shadow/status', auth.required, (_req, res) => {
   res.json({ enabled: _shadowEnabled, active: isShadowActive(), protocol: 'WireGuard' });
 });
-app.post('/api/shadow/toggle', auth.required, (req, res) => {
+app.post('/api/shadow/toggle', auth.admin, (req, res) => {
   _shadowEnabled = !_shadowEnabled;
   try { fs.writeFileSync(SHADOW_STATE_FILE, JSON.stringify({ enabled: _shadowEnabled, updated: Date.now() })); } catch {}
   logEvent({ agent: 'system', action: _shadowEnabled ? 'shadow_enable' : 'shadow_disable', userId: req.user.userId, requestId: req.requestId });
@@ -1348,7 +1423,9 @@ app.post('/api/shadow/toggle', auth.required, (req, res) => {
 // LIVEEDIT + VISION + PREEMPT ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 try { mountLiveEditRoutes(app, logEvent); } catch(e) { console.warn('[WARN] LiveEdit routes:', e.message); }
-try { mountVisionRoutes(app, logEvent, null, tierGate, preflightVisionVRAM); } catch(e) { console.warn('[WARN] Vision routes:', e.message); }
+if (process.env.KURO_VISION_ENABLED !== 'false' && process.env.KURO_FLUX_ENABLED !== 'false') {
+  try { mountVisionRoutes(app, logEvent, null, tierGate, preflightVisionVRAM); } catch(e) { console.warn('[WARN] Vision routes:', e.message); }
+} else { console.log('[V6] Vision/FLUX routes DISABLED by env flag'); }
 try {
   // Preempt needs model config + session context + token validation
   const validateTokenForPreempt = (token) => {
@@ -1427,6 +1504,7 @@ app.get('/api/frontier/status', auth.required, (req, res) => {
 
 // React OS — primary entry point
 app.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   const ip = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(ip)) return res.sendFile(ip);
   res.status(200).send('<html><body><h1>KURO OS v9.0</h1><p>Run npm run build.</p></body></html>');
@@ -1440,9 +1518,43 @@ app.get('/landing-legacy', (req, res) => {
 });
 app.get('/landing', (req, res) => res.redirect('/'));
 
+// ── Download route ──────────────────────────────────────────
+app.get('/download/kuro-os_6.0.0_amd64.deb', (req, res) => {
+  const f = '/mnt/kurodisk/kuro/releases/kuro-os_6.0.0_amd64.deb';
+  if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' });
+  res.download(f, 'kuro-os_6.0.0_amd64.deb');
+});
+app.get('/download/latest', (req, res) => {
+  res.json({ version: '6.0.0', deb: '/download/kuro-os_6.0.0_amd64.deb', sha256: fs.readFileSync('/mnt/kurodisk/kuro/releases/kuro-os_6.0.0_amd64.deb.sha256','utf8').trim() });
+});
+
+// ═══ KURO::CALL — Phone Module ══════════════════════════════════════════════
+// Auth removed for development/testing — all /phone/* routes are open.
+// Twilio webhooks still use signature validation inside router.cjs.
+let callRouter, callAttachWebSockets;
+try {
+  const callModule = require('./modules/call/index.cjs');
+  callRouter = callModule.router;
+  callAttachWebSockets = callModule.attachWebSockets;
+  app.use('/phone', callRouter);
+  console.log('[KURO::CALL] Routes mounted at /phone/* (no auth gate)');
+} catch(e) {
+  console.warn('[KURO::CALL] Module not loaded:', e.message);
+}
+
+// ═══ KURO::WAGER — Sovereign Betting Intelligence ══════════════════════════
+try {
+  const wagerModule = require('./modules/wager/index.cjs');
+  app.use('/wager', guestOrAuth(resolveUser), wagerModule.router);
+  console.log('[KURO::WAGER] Routes mounted at /wager/* (auth required)');
+} catch(e) {
+  console.warn('[KURO::WAGER] Module not loaded:', e.message);
+}
+
 // React OS SPA (all /app routes)
 app.use((req, res, next) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+  if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/download/') && !req.path.startsWith('/phone') && !req.path.startsWith('/wager')) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     const ip = path.join(__dirname, 'dist', 'index.html');
     if (fs.existsSync(ip)) return res.sendFile(ip);
     return res.status(200).send('<html><body><h1>KURO OS v9.0</h1><p>Build not found. Run npm run build.</p></body></html>');
@@ -1460,16 +1572,24 @@ app.use((req, res, next) => {
     const available = new Set((data.models || []).map(m => m.name));
     const required = Object.entries(MODEL_REGISTRY).filter(([,c]) => !c.embedding);
     for (const [id, cfg] of required) {
-      const ok = available.has(cfg.ollama) || available.has(cfg.ollama.split(':')[0]);
+      const ok = available.has(cfg.ollama) || available.has(cfg.ollama.split(':')[0]) || available.has(cfg.ollama + ':latest') || available.has(cfg.ollama.split(':')[0] + ':latest');
       if (!ok) console.warn(`[STARTUP] WARNING: Model '${cfg.ollama}' (${id}) not found in Ollama. Chat will fail for this model.`);
       else console.log(`[STARTUP] Model '${cfg.ollama}' (${id}) — OK`);
     }
   } catch(e) { console.warn(`[STARTUP] Could not reach Ollama at ${OLLAMA_URL} — models not validated`); }
 })();
 
+// ═══ SHADOW NETWORK BOOT ═══════════════════════════════════
+let shadowStatus = { status: 'PENDING', modules: {}, activeCount: 0, totalCount: 7 };
+(async () => { try { shadowStatus = await shadowBoot(); } catch(e) { console.error('[SHADOW] Boot failed:', e.message); } })();
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   logEvent({ agent: 'system', action: 'server_start', meta: { port: PORT, version: 'v9.0', profile: ACTIVE_PROFILE } });
-  console.log('\n  KURO OS v9.0 — UNIFIED BUILD (L4)');
+
+  // Attach KURO::CALL WebSocket handlers to HTTP server
+  if (callAttachWebSockets) { try { callAttachWebSockets(server); } catch(e) { console.warn('[KURO::CALL] WebSocket attach failed:', e.message); } }
+
+  console.log('\n  KURO v6.0 — SOVEREIGN CHAT (L4)');
   console.log('  ' + '═'.repeat(50));
   console.log(`  Port:      ${PORT}`);
   console.log(`  Profile:   ${PROFILE.name} (${ACTIVE_PROFILE})`);
@@ -1482,7 +1602,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Safety:    ${PROFILE.safety ? 'ENABLED' : 'disabled'}`);
   console.log(`  Exec:      ${PROFILE.execAllowed ? 'allowed' : 'DISABLED'}`);
   console.log(`  LiveEdit:  ${typeof mountLiveEditRoutes === 'function' ? 'wired (context-aware)' : 'fallback'}`);
-  console.log(`  Vision:    ${typeof mountVisionRoutes === 'function' ? 'wired (FLUX schnell+dev, tier-gated)' : 'fallback'}`);
+  console.log(`  Vision:    ${process.env.KURO_VISION_ENABLED === 'false' ? 'DISABLED (v6)' : typeof mountVisionRoutes === 'function' ? 'wired (tier-gated)' : 'fallback'}`);
   console.log(`  Synthesis: ${synthesize ? 'wired (A3+A5: parallel candidates + merge)' : 'fallback'}`);
   console.log(`  Telemetry: ${typeof mountTelemetryRoutes === 'function' ? 'wired (B1: GPU/VRAM/thermal)' : 'fallback'}`);
   console.log(`  SelfHeal:  ${selfHeal ? 'wired (B2: autonomous remediation)' : 'fallback'}`);
@@ -1496,8 +1616,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Lab:       ${typeof mountLabRoutes === 'function' ? 'wired' : 'fallback'}`);
   console.log(`  Artifacts: ${typeof mountArtifactRoutes === 'function' ? 'wired' : 'fallback'}`);
   console.log(`  CtxReact:  ${ingestFile ? 'wired' : 'fallback'}`);
+  console.log(`  CALL:      ${callRouter ? 'wired (Twilio+PersonaPlex, /phone/*)' : 'not loaded'}`);
   console.log(`  Vectors:   Edubba(${typeof edubbaStore !== 'undefined' ? edubbaStore.count() : '-'}) Mnemosyne(${typeof mnemosyneStore !== 'undefined' ? mnemosyneStore.count() : '-'})`);
   console.log('  ' + '═'.repeat(50) + '\n');
+
+  // B5: Startup warm — pre-load router + default model into VRAM
+  if (startupWarm) {
+    startupWarm(MODEL_REGISTRY).then(results => {
+      const ok = results.filter(r => r.ok);
+      console.log(`[WARMER] Startup complete — ${ok.length}/${results.length} models hot (${ok.map(r => r.model + ':' + r.ms + 'ms').join(', ')})`);
+    }).catch(e => console.warn('[WARMER] Startup warm failed:', e.message));
+  }
 });
 process.on('SIGTERM', () => { logEvent({ agent: 'system', action: 'shutdown', meta: { signal: 'SIGTERM' } }); sealDay(); server.close(() => process.exit(0)); });
 process.on('SIGINT', () => { logEvent({ agent: 'system', action: 'shutdown', meta: { signal: 'SIGINT' } }); sealDay(); server.close(() => process.exit(0)); });

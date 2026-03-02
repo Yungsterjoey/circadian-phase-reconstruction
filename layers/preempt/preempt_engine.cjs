@@ -155,7 +155,7 @@ async function _streamIntoBuffer(sessionId, input, messages, modelConfig) {
   const state = speculations.get(sessionId);
   if (!state) return;
 
-  const model = modelConfig?.name || 'kuro-main';
+  const model = modelConfig?.ollama || modelConfig?.name || 'kuro-free';
   const ctx = modelConfig?.ctx || 16384;
 
   const chatMessages = [

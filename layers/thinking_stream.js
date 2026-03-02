@@ -1,7 +1,13 @@
 function stripThinkBlocks(text) {
   if (!text || typeof text !== 'string') return text;
+  // Strip complete <think>...</think> and <plan>...</plan> blocks
   let out = text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
   out = out.replace(/<plan>[\s\S]*?<\/plan>\s*/gi, '');
+  // Strip implicit think blocks: content before a lone </think> or </plan>
+  // (model started mid-think without emitting the opening tag)
+  out = out.replace(/^[\s\S]*?<\/think>\s*/i, '');
+  out = out.replace(/^[\s\S]*?<\/plan>\s*/i, '');
+  // Strip any remaining orphan tags
   out = out.replace(/<\/?(think|plan)>\s*/gi, '');
   return out.replace(/\n{3,}/g, '\n\n').trim();
 }
@@ -115,15 +121,40 @@ function createThinkStreamEmitter(send) {
 /**
  * Stateful filter that REMOVES think/plan content from the user-visible token stream
  * (even if tags split across chunks).
+ *
+ * Handles three scenarios:
+ *   1. Normal:   <think>...</think> visible content
+ *   2. Implicit: Model starts mid-think (no opening <think> tag) — content arrives
+ *                as "thinking text</think>visible content". Everything before </think>
+ *                must be suppressed.
+ *   3. Chunked:  Tags split across multiple push() calls.
  */
 function createThinkContentFilter() {
   let buf = '';
   let inThink = false;
+  let firstChunk = true;  // true until we've emitted any visible content
 
   function push(chunk) {
     if (!chunk) return '';
     buf += String(chunk);
     let out = '';
+
+    // ── Implicit-think detection ─────────────────────────────────────────────
+    // On first content, if we see a </think> or </plan> closing tag without
+    // a preceding opening tag, the model started mid-think. Treat everything
+    // before the closing tag as think content and suppress it.
+    if (firstChunk && !inThink) {
+      const lo = buf.toLowerCase();
+      const closeIdx = _firstCloseTag(lo);
+      const openIdx = _firstOpenTag(lo);
+      // Closing tag exists and either there's no opening tag or the closing tag
+      // comes before the opening tag — implicit think block.
+      if (closeIdx !== -1 && (openIdx === -1 || closeIdx < openIdx)) {
+        inThink = true;
+        // Don't set firstChunk = false yet; let the main loop handle the
+        // closing tag and then emit visible content after it.
+      }
+    }
 
     const keepTail = (s, n) => (s.length > n ? s.slice(-n) : s);
 
@@ -134,16 +165,27 @@ function createThinkContentFilter() {
         const m = buf.slice(close).match(/<\/(think|plan)>\s*/i);
         buf = buf.slice(close + (m ? m[0].length : 0));
         inThink = false;
+        firstChunk = false;
         continue;
       } else {
         const open = buf.search(/<(think|plan)>\s*/i);
         if (open === -1) {
+          // ── Guard: if firstChunk is still true and we haven't found any
+          // tags yet, hold the buffer — a </think> might arrive in a later chunk.
+          if (firstChunk && buf.length <= 512) return out;
+          if (firstChunk) {
+            // Large buffer with no tags at all — model didn't think. Emit.
+            firstChunk = false;
+          }
           if (buf.length <= 64) return out;
           out += buf.slice(0, -64);
           buf = buf.slice(-64);
           return stripThinkBlocks(out);
         }
-        if (open > 0) out += buf.slice(0, open);
+        if (open > 0) {
+          firstChunk = false;
+          out += buf.slice(0, open);
+        }
         const m = buf.slice(open).match(/<(think|plan)>\s*/i);
         buf = buf.slice(open + (m ? m[0].length : 0));
         inThink = true;
@@ -153,8 +195,33 @@ function createThinkContentFilter() {
     return stripThinkBlocks(out);
   }
 
-  function reset(){ buf=''; inThink=false; }
-  return { push, reset };
+  function flush() {
+    firstChunk = false;
+    if (inThink) { buf = ''; inThink = false; return ''; }
+    const remaining = buf;
+    buf = '';
+    return stripThinkBlocks(remaining);
+  }
+  function reset(){ buf=''; inThink=false; firstChunk=true; }
+  return { push, flush, reset };
+}
+
+/** Find first </think> or </plan> index in a lowercased string, or -1 */
+function _firstCloseTag(lo) {
+  const c1 = lo.indexOf('</think>');
+  const c2 = lo.indexOf('</plan>');
+  if (c1 === -1) return c2;
+  if (c2 === -1) return c1;
+  return Math.min(c1, c2);
+}
+
+/** Find first <think> or <plan> index in a lowercased string, or -1 */
+function _firstOpenTag(lo) {
+  const o1 = lo.indexOf('<think>');
+  const o2 = lo.indexOf('<plan>');
+  if (o1 === -1) return o2;
+  if (o2 === -1) return o1;
+  return Math.min(o1, o2);
 }
 
 module.exports = {

@@ -8,24 +8,26 @@
  *   - Keyboard navigation (arrows, Enter, Shift+F10)
  *   - Tier-gating with lock badges
  *   - Open indicators (purple dot)
+ *   - Rubber-band overscroll at scroll boundaries
+ *   - Pinch-to-zoom gesture on icon grid
+ *   - Clip-path launch animation (icon rect → fullscreen)
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOSStore } from '../../stores/osStore';
 import { useAuthStore } from '../../stores/authStore';
+import { rubberBand } from '../../lib/gestureEngine';
 import KuroIcon from '../KuroIcon';
 
 // ── Long-press threshold ─────────────────────────────────────────────────────
 const LONG_PRESS_MS     = 500;
 const DRAG_CANCEL_PX    = 5;   // movement during long-press cancels it
-const DRAG_THRESHOLD_PX = 8;   // movement after long-press activates drag (mouse)
-const DRAG_THRESHOLD_TOUCH = 12;
 
 // ── Tier labels ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { pro: 'PRO', sovereign: 'SOV' };
 
 // ── Icon container ──────────────────────────────────────────────────────────
-function AppIcon({ app, isOpen, isLocked, isAdmin, editMode, onOpen, onContextMenu, onDragStart, onDragOver, onDrop, isDragOver }) {
+function AppIcon({ app, isOpen, isLocked, editMode, onOpen, onContextMenu, onDragStart, onDragOver, onDrop, isDragOver }) {
   const pressTimer   = useRef(null);
   const pressOrigin  = useRef(null);
   const cancelled    = useRef(false);
@@ -35,7 +37,6 @@ function AppIcon({ app, isOpen, isLocked, isAdmin, editMode, onOpen, onContextMe
     pressOrigin.current = { x: clientX, y: clientY };
     pressTimer.current = setTimeout(() => {
       if (!cancelled.current) {
-        // Trigger context menu at icon position
         const el = document.getElementById(`app-icon-${app.id}`);
         if (el) {
           const r = el.getBoundingClientRect();
@@ -76,11 +77,12 @@ function AppIcon({ app, isOpen, isLocked, isAdmin, editMode, onOpen, onContextMe
   const handleClick = (e) => {
     e.stopPropagation();
     cancelLongPress();
-    if (!isLocked) onOpen(app.id);
+    if (isLocked) onOpen('kuro.auth');
+    else onOpen(app.id);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!isLocked) onOpen(app.id); }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (isLocked) onOpen('kuro.auth'); else onOpen(app.id); }
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
       const el = document.getElementById(`app-icon-${app.id}`);
@@ -93,7 +95,6 @@ function AppIcon({ app, isOpen, isLocked, isAdmin, editMode, onOpen, onContextMe
     onContextMenu(app.id, e.clientX, e.clientY);
   };
 
-  // Edit-mode drag handlers
   const handleDragStart = editMode ? (e) => onDragStart(e, app.id) : undefined;
   const handleDragOver  = editMode ? (e) => onDragOver(e, app.id) : undefined;
   const handleDropEvt   = editMode ? (e) => onDrop(e, app.id) : undefined;
@@ -127,6 +128,9 @@ function AppIcon({ app, isOpen, isLocked, isAdmin, editMode, onOpen, onContextMe
         onDragOver={handleDragOver}
         onDrop={handleDropEvt}
       >
+        {editMode && (
+          <span className="hs-delete-badge" aria-hidden="true">{'\u2212'}</span>
+        )}
         <span className="hs-icon-bg" aria-hidden="true">
           <KuroIcon name={app.id} size={28} color={isLocked ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)'} />
         </span>
@@ -157,39 +161,48 @@ function EditDoneButton({ onDone }) {
 export default function HomeScreen() {
   const {
     apps, appOrder, openApps, editMode,
-    openApp, openContextMenu, setAppOrder, toggleEditMode, exitEditMode, contextMenu,
+    launchApp, openApp, openContextMenu, setAppOrder, toggleEditMode, exitEditMode, contextMenu,
   } = useOSStore();
   const { user } = useAuthStore();
 
   const [dragSource, setDragSource] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
-
-  // Keyboard navigation: track focused icon index
   const [focusedIndex, setFocusedIndex] = useState(0);
   const gridRef = useRef(null);
+  const rootRef = useRef(null);
 
-  // Compute ordered, visible app list (exclude admin unless isAdmin)
+  // ── Rubber-band overscroll state ──────────────────────────────────────
+  const rbTouch = useRef({ startY: 0, atTop: false, atBottom: false, active: false });
+
+  // Compute ordered, visible app list
   const visibleApps = appOrder
     .map(id => apps.find(a => a.id === id))
     .filter(Boolean)
-    .filter(app => app.id !== 'kuro.admin' || user?.isAdmin);
+    .filter(app => app.id !== 'kuro.admin' || user?.isAdmin)
+    .filter(app => app.id !== 'kuro.auth' || !user);
 
   const getIsLocked = (app) => {
-    if (!user) return true; // not authenticated
-    const TIER_LEVEL = { free: 0, pro: 1, sovereign: 2 };
+    if (!user) return app.minTier !== 'guest';
+    const TIER_LEVEL = { guest: -1, free: 0, pro: 1, sovereign: 2 };
     return (TIER_LEVEL[user.tier] || 0) < (TIER_LEVEL[app.minTier] || 0);
   };
 
+  // ── Open app with launch animation ────────────────────────────────────
   const handleOpen = useCallback((appId) => {
-    if (!user) return; // auth guard handled upstream
-    openApp(appId);
-  }, [openApp, user]);
+    const iconEl = document.getElementById(`app-icon-${appId}`);
+    if (iconEl) {
+      const r = iconEl.getBoundingClientRect();
+      launchApp(appId, { top: r.top, right: r.right, bottom: r.bottom, left: r.left });
+    } else {
+      openApp(appId);
+    }
+  }, [launchApp, openApp]);
 
   const handleContextMenu = useCallback((appId, x, y) => {
     openContextMenu(appId, x, y);
   }, [openContextMenu]);
 
-  // ── Drag reorder ──────────────────────────────────────────────────────────
+  // ── Drag reorder ──────────────────────────────────────────────────────
   const handleDragStart = (e, appId) => {
     e.dataTransfer.effectAllowed = 'move';
     setDragSource(appId);
@@ -214,7 +227,7 @@ export default function HomeScreen() {
   };
   const handleDragEnd = () => { setDragSource(null); setDragTarget(null); };
 
-  // ── Keyboard navigation ───────────────────────────────────────────────────
+  // ── Keyboard navigation ───────────────────────────────────────────────
   const handleGridKeyDown = (e) => {
     const cols = window.innerWidth >= 1024 ? 6 : window.innerWidth >= 768 ? 5 : 4;
     const total = visibleApps.length;
@@ -239,7 +252,7 @@ export default function HomeScreen() {
   const bgPressTimer = useRef(null);
   const bgPressOrigin = useRef(null);
   const handleBgMouseDown = (e) => {
-    if (e.target !== e.currentTarget) return; // only bare background
+    if (e.target !== e.currentTarget) return;
     bgPressOrigin.current = { x: e.clientX, y: e.clientY };
     bgPressTimer.current = setTimeout(() => toggleEditMode(), LONG_PRESS_MS);
   };
@@ -251,15 +264,70 @@ export default function HomeScreen() {
   };
   const handleBgMouseUp = () => clearTimeout(bgPressTimer.current);
 
-  // Close context menu on background click
   const { closeContextMenu } = useOSStore();
   const handleOutsideClick = (e) => {
     if (contextMenu) { closeContextMenu(); return; }
     handleBgClick();
   };
 
+  // ── Rubber-band overscroll (touch) ────────────────────────────────────
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const onTouchStart = (e) => {
+      // Don't interfere with pinch
+      if (e.touches.length > 1) return;
+      const y = e.touches[0].clientY;
+      const atTop = root.scrollTop <= 0;
+      const atBottom = root.scrollTop >= root.scrollHeight - root.clientHeight - 1;
+      rbTouch.current = { startY: y, atTop, atBottom, active: false };
+    };
+
+    const onTouchMove = (e) => {
+      if (e.touches.length > 1) return; // pinch handled separately
+      const rb = rbTouch.current;
+      const y = e.touches[0].clientY;
+      const dy = y - rb.startY; // positive = pulling down
+
+      if ((rb.atTop && dy > 0) || (rb.atBottom && dy < 0)) {
+        // At boundary, apply rubber-band
+        rb.active = true;
+        const overscroll = Math.abs(dy);
+        const rubber = rubberBand(overscroll, root.clientHeight);
+        const sign = dy > 0 ? 1 : -1;
+        root.style.transform = `translateY(${sign * rubber}px)`;
+      } else if (rb.active) {
+        // Moved back into normal scroll range
+        root.style.transform = '';
+        rb.active = false;
+      }
+    };
+
+    const onTouchEnd = () => {
+      const rb = rbTouch.current;
+      if (rb.active) {
+        root.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.0)';
+        root.style.transform = '';
+        rb.active = false;
+        const cleanup = setTimeout(() => { root.style.transition = ''; }, 500);
+        // Store cleanup ref isn't needed — no-op if component unmounts
+      }
+    };
+
+    root.addEventListener('touchstart', onTouchStart, { passive: true });
+    root.addEventListener('touchmove', onTouchMove, { passive: true });
+    root.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      root.removeEventListener('touchstart', onTouchStart);
+      root.removeEventListener('touchmove', onTouchMove);
+      root.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
+
   return (
     <div
+      ref={rootRef}
       className="hs-root"
       onMouseDown={handleBgMouseDown}
       onMouseMove={handleBgMouseMove}
@@ -300,9 +368,11 @@ export default function HomeScreen() {
         .hs-root {
           flex: 1;
           overflow-y: auto;
-          padding: 32px 24px 120px;
+          padding: 44px 24px calc(120px + env(safe-area-inset-bottom, 0px));
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
+          user-select: none;
+          -webkit-user-select: none;
         }
 
         /* ── Grid ──────────────────────────────────────────────────── */
@@ -331,7 +401,7 @@ export default function HomeScreen() {
           position: relative;
           width: var(--kuro-os-icon-size, 56px);
           height: var(--kuro-os-icon-size, 56px);
-          min-width: 44px; min-height: 44px; /* HIG touch target */
+          min-width: 44px; min-height: 44px;
           border: none;
           border-radius: var(--kuro-os-icon-radius, 14px);
           background: var(--kuro-os-icon-bg, rgba(255,255,255,0.06));
@@ -342,16 +412,19 @@ export default function HomeScreen() {
           justify-content: center;
           transition:
             background 150ms var(--lg-ease-standard),
-            transform  150ms var(--lg-ease-standard),
+            transform  200ms var(--lg-ease-spring, cubic-bezier(0.34,1.56,0.64,1)),
             box-shadow 150ms var(--lg-ease-standard);
           -webkit-tap-highlight-color: transparent;
           outline: none;
         }
         .hs-icon-btn:hover {
           background: var(--kuro-os-icon-hover, rgba(255,255,255,0.10));
-          transform: scale(1.04);
+          transform: scale(1.06);
         }
-        .hs-icon-btn:active { transform: scale(0.94); }
+        .hs-icon-btn:active {
+          transform: scale(0.88);
+          transition-duration: 80ms;
+        }
         .hs-icon-btn:focus-visible {
           outline: 2px solid var(--lg-accent, #a855f7);
           outline-offset: 2px;
@@ -359,11 +432,11 @@ export default function HomeScreen() {
 
         /* ── Edit mode wobble ──────────────────────────────────────── */
         @keyframes hs-wobble {
-          0%,100% { transform: rotate(-1deg); }
-          50%      { transform: rotate(1deg); }
+          0%,100% { transform: rotate(-1.2deg); }
+          50%      { transform: rotate(1.2deg); }
         }
         .hs-icon-btn.hs-editing {
-          animation: hs-wobble 300ms linear infinite;
+          animation: hs-wobble 280ms ease-in-out infinite;
           cursor: grab;
         }
         .hs-icon-btn.hs-editing:active { cursor: grabbing; }
@@ -383,9 +456,27 @@ export default function HomeScreen() {
           font-weight: 700;
           letter-spacing: 0.5px;
           background: rgba(168,85,247,0.85);
-          color: #fff;
+          color: rgba(255,255,255,0.92);
           padding: 1px 4px;
           border-radius: 4px;
+          pointer-events: none;
+        }
+
+        /* ── Edit mode delete badge ─────────────────────────────────── */
+        .hs-delete-badge {
+          position: absolute;
+          top: -4px;
+          left: -4px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: rgba(255,59,48,0.9);
+          color: rgba(255,255,255,0.92);
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 20px;
+          text-align: center;
+          z-index: 2;
           pointer-events: none;
         }
 
