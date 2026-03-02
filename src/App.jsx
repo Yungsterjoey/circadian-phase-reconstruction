@@ -30,6 +30,7 @@ const APP_COMPONENTS = {
   PhoneApp:        lazy(() => import('./components/apps/PhoneApp')),
   MessagesApp:     lazy(() => import('./components/apps/MessagesApp')),
   WagerApp:        lazy(() => import('./components/apps/WagerApp')),
+  KuroPayApp:      lazy(() => import('./components/apps/KuroPayApp')),
 };
 
 // ─── Loading spinner ─────────────────────────────────────────────────────────

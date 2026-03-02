@@ -406,14 +406,14 @@ for (const dir of REQUIRED_DIRS) {
 const VISION_WRITABLE = writeProbe(VISION_DIR, '/var/lib/kuro/vision', { fatal: false });
 
 // ═══ V7 MODEL REGISTRY — RT-GPU-01 RTX 5090 (32GB VRAM) ═══
-// Router:  llama3.2:3b                                          ~2GB  (intent classification)
+// Router:  phi4-mini-abliterated:3.8b                            ~2GB  (intent classification)
 // Core:    huihui-moe-abliterated:24b-a8b-Q4_K_M               ~14GB (ALL tiers — MoE, one VRAM slot)
 //          Tier differences: ctx budget + thinking enabled/disabled server-side
 // Vision:  huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4  ~6GB  (lazy load, Pro+)
 // Embed:   nomic-embed-text                                     ~0.3GB (always on)
 const MODEL_REGISTRY = {
   'kuro-router': {
-    name: 'KURO::ROUTER', ollama: 'llama3.2:3b',
+    name: 'KURO::ROUTER', ollama: 'huihui_ai/phi4-mini-abliterated:3.8b',
     ctx: 4096, thinking: false, tier: 'system',
     desc: 'Intent classifier (Llama 3.2 3B)', vram: 2
   },
@@ -1549,6 +1549,16 @@ try {
   console.log('[KURO::WAGER] Routes mounted at /wager/* (auth required)');
 } catch(e) {
   console.warn('[KURO::WAGER] Module not loaded:', e.message);
+}
+
+// ═══ KURO::PAY — Sovereign Financial Intelligence ═══════════════════════════
+try {
+  const payModule = require('./modules/pay/index.cjs');
+  app.use('/api/pay', guestOrAuth(resolveUser), payModule.router);
+  payModule.initPayModule().catch(e => console.warn('[KURO::PAY] Init warning:', e.message));
+  console.log('[KURO::PAY] Routes mounted at /api/pay/* (auth required)');
+} catch(e) {
+  console.warn('[KURO::PAY] Module not loaded:', e.message);
 }
 
 // React OS SPA (all /app routes)

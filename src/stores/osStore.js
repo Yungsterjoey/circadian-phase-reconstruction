@@ -11,6 +11,7 @@ const SYSTEM_APPS = [
   { id: 'kuro.phone',     name: 'Phone',        icon: 'kuro.phone',     component: 'PhoneApp',        defaultWidth: 400, defaultHeight: 700, minTier: 'sovereign' },
   { id: 'kuro.messages',  name: 'Messages',     icon: 'kuro.messages',  component: 'MessagesApp',     defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
   { id: 'kuro.wager',    name: 'WAGER',        icon: 'kuro.wager',    component: 'WagerApp',        defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
+  { id: 'kuro.pay',      name: 'KURO Pay',     icon: 'kuro.pay',      component: 'KuroPayApp',      defaultWidth: 500, defaultHeight: 750, minTier: 'sovereign' },
 ];
 
 const TIER_LEVEL = { guest: -1, free: 0, pro: 1, sovereign: 2 };
