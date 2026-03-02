@@ -24,6 +24,7 @@ const ICON_PATHS = {
   messages: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h6',
   wager:    'M2 20h20M6 16V8M10 16V4M14 16V10M18 16V6',
   pay:      'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2',
+  media:    'M15 8h.01M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6zM3 16l5-5 5 5M14 14l3-3 4 4',
 
   /* ── UI / system icons ── */
   lock:         'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4',
@@ -62,7 +63,7 @@ const APP_MAP = {
   'kuro.vision': 'vision',   'kuro.browser': 'browser', 'kuro.paxsilica': 'paxsilica',
   'kuro.auth': 'auth',       'kuro.admin': 'admin',     'kuro.git': 'git',
   'kuro.phone': 'phone',     'kuro.messages': 'messages',  'kuro.wager': 'wager',
-  'kuro.pay': 'pay',
+  'kuro.pay': 'pay',       'kuro.media': 'media',
 };
 
 export default function KuroIcon({ name, size = 20, color = 'currentColor', className = '', style = {} }) {

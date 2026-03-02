@@ -1561,6 +1561,111 @@ try {
   console.warn('[KURO::PAY] Module not loaded:', e.message);
 }
 
+// ═══ KURO::MEDIA — Smart Wake Proxy to TensorDock GPU ═══════════════════════
+(() => {
+  const { createProxyMiddleware } = require('http-proxy-middleware');
+  const MEDIA_HOST = 'http://159.26.94.81:3300';
+  const TD_API = 'https://dashboard.tensordock.com/api/v0';
+  const TD_TOKEN = 'J1IStPH9LWDGtA1qbD5g9vMP6jcryEln';
+  const TD_INSTANCE = 'fd9ad9ad-fbe4-4778-952c-cb4ae5def3b3';
+  let _waking = false;
+
+  async function isMediaAlive() {
+    try {
+      await axios.get(`${MEDIA_HOST}/api/media/health`, { timeout: 3000 });
+      return true;
+    } catch { return false; }
+  }
+
+  async function wakeInstance() {
+    await axios.post(`${TD_API}/client/start`, { id: TD_INSTANCE }, {
+      headers: { Authorization: `Bearer ${TD_TOKEN}` }, timeout: 10000,
+    });
+  }
+
+  async function stopInstance() {
+    await axios.post(`${TD_API}/client/stop`, { id: TD_INSTANCE }, {
+      headers: { Authorization: `Bearer ${TD_TOKEN}` }, timeout: 10000,
+    });
+  }
+
+  // GET /api/media/status — quick health check
+  app.get('/api/media/status', async (req, res) => {
+    res.json({ online: await isMediaAlive(), waking: _waking });
+  });
+
+  // POST /api/media/sleep — stop the GPU instance
+  app.post('/api/media/sleep', async (req, res) => {
+    try {
+      await stopInstance();
+      console.log('[KURO::MEDIA] Instance stopped');
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/media/wake — SSE wake sequence
+  app.post('/api/media/wake', async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    const send = (d) => res.write(`data: ${JSON.stringify(d)}\n\n`);
+
+    if (await isMediaAlive()) { send({ type: 'ready' }); return res.end(); }
+
+    _waking = true;
+    try {
+      send({ type: 'waking', detail: 'Sending start signal to TensorDock...', elapsed: 0 });
+      await wakeInstance();
+      send({ type: 'waking', detail: 'Instance starting, waiting for media server...', elapsed: 0 });
+
+      const start = Date.now();
+      const maxWait = 180000; // 3 minutes
+      while (Date.now() - start < maxWait) {
+        await new Promise(r => setTimeout(r, 5000));
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        if (await isMediaAlive()) {
+          send({ type: 'ready', elapsed });
+          _waking = false;
+          return res.end();
+        }
+        send({ type: 'waking', detail: `Waiting for media server... ${elapsed}s`, elapsed });
+      }
+      send({ type: 'error', message: 'Wake timeout after 3 minutes' });
+    } catch (e) {
+      send({ type: 'error', message: e.message });
+    }
+    _waking = false;
+    res.end();
+  });
+
+  // /api/media/* proxy — forward to media server if alive, else 503
+  const mediaProxy = createProxyMiddleware({
+    target: MEDIA_HOST,
+    changeOrigin: true,
+    timeout: 30000,
+    proxyTimeout: 30000,
+    on: {
+      error: (err, req, res) => {
+        if (!res.headersSent) {
+          res.status(502).json({ error: 'KURO::MEDIA offline', waking: _waking });
+        }
+      },
+    },
+  });
+
+  app.use('/api/media', async (req, res, next) => {
+    // Skip our own routes (status, sleep, wake)
+    if (req.path === '/status' || req.path === '/sleep' || req.path === '/wake') return next();
+    // Check if alive before proxying
+    if (await isMediaAlive()) return mediaProxy(req, res, next);
+    res.status(503).json({ error: 'KURO::MEDIA offline', waking: _waking, hint: 'POST /api/media/wake to start' });
+  });
+
+  console.log('[KURO::MEDIA] Smart wake proxy mounted at /api/media/*');
+})();
+
 // React OS SPA (all /app routes)
 app.use((req, res, next) => {
   if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/download/') && !req.path.startsWith('/phone') && !req.path.startsWith('/wager')) {
