@@ -1,6 +1,6 @@
 # NEURO-KURO Tier 0 — Circadian Phase Engine Validation Summary
 
-**Module:** `circadian_model.js` | **Date:** 2026-02-24 | **Tests:** T1–T15, 15/15 pass
+**Module:** `circadian_model.js` | **Date:** 2026-03-03 | **Tests:** T1–T16, 16/16 pass
 
 ---
 
@@ -68,6 +68,30 @@ MMASH dataset, N = 20 subjects. Proxy: DLMO = sleep onset − 2 h (Benloucif et 
 
 ---
 
+## T16 SANDD DLMO Validation Results
+
+SANDD dataset (Sleep, Adolescence, Neurobehavior, and Development; NSRR v0.1.0), N = 368 subject-sessions across 93 unique adolescent subjects. Real salivary DLMO (threshold-based melatonin assay). Anchor: CT21 (7π/4) tied to final sleep onset per session. τ grid search [23.5, 24.7] step 0.1 h. Minimum 3 actigraphy nights per session.
+
+| Metric | Value |
+|--------|-------|
+| MAE (τ=24.2) | **0.31 h** |
+| MAE (per-session optimal τ) | **0.26 h** |
+| Mean signed error | **+0.28 h** (model leads by 17 min) |
+| Median \|error\| | **0.32 h** |
+| P25 / P75 \|error\| | **0.17 h / 0.44 h** |
+| P90 \|error\| | **0.54 h** |
+| Max \|error\| | **0.79 h** |
+| Mean onset − DLMO | **1.32 h** (median 1.29 h) |
+| Optimal τ at grid boundary (24.7) | **85%** of sessions (313/368) |
+
+**Cross-dataset replication:** SANDD MAE (0.31 h) within 0.02 h of MMASH MAE (0.29 h). Ratio: 1.07×. The circadian model generalises from N = 20 adults to N = 368 adolescent sessions with negligible degradation.
+
+**τ boundary finding:** 85% of adolescent sessions optimise at τ = 24.7 h (the grid ceiling). This is consistent with reports of longer intrinsic period in adolescents (Carskadon et al., 1999; Crowley et al., 2014) and suggests extending the grid to τ ≈ 25.0 h would improve adolescent-specific fits.
+
+**Anchor-cancellation property:** In the anchor-comparison framework, the DLMO clock hour cancels algebraically — error reduces to shortestArc(φ_replayed − CT21). The metric tests model–anchor alignment over the sleep replay, identical to MMASH. SANDD's independent value lies in replication across a larger, longitudinal, adolescent-population dataset, not in differential DLMO prediction.
+
+---
+
 ## Known Limitations
 
 1. **Confidence saturation** — display rounds to 0 after ~43 h (C < 0.0005); raw value positive but uninformative.
@@ -77,16 +101,26 @@ MMASH dataset, N = 20 subjects. Proxy: DLMO = sleep onset − 2 h (Benloucif et 
 5. **Equal-quadrant labels** — four π/2-wide segments do not match biological durations; boundary misclassification may reach ~1 h.
 6. **Deliberate wrap-gate discontinuity** — gain cliff of ≈ 0.30 at the 2π/0 boundary (advance tail gives K>0 at φ=0⁺; night-side formula gives K=0 at φ→2π⁻). May produce different correction magnitudes for numerically equivalent phases near 0 and 2π. This is pragmatic smoothing to avoid a dead ADVANCE region, not a biological artifact.
 7. **DLMO proxy (population-mean offset)** — Two-timepoint MMASH saliva samples are insufficient for threshold-based DLMO detection; population regression (sleep onset − 2 h; Benloucif et al. 2005) used instead. Individual DLMO-to-sleep-onset interval variation accounts for the residual +0.23 h signed bias observed in T15.
+8. **Anchor-cancellation in DLMO comparison** — When both φ_model and φ_bio are evaluated at the same DLMO timestamp, the clock-hour offset cancels on S¹ and the error reduces to shortestArc(φ_replayed − CT21). This means the metric tests sleep-replay convergence to the CT21 anchor, not DLMO prediction per se. Both MMASH and SANDD validations share this property. A direct DLMO-prediction metric (comparing model-predicted DLMO clock hour to measured DLMO) would require decoupling the anchor from the evaluation point.
 
 ---
 
 ## Repro Steps
 
 ```bash
-# Run all 11 tests
+# Run unit + integration tests (T1–T14)
 node /opt/kuro/core/neuro/circadian_model.test.js
 
-# Run 5 validation scenarios
+# Run MMASH DLMO validation (T15; requires data/mmash/)
+node /opt/kuro/core/neuro/mmash_validation.js
+
+# Run SANDD DLMO validation (T16; requires data/sandd/)
+node /opt/kuro/core/neuro/sandd_validation.js
+
+# Run Blume 2024 ablation (requires data/blume2024/)
+node /opt/kuro/core/neuro/blume_validation.js
+
+# Run validation scenarios
 node /opt/kuro/core/neuro/circadian_validation.js
 
 # Append-only API state log
