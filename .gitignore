@@ -10,3 +10,6 @@ dist/
 *.zip
 *.pdf
 KURO_COMPLETE/
+
+# Playwright output
+test-results/

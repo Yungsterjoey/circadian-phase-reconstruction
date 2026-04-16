@@ -40,6 +40,7 @@
     "twilio": "^5.13.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@vitejs/plugin-react": "^4.3.1",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
