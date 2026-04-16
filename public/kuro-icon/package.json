@@ -1,0 +1,39 @@
+{
+  "name": "@kuro/icon",
+  "version": "1.0.0",
+  "description": "KURO::ICON — Liquid Glass 3D icon renderer for web",
+  "type": "module",
+  "main": "dist/kuro-icon.cjs",
+  "module": "dist/kuro-icon.esm.js",
+  "browser": "dist/kuro-icon.iife.js",
+  "exports": {
+    ".": {
+      "import": "./dist/kuro-icon.esm.js",
+      "require": "./dist/kuro-icon.cjs",
+      "default": "./dist/kuro-icon.esm.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "assets/"
+  ],
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "dev": "rollup -c rollup.config.js -w",
+    "bevel": "blender --background --python tools/bevel-meshes.py --",
+    "demo": "npx serve demo"
+  },
+  "devDependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.9.0"
+  },
+  "keywords": [
+    "webgl",
+    "3d-icons",
+    "liquid-glass",
+    "web-component",
+    "glassmorphism"
+  ],
+  "license": "PROPRIETARY",
+  "author": "KURO OS"
+}
