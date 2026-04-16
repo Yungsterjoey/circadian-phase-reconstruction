@@ -113,11 +113,14 @@
     /* ─── Navigation: H2 floating glass island ────────────────────
        Centered floating pill with rounded corners + glass backdrop.
        NOT a full-width opaque bar. Safe-area margin (H3) for notch. */
-    nav {
+    /* nav.lg-regular has higher specificity than .lg-regular alone, so the
+       translateZ(0) compositing hint set by .lg-regular doesn't clobber our
+       translateX(-50%) centering. Both are preserved here. */
+    nav.lg-regular {
       position: fixed;
       top: max(8px, env(safe-area-inset-top));
       left: 50%;
-      transform: translateX(-50%);
+      transform: translateX(-50%) translateZ(0);
       z-index: 100;
       display: flex;
       align-items: center;
@@ -160,6 +163,13 @@
     @media (max-width: 768px) {
       .nav-links { display: none; }
       .nav-right { gap: 12px; }
+    }
+    /* Tighter mobile pill — keep the floating-island invariant on phones */
+    @media (max-width: 480px) {
+      nav { gap: 12px; padding: 8px 14px; }
+      .nav-logo { font-size: 14px; gap: 8px; }
+      .nav-status { font-size: 0; gap: 0; }       /* hide "SYSTEM ONLINE" label */
+      .nav-status .status-dot { width: 6px; height: 6px; }
     }
 
     /* ─── Hero ──────────────────────────────────── */

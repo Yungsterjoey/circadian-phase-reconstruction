@@ -63,24 +63,27 @@
       width: 64px;
       height: 64px;
       margin: 0 auto 24px;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    /* Glasscube fallback if web component fails */
+    /* Glasscube — always rendered as a CSS gradient cube so the offline page
+       has a visible mark even when WebGL or the .glb mesh fails to load.
+       The <kuro-icon> canvas (when it does render) sits on top via z-index. */
     .mark::before {
       content: '';
-      width: 56px; height: 56px;
+      position: absolute; inset: 4px;
       border-radius: var(--lg-radius-md);
-      background: linear-gradient(135deg, rgba(168,85,247,0.35), rgba(76,29,149,0.45));
+      background: linear-gradient(135deg, rgba(168,85,247,0.45), rgba(76,29,149,0.55));
       border: 1px solid rgba(168,85,247,0.4);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.15),
+        inset 0 1px 0 rgba(255,255,255,0.18),
         0 8px 32px -8px rgba(168,85,247,0.5);
       animation: pulse 3s ease-in-out infinite;
+      z-index: 0;
     }
-    .mark kuro-icon { display: block; }
-    .mark:has(kuro-icon)::before { display: none; }
+    .mark kuro-icon { position: relative; z-index: 1; display: block; }
 
     @keyframes pulse {
       0%, 100% { opacity: 0.85; transform: scale(1); }

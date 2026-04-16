@@ -175,20 +175,42 @@ function securityHeaders(req, res, next) {
   if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
-  // CSP — applied to all HTML responses (GET non-API routes serve the SPA)
+  // CSP — two tiers
+  //   • Marketing landings (`/`, `/landing-legacy`, `/offline.html`) ship with
+  //     inline <script>/<style> and load brand fonts from Google + Fontshare.
+  //   • The Vite-built SPA shell ships everything as external files and gets
+  //     the strict policy.
   if (req.method === 'GET' && !req.path.startsWith('/api/')) {
-    res.setHeader('Content-Security-Policy', [
-      "default-src 'self'",
-      "script-src 'self'",                    // no unsafe-inline — Vite bundles are external files
-      "style-src 'self' 'unsafe-inline'",     // inline styles required (React JSX style props)
-      "img-src 'self' data: blob:",
-      "connect-src 'self' wss: blob:",        // wss: for future WebSocket; blob: for artifact download
-      "worker-src blob:",                     // blob: workers (Monaco future)
-      "frame-src blob: data:",               // ArtifactCard previews use blob: URLs in iframes
-      "frame-ancestors 'none'",              // prevents clickjacking
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; '));
+    const isMarketing = req.path === '/'
+                     || req.path === '/index.html'
+                     || req.path === '/landing-legacy'
+                     || req.path === '/offline.html';
+    if (isMarketing) {
+      res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",   // inline chat/terminal/sim widgets in landing
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
+        "font-src 'self' https://fonts.gstatic.com https://api.fontshare.com https://cdn.fontshare.com",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' wss: blob:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; '));
+    } else {
+      res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self'",                    // SPA bundles are external Vite files
+        "style-src 'self' 'unsafe-inline'",     // inline styles required (React JSX style props)
+        "img-src 'self' data: blob:",
+        "connect-src 'self' wss: blob:",
+        "worker-src blob:",
+        "frame-src blob: data:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; '));
+    }
   }
   next();
 }
