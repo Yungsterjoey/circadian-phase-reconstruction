@@ -461,7 +461,7 @@ function mountPayRoutes(app, requireAuth) {
         case 'payment_intent.succeeded': {
           const pi  = event.data.object;
           const row = findPaymentByIntent(pi.id);
-          if (db && row) db.prepare(`UPDATE kuro_pay_payments SET status='settled', settled_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
+          if (db && row) ledger.updatePaymentSettled(db, row.id, null);
           break;
         }
         case 'payment_intent.payment_failed': {

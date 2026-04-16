@@ -140,6 +140,28 @@ function updatePaymentStripe(db, id, stripeIntentId) {
 function updatePaymentSettled(db, id, x402ReceiptJson) {
   db.prepare(`UPDATE kuro_pay_payments SET x402_receipt_json=?, status='settled', settled_at=CURRENT_TIMESTAMP WHERE id=?`)
     .run(x402ReceiptJson, id);
+
+  // v2.5 intelligence hooks — non-blocking. LLM never touches critical path;
+  // these just enqueue rows in intelligence_queue for the background worker.
+  try {
+    const row = db.prepare(`SELECT id, user_id, merchant_account, merchant_name, amount_aud FROM kuro_pay_payments WHERE id=?`).get(id);
+    if (row) {
+      if (row.merchant_account && row.merchant_name) {
+        const mn = require('./intelligence/merchant_normalizer.cjs');
+        mn.enqueueIfNew({ merchant_account_number: row.merchant_account, raw_name: row.merchant_name });
+      }
+      const ad = require('./intelligence/anomaly_detector.cjs');
+      ad.enqueue({
+        payment_id: row.id,
+        user_id: row.user_id,
+        amount_aud: row.amount_aud,
+        merchant_id: row.merchant_account,
+        history: [],
+      });
+    }
+  } catch (err) {
+    console.error('[KURO::PAY] intelligence hook failed (non-blocking):', err && err.message);
+  }
 }
 
 function updatePaymentError(db, id, error) {
