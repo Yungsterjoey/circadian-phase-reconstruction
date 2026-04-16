@@ -457,3 +457,87 @@ When you encounter ambiguity:
 
 The codebase is a living system with a patent-pending research
 layer embedded in it. Treat it accordingly.
+
+---
+
+## 15. PERFORMANCE & TOKEN ECONOMY
+
+Optimising an AI agent like Claude Code involves a mix of
+**algorithmic constraints** and **contextual pruning**. These
+rules force the model into lower-resource, higher-velocity
+patterns — cheaper bills, faster apps.
+
+### 15.1 Algorithmic Efficiency & Complexity
+
+- **Prioritise Time Complexity:** When writing logic for data
+  processing, always favour O(n log n) or O(n) solutions over
+  O(n²). If a nested loop is proposed, provide a brief
+  justification or a hash-map alternative.
+- **Vectorisation over Iteration:** In Python or JS environments,
+  use vectorised operations (e.g., NumPy, Map/Reduce) instead of
+  explicit `for` loops. Reduces execution time and keeps logic
+  concise.
+- **Space-Time Trade-offs:** Use **memoisation** or **dynamic
+  programming** for recursive functions where sub-problems
+  overlap (e.g., `F(n) = F(n-1) + F(n-2)`). Don't wait for a
+  performance bottleneck to implement caching.
+
+### 15.2 Mathematical Optimisation
+
+Treat maths as a precision tool, not a text-generation task.
+
+- **Numerical Stability:** When implementing complex formulas,
+  prioritise numerically stable forms. Use **log-sum-exp** for
+  probabilities to avoid underflow/overflow.
+- **Bitwise Operations:** For low-level flags, permissions, or
+  power-of-two calculations, use bitwise operators (e.g.,
+  `x & (x - 1)` to check for power of two) rather than standard
+  arithmetic.
+- **Precision Management:** Unless high precision is required,
+  default to `float32` or `int16` for large arrays to save
+  memory and compute cycles.
+
+### 15.3 Token Usage & Context Pruning
+
+Every character costs tokens.
+
+**Strict output formatting:**
+
+| Rule | Instruction |
+|---|---|
+| **No Yapping** | Avoid conversational filler (e.g., "Sure, I can help with that"). Go straight to the code or the answer. |
+| **Concise Diffs** | When suggesting changes, only show the relevant lines and immediate context. Do not rewrite entire files unless necessary. |
+| **Minimalist Docs** | Write JSDoc/Docstrings only for public APIs. Use concise, one-line comments for internal logic. |
+
+**Context control:**
+
+- **Dependency Pruning:** When adding imports, do not import
+  entire libraries. Use named imports (e.g.,
+  `import { debounce } from 'lodash'`) to keep bundle and
+  mental map small.
+- **Atomic Responses:** If a task can be split into smaller,
+  independent functions, do so. Easier debugging, prevents
+  context window filling with monolithic blocks.
+
+### 15.4 Think-Step Constraints
+
+If hallucinating math or over-complicating logic, use a
+verification constraint:
+
+> Before outputting code involving complex algorithms (graph
+> traversals, matrix decompositions), perform a silent
+> **Internal Verification** step. Verify that the chosen
+> algorithm A is the most efficient for dataset size N and M
+> constraints.
+
+### 15.5 Quick-Reference Rules
+
+- **Computational Efficiency:** Default to O(n) or O(n log n).
+  Avoid O(n²) unless n < 100.
+- **Mathematical Precision:** Use bitwise ops for flag checks
+  and pre-calculated constants for frequently used values.
+- **Token Economy:** No conversational fluff. Provide code-only
+  responses for small fixes. Use `diff` format for file edits.
+- **Memory:** Use generator functions (e.g., `yield`) for
+  processing large datasets to maintain a low memory
+  footprint.
