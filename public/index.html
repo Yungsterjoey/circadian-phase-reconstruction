@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KURO OS — Sovereign AI Operating System</title>
+  <meta name="description" content="KURO OS: a 12-layer sovereign cognitive pipeline. Local inference. Your hardware, your data, your audit trail. NeuroKURO reconstructs circadian phase from sleep timing alone.">
+
+  <link rel="icon" type="image/jpeg" href="/kuro-logo.jpg">
+  <link rel="apple-touch-icon" href="/kuro-logo.jpg">
+  <link rel="manifest" href="/manifest.json">
+  <meta property="og:title" content="KURO OS — Sovereign AI Operating System">
+  <meta property="og:description" content="Local inference. Total sovereignty. 12-layer cognitive pipeline on your hardware.">
+  <meta property="og:image" content="/kuro-logo.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="/kuro-logo.jpg">
+  <meta name="theme-color" content="#04040c">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --void:             #04040c;
+      --glass:            rgba(100,65,210,0.07);
+      --glass-border:     rgba(150,110,255,0.16);
+      --glass-border-dim: rgba(150,110,255,0.08);
+      --pulse:            #9B6BFF;
+      --pulse-bright:     #C4A0FF;
+      --pulse-glow:       rgba(155,107,255,0.35);
+      --signal:           #00FFB2;
+      --amber:            #FFB347;
+      --heat:             #FF4D4D;
+      --text-primary:     rgba(255,255,255,0.92);
+      --text-secondary:   rgba(200,175,240,0.48);
+      --text-tertiary:    rgba(200,175,240,0.28);
+      --font-head:        'Clash Display', 'Bebas Neue', sans-serif;
+      --font-mono:        'DM Mono', 'Courier New', monospace;
+      --font-body:        'Instrument Serif', Georgia, serif;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--void);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      overflow-x: hidden;
+      cursor: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Custom cursor ──────────────────────────── */
+    #cursor {
+      position: fixed;
+      width: 8px; height: 8px;
+      background: var(--pulse-bright);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%,-50%);
+      mix-blend-mode: screen;
+    }
+    #cursor-ring {
+      position: fixed;
+      width: 32px; height: 32px;
+      border: 1px solid rgba(155,107,255,0.4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9998;
+      transform: translate(-50%,-50%);
+      transition: width .18s ease, height .18s ease, opacity .18s ease;
+    }
+    #cursor-ring.expand { width: 52px; height: 52px; opacity: 0; }
+
+    /* ─── Wallpaper / particles ──────────────────── */
+    #wallpaper {
+      position: fixed; inset: 0;
+      z-index: 0; pointer-events: none;
+    }
+    #wallpaper::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, rgba(155,107,255,0.12) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+    #particles {
+      position: fixed; inset: 0;
+      z-index: 1; pointer-events: none;
+    }
+
+    /* ─── Glass surfaces ─────────────────────────── */
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      border-radius: 18px;
+      transition: transform .3s ease, box-shadow .3s ease;
+    }
+    .glass:hover {
+      transform: translateY(-3px);
+      box-shadow: inset 0 0 40px rgba(155,107,255,.07), 0 20px 60px rgba(0,0,0,.55);
+    }
+    .glass-inner {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(155,107,255,0.10);
+      border-radius: 12px;
+    }
+
+    /* ─── Reveal animation ───────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ─── CSS Glass Cube ─────────────────────────── */
+    .cube-wrap { display: inline-block; perspective: 80px; }
+    .cube {
+      position: relative;
+      transform-style: preserve-3d;
+      animation: cube-spin 14s linear infinite;
+    }
+    .cube .face {
+      position: absolute;
+      border: 1px solid rgba(180,140,255,0.5);
+    }
+    .cube .front  { background: rgba(140,90,255,0.22); }
+    .cube .back   { background: rgba(100,60,200,0.10); }
+    .cube .right  { background: rgba(120,80,240,0.15); }
+    .cube .left   { background: rgba(80,50,180,0.08);  }
+    .cube .top    { background: rgba(170,120,255,0.28); }
+    .cube .bottom { background: rgba(90,55,190,0.08);  }
+
+    .cube-nav { width: 22px; height: 22px; }
+    .cube-nav .face { width: 22px; height: 22px; }
+    .cube-nav .front  { transform: translateZ(11px); }
+    .cube-nav .back   { transform: rotateY(180deg) translateZ(11px); }
+    .cube-nav .right  { transform: rotateY(90deg) translateZ(11px); }
+    .cube-nav .left   { transform: rotateY(-90deg) translateZ(11px); }
+    .cube-nav .top    { transform: rotateX(90deg) translateZ(11px); }
+    .cube-nav .bottom { transform: rotateX(-90deg) translateZ(11px); }
+
+    .cube-hero { width: 72px; height: 72px; }
+    .cube-hero .face { width: 72px; height: 72px; }
+    .cube-hero .front  { transform: translateZ(36px); }
+    .cube-hero .back   { transform: rotateY(180deg) translateZ(36px); }
+    .cube-hero .right  { transform: rotateY(90deg) translateZ(36px); }
+    .cube-hero .left   { transform: rotateY(-90deg) translateZ(36px); }
+    .cube-hero .top    { transform: rotateX(90deg) translateZ(36px); }
+    .cube-hero .bottom { transform: rotateX(-90deg) translateZ(36px); }
+
+    @keyframes cube-spin {
+      from { transform: rotateX(-22deg) rotateY(0deg); }
+      to   { transform: rotateX(-22deg) rotateY(360deg); }
+    }
+
+    /* ─── Navigation ─────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 16px clamp(20px, 5vw, 80px);
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(4,4,12,.72);
+      backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--glass-border-dim);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 12px;
+      font-family: var(--font-head);
+      font-size: 18px; font-weight: 700;
+      color: var(--text-primary); text-decoration: none;
+      letter-spacing: .06em;
+    }
+    .logo-wordmark { letter-spacing: .08em; }
+    .logo-wordmark span { color: var(--pulse-bright); }
+
+    .nav-right { display: flex; align-items: center; gap: 32px; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--text-secondary); text-decoration: none;
+      letter-spacing: .07em; text-transform: uppercase;
+      transition: color .2s ease;
+    }
+    .nav-links a:hover { color: var(--pulse-bright); }
+    .nav-status {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-tertiary); letter-spacing: .06em;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .status-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 6px var(--signal);
+      animation: status-pulse 2.5s ease infinite;
+    }
+    @keyframes status-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    /* ─── Hero ──────────────────────────────────── */
+    #hero {
+      height: 100vh; min-height: 720px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      padding: 0 clamp(16px,4vw,48px);
+    }
+    .hero-inner {
+      position: relative; z-index: 2;
+      max-width: 920px; width: 100%;
+      padding: clamp(48px, 6vw, 88px);
+      text-align: center;
+    }
+    .hero-cube-wrap {
+      display: flex; justify-content: center; margin-bottom: 36px;
+      opacity: 0; animation: fadeUp .8s ease forwards .08s;
+    }
+    .hero-cube-glow {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hero-cube-glow::before {
+      content: '';
+      position: absolute;
+      width: 140px; height: 140px;
+      background: radial-gradient(circle, rgba(155,107,255,0.28) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: glow-breathe 4s ease infinite;
+    }
+    @keyframes glow-breathe {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: .7; }
+    }
+    .hero-cube-wrap .cube-wrap { perspective: 260px; }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: clamp(10px,1vw,11px);
+      color: var(--pulse); letter-spacing: .24em;
+      text-transform: uppercase; margin-bottom: 22px;
+      opacity: 0; animation: fadeUp .8s ease forwards .22s;
+    }
+    h1.hero-headline {
+      font-family: var(--font-head);
+      font-size: clamp(36px, 5.8vw, 82px);
+      font-weight: 700; line-height: 1.04;
+      margin-bottom: 24px;
+      opacity: 0; animation: fadeUp .8s ease forwards .38s;
+    }
+    h1.hero-headline em {
+      font-style: italic;
+      background: linear-gradient(135deg, #C4A0FF 0%, #7B61FF 50%, #00FFB2 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: clamp(15px, 1.7vw, 19px);
+      color: var(--text-secondary); line-height: 1.7;
+      max-width: 580px; margin: 0 auto 36px;
+      opacity: 0; animation: fadeUp .8s ease forwards .52s;
+    }
+    .hero-sub strong { color: rgba(200,175,240,0.85); font-weight: normal; font-style: italic; }
+    .cta-group {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      opacity: 0; animation: fadeUp .8s ease forwards .66s;
+      margin-bottom: 28px;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px;
+      background: var(--pulse);
+      color: #ffffff;
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      letter-spacing: .06em; border-radius: 100px; text-decoration: none;
+      box-shadow: 0 0 32px rgba(155,107,255,0.4);
+      transition: transform .2s ease, box-shadow .2s ease;
+      cursor: none;
+      border: none;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 52px rgba(155,107,255,0.6);
+    }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      font-family: var(--font-mono); font-size: 12px;
+      letter-spacing: .06em; border-radius: 100px; text-decoration: none;
+      backdrop-filter: blur(20px);
+      transition: transform .2s ease, border-color .2s ease;
+      cursor: none;
+    }
+    .btn-ghost:hover { transform: translateY(-2px); border-color: rgba(150,110,255,.35); }
+
+    .hero-stat-pills {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      opacity: 0; animation: fadeUp .8s ease forwards .78s;
+    }
+
+    /* ─── Section scaffold ───────────────────────── */
+    .section-wrap {
+      position: relative; z-index: 2;
+      padding: clamp(80px,10vw,140px) clamp(20px,5vw,80px);
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: .3em; text-transform: uppercase;
+      color: var(--pulse); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::before {
+      content: '';
+      display: block; width: 24px; height: 1px;
+      background: var(--pulse); opacity: .6;
+    }
+    .section-label-static {
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: .25em; text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .section-heading {
+      font-family: var(--font-head);
+      font-size: clamp(26px,3.8vw,52px); font-weight: 600;
+      line-height: 1.12; margin-bottom: 56px; max-width: 600px;
+    }
+
+    /* ─── Pills ──────────────────────────────────── */
+    .pill {
+      display: inline-block;
+      padding: 5px 13px;
+      background: rgba(155,107,255,.05);
+      border: 1px solid rgba(155,107,255,.28);
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .08em;
+      color: var(--pulse-bright);
+    }
+    .pill-signal {
+      background: rgba(0,255,178,.06);
+      border-color: rgba(0,255,178,.32);
+      color: var(--signal);
+    }
+    .pill-muted {
+      background: rgba(255,255,255,.03);
+      border-color: rgba(255,255,255,.10);
+      color: var(--text-secondary);
+    }
+
+    /* ─── Science cards ──────────────────────────── */
+    .cards-3 {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 20px;
+    }
+    @media (max-width: 1024px) { .cards-3 { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 680px)  { .cards-3 { grid-template-columns: 1fr; } }
+
+    .sci-card { padding: clamp(28px,3vw,44px); }
+    .card-idx {
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-tertiary); letter-spacing: .22em;
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    .card-title {
+      font-family: var(--font-head);
+      font-size: clamp(17px,1.7vw,22px); font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .card-body {
+      font-size: clamp(13px,1.05vw,15px); color: var(--text-secondary);
+      line-height: 1.78; margin-bottom: 20px;
+    }
+    .formula {
+      background: rgba(0,0,0,.5);
+      border: 1px solid rgba(155,107,255,.18);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: clamp(10px,.9vw,12px);
+      color: var(--pulse-bright); line-height: 2;
+      overflow-x: auto;
+    }
+    .stat-row { display: flex; gap: 24px; margin-top: 18px; }
+    .stat-num {
+      font-family: var(--font-head);
+      font-size: clamp(28px,3.2vw,44px); font-weight: 700;
+      color: var(--pulse-bright); line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-sub {
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-tertiary); letter-spacing: .1em;
+    }
+    .mode-pills { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+
+    /* ─── Live simulator ────────────────────────── */
+    #simulator {
+      background: linear-gradient(180deg, transparent 0%, rgba(155,107,255,0.025) 50%, transparent 100%);
+    }
+    .sim-head { text-align: center; margin-bottom: 48px; }
+    .sim-head h2 {
+      font-family: var(--font-head);
+      font-size: clamp(28px,4vw,46px); font-weight: 600;
+      line-height: 1.12;
+    }
+    .sim-head h2 em {
+      font-style: italic;
+      color: var(--signal);
+    }
+    .simulator-panel {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: clamp(28px, 4vw, 52px);
+    }
+    .simulator-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 768px) { .simulator-grid { grid-template-columns: 1fr; } }
+    .sim-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .sim-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 20px;
+      -webkit-appearance: none;
+      color-scheme: dark;
+      cursor: none;
+    }
+    .sim-input:focus { border-color: rgba(155,107,255,0.4); }
+    .sim-input option { background: #0a0a14; }
+    .btn-compute {
+      width: 100%;
+      padding: 16px;
+      background: var(--pulse);
+      border: none;
+      border-radius: 12px;
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      cursor: none;
+      transition: all 0.25s ease;
+      margin-top: 8px;
+      box-shadow: 0 0 24px rgba(155,107,255,0.3);
+    }
+    .btn-compute:hover { box-shadow: 0 0 36px rgba(155,107,255,0.5); }
+    .btn-compute:disabled { background: rgba(155,107,255,0.3); color: rgba(255,255,255,0.6); }
+    .sim-subtext {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-align: center;
+      margin-top: 12px;
+      letter-spacing: .04em;
+    }
+    .output-panel { opacity: 0; transition: opacity .4s ease; }
+    .output-panel.visible { opacity: 1; }
+    .ct-display {
+      font-family: var(--font-head);
+      font-size: clamp(48px, 8vw, 64px);
+      font-weight: 700;
+      color: var(--pulse-bright);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .ct-label {
+      font-family: var(--font-body);
+      font-size: 18px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .ct-anchor {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      letter-spacing: .04em;
+    }
+    .confidence-bar-wrap { margin-bottom: 20px; }
+    .conf-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .conf-header span { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); letter-spacing: .15em; text-transform: uppercase; }
+    .conf-header strong { font-family: var(--font-mono); font-size: 13px; color: var(--pulse-bright); }
+    .conf-track {
+      width: 100%; height: 4px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--pulse) 0%, var(--pulse-bright) 100%);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.8s cubic-bezier(0.23,1,0.32,1);
+      box-shadow: 0 0 8px var(--pulse-glow);
+    }
+    .sub-metrics { display: flex; flex-direction: column; gap: 6px; }
+    .sub-metric {
+      display: flex; justify-content: space-between;
+      font-family: var(--font-mono); font-size: 12px;
+      color: var(--text-secondary);
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(155,107,255,.06);
+    }
+    .sub-metric span:last-child { color: var(--text-primary); }
+
+    .actigraphy-wrap {
+      max-width: 960px;
+      margin: 32px auto 0;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .actigraphy-wrap.visible { opacity: 1; }
+    #phaseCanvas {
+      width: 100%;
+      height: 220px;
+      border-radius: 12px;
+      display: block;
+    }
+    @media (max-width: 768px) { #phaseCanvas { height: 150px; } }
+
+    .compounds-wrap {
+      max-width: 960px;
+      margin: 32px auto 0;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .compounds-wrap.visible { opacity: 1; }
+    .compounds-header { margin-bottom: 16px; }
+    .compounds-header .section-label { color: var(--pulse-bright); margin-bottom: 6px; }
+    .compounds-header p {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      letter-spacing: .04em;
+    }
+    .compound-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 20px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+    }
+    @media (max-width: 640px) {
+      .compound-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    }
+    .compound-name { font-family: var(--font-mono); font-size: 14px; color: var(--pulse-bright); font-weight: 500; }
+    .compound-ct   { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+    .compound-local { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); }
+    .evidence-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .evidence-literature   { background: rgba(155,107,255,0.10); color: var(--pulse-bright); border: 1px solid rgba(155,107,255,0.25); }
+    .evidence-experimental { background: rgba(0,255,178,0.08);    color: var(--signal);       border: 1px solid rgba(0,255,178,0.25); }
+    .active-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      background: rgba(0,255,178,0.12);
+      border: 1px solid rgba(0,255,178,0.35);
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--signal);
+      letter-spacing: .06em;
+      margin-top: 4px;
+    }
+    .pro-cta {
+      display: block;
+      max-width: 960px;
+      margin: 24px auto 0;
+      padding: 20px 28px;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.23,1,0.32,1);
+    }
+    .pro-cta:hover { transform: translateY(-4px); }
+    .pro-cta-inner {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 8px;
+    }
+    .pro-cta-title { font-family: var(--font-head); font-size: 18px; font-weight: 600; }
+    .pro-cta-price { font-family: var(--font-mono); font-size: 13px; color: var(--pulse-bright); }
+
+    /* ─── OS section ─────────────────────────────── */
+    .os-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center;
+    }
+    @media (max-width: 900px) {
+      .os-grid { grid-template-columns: 1fr; gap: 40px; }
+      .terminal-panel { display: none; }
+    }
+    .os-body {
+      font-size: clamp(14px,1.2vw,17px); color: var(--text-secondary);
+      line-height: 1.78; margin-bottom: 24px;
+    }
+    .layer-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip {
+      font-family: var(--font-mono); font-size: 9px;
+      letter-spacing: .05em; padding: 5px 11px;
+      border: 1px solid rgba(155,107,255,.25); border-radius: 5px;
+      color: rgba(196,160,255,.8);
+      background: rgba(155,107,255,.05);
+    }
+    .terminal-panel { overflow: hidden; }
+    .term-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--glass-border-dim);
+    }
+    .tdot { width: 10px; height: 10px; border-radius: 50%; }
+    .tdot:nth-child(1) { background: #FF5F57; }
+    .tdot:nth-child(2) { background: #FEBC2E; }
+    .tdot:nth-child(3) { background: #28C840; }
+    .term-title {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-tertiary); margin-left: 5px;
+    }
+    .term-body {
+      padding: 20px; min-height: 280px;
+      font-family: var(--font-mono);
+      font-size: clamp(11px,.95vw,13px); line-height: 2;
+    }
+    .t-prompt { color: var(--pulse-bright); }
+    .t-cmd { color: var(--text-primary); }
+    .t-out { color: var(--text-secondary); font-size: .9em; }
+    .t-cursor {
+      display: inline-block; width: 7px; height: 13px;
+      background: var(--pulse-bright); vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ─── Research cards ─────────────────────────── */
+    .research-card { padding: 32px; }
+    .research-card h3 {
+      font-family: var(--font-head);
+      font-size: 20px; font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .research-card .sub {
+      font-family: var(--font-mono); font-size: 12px;
+      color: var(--text-secondary); margin-bottom: 16px;
+      letter-spacing: .04em;
+    }
+    .research-icon { width: 44px; height: 44px; margin-bottom: 20px; }
+    .research-link {
+      font-family: var(--font-mono); font-size: 12px;
+      color: var(--pulse-bright); text-decoration: none;
+      letter-spacing: .06em;
+    }
+    .research-link:hover { text-decoration: underline; }
+
+    /* ─── Footer ─────────────────────────────────── */
+    footer {
+      position: relative; z-index: 2;
+      border-top: 1px solid var(--glass-border-dim);
+      padding: clamp(32px,4vw,60px) clamp(20px,5vw,80px);
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 20px;
+    }
+    .footer-left { display: flex; align-items: center; gap: 14px; }
+    .footer-brand {
+      font-family: var(--font-head);
+      font-size: clamp(16px,1.8vw,22px); font-weight: 700;
+      color: var(--text-primary);
+    }
+    .footer-tagline {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-tertiary); margin-top: 5px;
+      letter-spacing: .05em;
+    }
+    .footer-meta {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-tertiary); line-height: 2; text-align: right;
+    }
+    .footer-meta a { color: var(--text-secondary); text-decoration: none; }
+    .footer-meta a:hover { color: var(--pulse-bright); }
+    @media (max-width: 600px) { .footer-meta { text-align: left; } }
+
+    /* ─── Chatbot ────────────────────────────────── */
+    #chatbot-trigger {
+      position: fixed;
+      bottom: 28px; right: 28px;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(155,107,255,0.12);
+      border: 1px solid rgba(155,107,255,0.35);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      cursor: none;
+      transition: all 0.25s ease;
+    }
+    #chatbot-trigger:hover {
+      background: rgba(155,107,255,0.22);
+      box-shadow: 0 0 28px var(--pulse-glow);
+    }
+    #chatbot-trigger:hover .trigger-tooltip { opacity: 1; transform: translateX(0) translateY(-50%); }
+    .trigger-k {
+      font-family: var(--font-head);
+      font-size: 22px;
+      color: var(--pulse-bright);
+      line-height: 1;
+    }
+    .trigger-glow {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid rgba(155,107,255,0.25);
+      animation: triggerPulse 2s ease infinite;
+    }
+    @keyframes triggerPulse {
+      0%,100% { transform: scale(1);    opacity: 0.5; }
+      50%       { transform: scale(1.25); opacity: 0;   }
+    }
+    .trigger-tooltip {
+      position: absolute;
+      right: calc(100% + 10px);
+      top: 50%;
+      transform: translateX(8px) translateY(-50%);
+      background: rgba(0,0,0,0.8);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      opacity: 0;
+      transition: all 0.2s ease;
+      pointer-events: none;
+    }
+    #chatbot-panel {
+      position: fixed;
+      bottom: 96px; right: 28px;
+      width: 380px; height: 520px;
+      display: flex; flex-direction: column;
+      z-index: 1001;
+      border-radius: 20px;
+      overflow: hidden;
+      background: rgba(8,8,16,0.95);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(24px);
+      opacity: 0;
+      transform: translateY(16px) scale(0.96);
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.23,1,0.32,1);
+    }
+    #chatbot-panel.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: all;
+    }
+    @media (max-width: 768px) {
+      #chatbot-panel {
+        bottom: 0; right: 0;
+        width: 100vw; height: 100dvh;
+        border-radius: 0;
+        transform: translateY(100%);
+      }
+      #chatbot-panel.open { transform: translateY(0); }
+    }
+    .chat-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+      flex-shrink: 0;
+    }
+    .chat-header-left { display: flex; align-items: center; gap: 10px; }
+    .chat-status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--signal);
+      animation: status-pulse 2s ease infinite;
+    }
+    .chat-title { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); letter-spacing: .12em; text-transform: uppercase; }
+    .chat-close {
+      width: 28px; height: 28px;
+      background: none; border: 1px solid var(--glass-border);
+      border-radius: 50%;
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: none;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .chat-close:hover { border-color: rgba(155,107,255,0.4); color: var(--text-primary); }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      scroll-behavior: smooth;
+    }
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+    .msg {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .msg-kuro {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .msg-user {
+      background: rgba(155,107,255,0.12);
+      border: 1px solid rgba(155,107,255,0.28);
+      color: var(--text-primary);
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-typing { display: flex; gap: 4px; align-items: center; padding: 12px 14px; }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-secondary);
+      animation: typingBounce 1.2s ease infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+    .chat-input-bar {
+      display: flex; gap: 8px;
+      padding: 12px;
+      border-top: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+      flex-shrink: 0;
+    }
+    .chat-input {
+      flex: 1;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      outline: none;
+      resize: none;
+      height: 40px;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+      cursor: none;
+    }
+    .chat-input:focus { border-color: rgba(155,107,255,0.4); }
+    .chat-send {
+      width: 40px; height: 40px;
+      background: var(--pulse);
+      border: none;
+      border-radius: 10px;
+      cursor: none;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .chat-send:hover { background: var(--pulse-bright); }
+    .chat-send svg { pointer-events: none; }
+
+    /* ─── Toast ──────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(255,77,77,0.15);
+      border: 1px solid rgba(255,77,77,0.3);
+      border-radius: 12px;
+      padding: 14px 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--heat);
+      z-index: 2000;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+      backdrop-filter: blur(16px);
+    }
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* ─── Keyframes ──────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ─── Vignette ───────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 9990; pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(4,4,12,.65) 100%);
+    }
+
+    a { color: inherit; }
+    ::selection { background: rgba(155,107,255,0.25); color: var(--text-primary); }
+  </style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<canvas id="wallpaper"></canvas>
+<canvas id="particles"></canvas>
+<div id="toast"></div>
+
+<!-- ═══ NAV ══════════════════════════════════════ -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="cube-wrap" style="perspective:80px">
+      <div class="cube cube-nav">
+        <div class="face front"></div>
+        <div class="face back"></div>
+        <div class="face right"></div>
+        <div class="face left"></div>
+        <div class="face top"></div>
+        <div class="face bottom"></div>
+      </div>
+    </div>
+    <span class="logo-wordmark">KURO<span>.</span>OS</span>
+  </a>
+  <div class="nav-right">
+    <ul class="nav-links">
+      <li><a href="#science">Engine</a></li>
+      <li><a href="#simulator">Live</a></li>
+      <li><a href="#kuro-os">OS</a></li>
+      <li><a href="#research">Research</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      SYSTEM ONLINE
+    </div>
+  </div>
+</nav>
+
+<!-- ═══ HERO ══════════════════════════════════════ -->
+<section id="hero">
+  <div class="hero-inner glass">
+    <div class="hero-cube-wrap">
+      <div class="hero-cube-glow">
+        <div class="cube-wrap" style="perspective:280px">
+          <div class="cube cube-hero">
+            <div class="face front"></div>
+            <div class="face back"></div>
+            <div class="face right"></div>
+            <div class="face left"></div>
+            <div class="face top"></div>
+            <div class="face bottom"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-eyebrow">KURO OS · Build 0.12 · Sovereign intelligence infrastructure</div>
+    <h1 class="hero-headline">Local inference.<br><em>Total sovereignty.</em></h1>
+    <p class="hero-sub">
+      A 12-layer cognitive pipeline running on a single RTX 5090.
+      <strong>Your hardware. Your data. Your audit trail.</strong>
+      NeuroKURO — the biological substrate — reconstructs circadian phase from sleep timing alone.
+    </p>
+    <div class="cta-group">
+      <a href="#simulator" class="btn-primary">Try the Simulator →</a>
+      <a href="#kuro-os" class="btn-ghost">Explore the OS</a>
+    </div>
+    <div class="hero-stat-pills">
+      <span class="pill">MAE 0.31h · SANDD N=368</span>
+      <span class="pill">MAE 0.29h · MMASH N=20</span>
+      <span class="pill pill-muted">Patent Pending · JSR Under Review</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SCIENCE ═══════════════════════════════════ -->
+<section id="science" class="section-wrap">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">01 · The Engine</div>
+      <h2 class="section-heading">Phase reconstruction from first principles.</h2>
+    </div>
+
+    <div class="cards-3">
+
+      <div class="glass sci-card reveal" style="transition-delay:.1s">
+        <div class="card-idx">E-01 · MEMORY STATE FUNCTION</div>
+        <h3 class="card-title">Mid-Sleep Fusion</h3>
+        <p class="card-body">
+          The MSF model estimates endogenous circadian phase φ(t) on the circle [0,&nbsp;2π) from sleep timing alone.
+          Five sub-signals with independent confidence bounds. No blood draws. No melatonin assays. Just timing.
+        </p>
+        <div class="formula">
+MSF(t) = S_endo + S_pharma<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ S_env + S_elec<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ S_field<br>
+<br>
+φ(t) = (φ₀ + ω·Δt) mod 2π<br>
+ω = 2π / τ · τ = 24.2 h<br>
+C(t) = C₀ · e^(−0.08·Δt)
+        </div>
+      </div>
+
+      <div class="glass sci-card reveal" style="transition-delay:.2s">
+        <div class="card-idx">E-02 · CLINICAL VALIDATION</div>
+        <h3 class="card-title">Validated Against Real DLMO</h3>
+        <p class="card-body">
+          Tested against salivary dim-light melatonin onset measurements from two independent cohorts.
+          Cross-dataset replication ratio of 1.07× confirms generalisation across age groups
+          without parameter tuning.
+        </p>
+        <div class="stat-row">
+          <div>
+            <div class="stat-num" data-target="368">368</div>
+            <div class="stat-sub">SANDD · MAE 0.31h</div>
+          </div>
+          <div>
+            <div class="stat-num" data-target="20">20</div>
+            <div class="stat-sub">MMASH · MAE 0.29h</div>
+          </div>
+        </div>
+        <p class="card-body" style="margin-top:16px;font-size:13px;">
+          P90 error: 0.54h. Max error: 0.79h. All within ±0.5h salivary assay precision floor.
+          T1–T16 unit suite: 16/16 pass.
+        </p>
+      </div>
+
+      <div class="glass sci-card reveal" style="transition-delay:.3s">
+        <div class="card-idx">E-03 · TEMPORAL API</div>
+        <h3 class="card-title">Five Reasoning Modes</h3>
+        <p class="card-body">
+          The MSF API exposes five temporal modes across the full lifecycle of a circadian estimate —
+          from archival replay to generative manufacture of counterfactual schedules.
+          Each mode outputs phase, confidence, and predicted transition times.
+        </p>
+        <div class="mode-pills">
+          <span class="pill">RECALL</span>
+          <span class="pill">PRESENT</span>
+          <span class="pill">PROJECT</span>
+          <span class="pill">SIMULATE</span>
+          <span class="pill">MANUFACTURE</span>
+        </div>
+        <p class="card-body" style="margin-top:16px;font-size:13px;">
+          60-combination parameter sweep (τ±20%, λ±60%, K±20%).
+          Worst-case |errH|: 1.40h at τ=23.8, K_scale=0.8.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ LIVE SIMULATOR ════════════════════════════ -->
+<section id="simulator" class="section-wrap" style="padding-top:0">
+  <div class="container">
+    <div class="reveal sim-head">
+      <div class="section-label" style="justify-content:center;display:inline-flex">02 · Live Phase Model</div>
+      <h2>Your circadian phase <em>— live</em></h2>
+    </div>
+
+    <div class="glass simulator-panel reveal" style="transition-delay:.1s">
+      <div class="simulator-grid">
+
+        <div class="sim-inputs">
+          <label class="sim-label" for="sleepOnset">Sleep onset</label>
+          <input class="sim-input" type="time" id="sleepOnset" value="23:00">
+
+          <label class="sim-label" for="wakeTime">Wake time</label>
+          <input class="sim-input" type="time" id="wakeTime" value="07:00">
+
+          <label class="sim-label" for="timezone">Timezone</label>
+          <select class="sim-input" id="timezone">
+            <option value="Australia/Melbourne">Australia/Melbourne</option>
+            <option value="Australia/Sydney">Australia/Sydney</option>
+            <option value="Australia/Perth">Australia/Perth</option>
+            <option value="Asia/Ho_Chi_Minh">Asia/Ho Chi Minh</option>
+            <option value="Asia/Singapore">Asia/Singapore</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="Asia/Seoul">Asia/Seoul</option>
+            <option value="Asia/Shanghai">Asia/Shanghai</option>
+            <option value="Asia/Kolkata">Asia/Kolkata</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="Europe/Berlin">Europe/Berlin</option>
+            <option value="Europe/Paris">Europe/Paris</option>
+            <option value="America/New_York">America/New York</option>
+            <option value="America/Los_Angeles">America/Los Angeles</option>
+            <option value="America/Chicago">America/Chicago</option>
+            <option value="America/Denver">America/Denver</option>
+            <option value="Pacific/Auckland">Pacific/Auckland</option>
+            <option value="UTC">UTC</option>
+          </select>
+
+          <button class="btn-compute" id="computeBtn" onclick="computePhase()">Compute my phase</button>
+          <p class="sim-subtext">No account required. Data never stored in demo mode.</p>
+        </div>
+
+        <div class="output-panel" id="outputPanel">
+          <div class="ct-display" id="ctDisplay">—</div>
+          <div class="ct-label" id="ctLabel">Awaiting computation</div>
+          <div class="ct-anchor" id="ctAnchor"></div>
+
+          <div class="confidence-bar-wrap">
+            <div class="conf-header">
+              <span>Model confidence</span>
+              <strong id="confPct">—</strong>
+            </div>
+            <div class="conf-track">
+              <div class="conf-fill" id="confFill"></div>
+            </div>
+          </div>
+
+          <div class="sub-metrics">
+            <div class="sub-metric"><span>Consistency score</span><span id="metricConsistency">—</span></div>
+            <div class="sub-metric"><span>Data density</span><span id="metricDensity">—</span></div>
+            <div class="sub-metric"><span>Variance</span><span id="metricVariance">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actigraphy-wrap" id="actWrap">
+        <canvas id="phaseCanvas"></canvas>
+      </div>
+
+      <div class="compounds-wrap" id="compoundsWrap">
+        <div class="compounds-header">
+          <div class="section-label">Phase-aligned timing windows</div>
+          <p>Based on circadian phase modelling. Not medical advice. Timing only.</p>
+        </div>
+        <div id="compoundsGrid"></div>
+
+        <a href="/signup" class="pro-cta glass">
+          <div class="pro-cta-inner">
+            <div>
+              <div class="pro-cta-title">Get your full 30-day phase history</div>
+              <div class="section-label-static" style="margin-top:6px">Continuous tracking · Phase-aligned compound windows · Trend analysis</div>
+            </div>
+            <div class="pro-cta-price">Pro · $15 AUD/month →</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ KURO OS ════════════════════════════════════ -->
+<section id="kuro-os" class="section-wrap">
+  <div class="container">
+    <div class="os-grid">
+
+      <div class="reveal">
+        <div class="section-label">03 · KURO OS</div>
+        <h2 class="section-heading">Sovereign AI<br>Operating System.</h2>
+        <p class="os-body">
+          A 12-layer cognitive pipeline running entirely on local hardware.
+          No cloud dependencies. No data exfiltration. Full inference sovereignty
+          on a single RTX 5090 (32GB).
+        </p>
+        <p class="os-body">
+          NeuroKURO sits at the biological substrate — Phase Layer 0. Every agent decision,
+          every response, every temporal query is optionally gated through the live MSF estimate.
+          Circadian-aware AI, running offline.
+        </p>
+        <div class="layer-chips">
+          <span class="chip">Iron Dome</span>
+          <span class="chip">IFF Gate</span>
+          <span class="chip">Memory</span>
+          <span class="chip">Semantic Router</span>
+          <span class="chip">Fire Control</span>
+          <span class="chip">MSF Engine</span>
+          <span class="chip">Maat Refiner</span>
+          <span class="chip">Output Enhancer</span>
+          <span class="chip">Thinking Stream</span>
+          <span class="chip">Audit Chain</span>
+          <span class="chip">Agent Orchestrator</span>
+          <span class="chip">Reactor Telemetry</span>
+        </div>
+      </div>
+
+      <div class="glass terminal-panel reveal" style="transition-delay:.15s">
+        <div class="term-bar">
+          <div class="tdot"></div>
+          <div class="tdot"></div>
+          <div class="tdot"></div>
+          <span class="term-title">kuro-core · gemma-4-abliterated:e4b</span>
+        </div>
+        <div class="term-body">
+          <div><span class="t-prompt">❯ </span><span class="t-cmd" id="term-line"></span><span class="t-cursor"></span></div>
+          <div id="term-resp" style="margin-top:4px"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ RESEARCH ═══════════════════════════════════ -->
+<section id="research" class="section-wrap" style="padding-top:0">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">04 · Research &amp; IP</div>
+      <h2 class="section-heading">Open science. Filed patents.</h2>
+    </div>
+
+    <div class="cards-3">
+
+      <div class="glass research-card reveal" style="transition-delay:.1s">
+        <svg class="research-icon" viewBox="0 0 44 44" fill="none">
+          <rect x="4" y="6" width="28" height="32" rx="3" stroke="var(--pulse-bright)" stroke-width="1.5"/>
+          <path d="M10 14h16M10 20h12M10 26h8M10 32h5" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M36 22l-8 8-4-4" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h3>NeuroKURO Preprint</h3>
+        <div class="sub">Zenodo · Open Access</div>
+        <a href="https://zenodo.org/records/18869320" target="_blank" rel="noopener" class="research-link">View Publication →</a>
+      </div>
+
+      <div class="glass research-card reveal" style="transition-delay:.2s">
+        <svg class="research-icon" viewBox="0 0 44 44" fill="none">
+          <circle cx="22" cy="22" r="16" stroke="var(--signal)" stroke-width="1.5"/>
+          <circle cx="22" cy="22" r="6" stroke="var(--signal)" stroke-width="1.5"/>
+          <path d="M22 6v6M22 32v6M6 22h6M32 22h6" stroke="var(--signal)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <h3>Journal of Sleep Research</h3>
+        <div class="sub">Manuscript JSR-03-26-0011</div>
+        <span class="pill pill-signal">Under Review</span>
+      </div>
+
+      <div class="glass research-card reveal" style="transition-delay:.3s">
+        <svg class="research-icon" viewBox="0 0 44 44" fill="none">
+          <path d="M22 4L6 12v12c0 9.941 6.884 18.178 16 20 9.116-1.822 16-10.059 16-20V12L22 4z" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M15 22l5 5 9-9" stroke="var(--pulse-bright)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h3>Provisional Patent</h3>
+        <div class="sub">IP Australia · Filed 2 April 2026</div>
+        <span class="pill">Patent Pending</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ════════════════════════════════════ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="cube-wrap" style="perspective:60px;opacity:.6">
+        <div class="cube cube-nav">
+          <div class="face front"></div>
+          <div class="face back"></div>
+          <div class="face right"></div>
+          <div class="face left"></div>
+          <div class="face top"></div>
+          <div class="face bottom"></div>
+        </div>
+      </div>
+      <div>
+        <div class="footer-brand">KURO Technologies</div>
+        <div class="footer-tagline">Melbourne, Australia · ABN 45 340 322 909</div>
+      </div>
+    </div>
+    <div class="footer-meta">
+      © 2026 KURO Technologies · ORCID 0009-0006-4864-9740<br>
+      <a href="https://zenodo.org/records/18869320" target="_blank" rel="noopener">Zenodo</a> ·
+      <a href="https://www.ipaustralia.gov.au/" target="_blank" rel="noopener">IP Australia</a><br>
+      <span style="opacity:.45">Advisory only · Not medical advice</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══ CHATBOT ════════════════════════════════════ -->
+<div id="chatbot-trigger" onclick="toggleChat()">
+  <div class="trigger-glow"></div>
+  <div class="trigger-k">K</div>
+  <div class="trigger-tooltip">Ask KURO</div>
+</div>
+
+<div id="chatbot-panel">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <div class="chat-status-dot"></div>
+      <span class="chat-title">KURO · Gemma 4</span>
+    </div>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="msg msg-kuro">Hi. I'm KURO. Ask me about NeuroKURO, circadian science, or what we're building. What do you want to know?</div>
+  </div>
+  <div class="chat-input-bar">
+    <input class="chat-input" id="chatInput" type="text" placeholder="Ask KURO..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){sendChat();event.preventDefault()}">
+    <button class="chat-send" onclick="sendChat()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8L3 3l2 5-2 5 10.5-5z" fill="#fff"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Cursor ────────────────────────────────────
+const $cursor = document.getElementById('cursor');
+const $ring   = document.getElementById('cursor-ring');
+let mx = 0, my = 0, rx = 0, ry = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  $cursor.style.left = mx + 'px';
+  $cursor.style.top  = my + 'px';
+});
+document.addEventListener('click', () => {
+  $ring.classList.add('expand');
+  setTimeout(() => $ring.classList.remove('expand'), 280);
+});
+(function trackRing() {
+  rx += (mx - rx) * 0.11;
+  ry += (my - ry) * 0.11;
+  $ring.style.left = rx + 'px';
+  $ring.style.top  = ry + 'px';
+  requestAnimationFrame(trackRing);
+})();
+
+// ─── Wallpaper ─────────────────────────────────
+const wCanvas = document.getElementById('wallpaper');
+const wCtx    = wCanvas.getContext('2d');
+let wW, wH;
+function resizeW() {
+  wW = wCanvas.width  = window.innerWidth;
+  wH = wCanvas.height = window.innerHeight;
+}
+resizeW();
+window.addEventListener('resize', resizeW);
+
+const BLOBS = [
+  { x:.18, y:.3,  r:.38, c:'rgba(100,55,220,', a:.18 },
+  { x:.72, y:.15, r:.42, c:'rgba(80,40,180,',  a:.14 },
+  { x:.5,  y:.7,  r:.50, c:'rgba(120,70,240,', a:.12 },
+  { x:.85, y:.65, r:.32, c:'rgba(90,50,200,',  a:.10 },
+  { x:.08, y:.8,  r:.28, c:'rgba(60,30,160,',  a:.08 },
+  { x:.55, y:.1,  r:.22, c:'rgba(150,90,255,', a:.16 },
+];
+(function drawWallpaper() {
+  const t = Date.now() * .00006;
+  wCtx.clearRect(0, 0, wW, wH);
+  wCtx.fillStyle = '#04040c';
+  wCtx.fillRect(0, 0, wW, wH);
+  BLOBS.forEach((b, i) => {
+    const dx = Math.sin(t * .7 + i) * 0.025;
+    const dy = Math.cos(t * .55 + i * 1.3) * 0.018;
+    const cx = (b.x + dx) * wW;
+    const cy = (b.y + dy) * wH;
+    const r  = b.r * Math.min(wW, wH);
+    const g  = wCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0,   b.c + b.a + ')');
+    g.addColorStop(.5,  b.c + (b.a * .4) + ')');
+    g.addColorStop(1,   b.c + '0)');
+    wCtx.fillStyle = g;
+    wCtx.beginPath();
+    wCtx.ellipse(cx, cy, r, r * .7, t * .08 + i, 0, Math.PI * 2);
+    wCtx.fill();
+  });
+  const topG = wCtx.createLinearGradient(0,0,0,wH*.4);
+  topG.addColorStop(0, 'rgba(4,4,12,.55)');
+  topG.addColorStop(1, 'rgba(4,4,12,0)');
+  wCtx.fillStyle = topG;
+  wCtx.fillRect(0, 0, wW, wH * .4);
+  requestAnimationFrame(drawWallpaper);
+})();
+
+// ─── Particles ─────────────────────────────────
+const pCanvas = document.getElementById('particles');
+const pCtx    = pCanvas.getContext('2d');
+let pW, pH;
+function resizeP() {
+  pW = pCanvas.width  = window.innerWidth;
+  pH = pCanvas.height = window.innerHeight;
+}
+resizeP();
+window.addEventListener('resize', resizeP);
+
+const PARTICLE_COUNT = 55;
+const pts = Array.from({length: PARTICLE_COUNT}, () => ({
+  x:  Math.random() * window.innerWidth,
+  y:  Math.random() * window.innerHeight,
+  vx: (Math.random() - .5) * .22,
+  vy: (Math.random() - .5) * .22,
+  r:  Math.random() * 1.4 + .3,
+  o:  Math.random() * .22 + .04,
+  ph: Math.random() * Math.PI * 2,
+  col: Math.random() < .7 ? '155,107,255' : '0,255,178'
+}));
+(function drawParticles() {
+  pCtx.clearRect(0, 0, pW, pH);
+  pts.forEach(p => {
+    p.x  += p.vx; p.y += p.vy; p.ph += .007;
+    if (p.x < 0) p.x = pW; if (p.x > pW) p.x = 0;
+    if (p.y < 0) p.y = pH; if (p.y > pH) p.y = 0;
+    const alpha = p.o * (.5 + .5 * Math.sin(p.ph));
+    pCtx.beginPath();
+    pCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    pCtx.fillStyle = `rgba(${p.col},${alpha.toFixed(3)})`;
+    pCtx.fill();
+  });
+  requestAnimationFrame(drawParticles);
+})();
+
+// ─── Scroll reveal ─────────────────────────────
+const revealObs = new IntersectionObserver(
+  entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+  { threshold: .07, rootMargin: '0px 0px -40px 0px' }
+);
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+// ─── Animated counters ─────────────────────────
+function runCounter(el) {
+  const target = parseInt(el.dataset.target, 10);
+  const start  = Date.now();
+  const dur    = 1400;
+  (function step() {
+    const p = Math.min((Date.now() - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(eased * target);
+    if (p < 1) requestAnimationFrame(step);
+  })();
+}
+const cntObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.stat-num[data-target]').forEach(runCounter);
+      cntObs.unobserve(e.target);
+    }
+  });
+}, { threshold: .25 });
+document.querySelectorAll('.sci-card').forEach(c => cntObs.observe(c));
+
+// ─── Terminal typewriter ───────────────────────
+const $termLine = document.getElementById('term-line');
+const $termResp = document.getElementById('term-resp');
+const CMDS = [
+  { cmd: 'kuro.os --status layers',
+    out: ['  12/12 layers nominal', '  iron-dome: ACTIVE · iff-gate: PASS', '  memory: 84% · audit-chain: SYNC'] },
+  { cmd: 'neurokuro phase --live',
+    out: ['  φ: 0.0024 rad · ACTIVATION', '  τ: 25.0h · confidence: 0.50', '  next BALANCE: in ~3.2h'] },
+  { cmd: 'msf.compute(present)',
+    out: ['  S_endo: φ=0.0024 · conf=0.50', '  S_pharma: PENDING_PK_MODULE', '  aggregate confidence: 0.10'] },
+  { cmd: 'kuro.flux --circadian-gate on',
+    out: ['  gate: ACTIVE · phase: ACTIVATION', '  all queries time-stamped MSF', '  flux: routed through phase layer'] },
+  { cmd: 'kuro.pay --scan-qr vietqr',
+    out: ['  QR renderer: ready', '  provider: VietQR · bank: BIDV', '  awaiting scan...'] }
+];
+let ci = 0, chi = 0, phase = 'typing', ri = 0;
+function tick() {
+  const c = CMDS[ci];
+  if (phase === 'typing') {
+    if (chi < c.cmd.length) {
+      $termLine.textContent += c.cmd[chi++];
+      return setTimeout(tick, 50 + Math.random() * 36);
+    }
+    phase = 'responding'; ri = 0;
+    $termResp.innerHTML = '';
+    return setTimeout(tick, 260);
+  }
+  if (phase === 'responding') {
+    if (ri < c.out.length) {
+      const d = document.createElement('div');
+      d.className = 't-out';
+      d.textContent = c.out[ri++];
+      $termResp.appendChild(d);
+      return setTimeout(tick, 150);
+    }
+    return setTimeout(() => {
+      ci = (ci + 1) % CMDS.length;
+      chi = 0; phase = 'typing';
+      $termLine.textContent = '';
+      $termResp.innerHTML = '';
+      tick();
+    }, 2400);
+  }
+}
+setTimeout(tick, 800);
+
+// ─── Timezone auto-detect ──────────────────────
+(function autoTZ() {
+  try {
+    const tz  = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const sel = document.getElementById('timezone');
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === tz) { sel.selectedIndex = i; return; }
+    }
+    const opt = document.createElement('option');
+    opt.value = tz; opt.textContent = tz; opt.selected = true;
+    sel.insertBefore(opt, sel.firstChild);
+  } catch(_) {}
+})();
+
+// ─── Compounds (preload) ───────────────────────
+window.neuroCompounds = null;
+fetch('/api/neuro/compounds')
+  .then(r => r.ok ? r.json() : null)
+  .then(d => { if (d?.compounds) window.neuroCompounds = d.compounds; })
+  .catch(() => {});
+
+// ─── Simulator: compute phase ──────────────────
+async function computePhase() {
+  const btn       = document.getElementById('computeBtn');
+  const sleepOnset = document.getElementById('sleepOnset').value;
+  const wakeTime   = document.getElementById('wakeTime').value;
+  const timezone   = document.getElementById('timezone').value;
+
+  if (!sleepOnset || !wakeTime) { showToast('Enter sleep onset and wake time.'); return; }
+
+  btn.textContent = 'Computing...';
+  btn.disabled    = true;
+
+  try {
+    const resp = await fetch('/api/neuro/phase/simulate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sleepOnset, wakeTime, timezone }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    renderOutput(data);
+  } catch (err) {
+    showToast('Computation failed: ' + err.message);
+  } finally {
+    btn.textContent = 'Compute my phase';
+    btn.disabled    = false;
+  }
+}
+
+function renderOutput(data) {
+  document.getElementById('ctDisplay').textContent = 'CT ' + data.ct.toFixed(1);
+  document.getElementById('ctLabel').textContent   = data.phaseDescription || data.phaseLabel;
+  document.getElementById('ctAnchor').textContent  = 'Current local equivalent: ' + data.localTime;
+
+  const confPct = Math.round(data.confidence * 100);
+  document.getElementById('confPct').textContent   = confPct + '%';
+  document.getElementById('confFill').style.width  = confPct + '%';
+  document.getElementById('metricConsistency').textContent = data.consistencyScore;
+  document.getElementById('metricDensity').textContent     = data.dataDensity;
+  document.getElementById('metricVariance').textContent    = data.variance + 'h';
+
+  document.getElementById('outputPanel').classList.add('visible');
+
+  if (data.curve) {
+    drawActigraphy(data.curve, data.ct);
+    document.getElementById('actWrap').classList.add('visible');
+  }
+  if (data.compounds) {
+    renderCompounds(data.compounds);
+    document.getElementById('compoundsWrap').classList.add('visible');
+  }
+}
+
+function drawActigraphy(curve, currentCT) {
+  const canvas = document.getElementById('phaseCanvas');
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  canvas.width  = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  const padL = 44, padR = 16, padT = 20, padB = 36;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const midY  = padT + plotH / 2;
+
+  const zones = [
+    { start: 0,  end: 6,  color: 'rgba(26,26,64,0.30)',    label: 'RESET'      },
+    { start: 6,  end: 10, color: 'rgba(255,179,71,0.16)',  label: 'ACTIVATION' },
+    { start: 10, end: 16, color: 'rgba(0,255,178,0.10)',   label: 'BALANCE'    },
+    { start: 16, end: 21, color: 'rgba(155,107,255,0.18)', label: 'BRAKE'      },
+    { start: 21, end: 24, color: 'rgba(26,26,64,0.30)',    label: 'RESET'      },
+  ];
+  zones.forEach(z => {
+    const x0 = padL + (z.start / 24) * plotW;
+    const x1 = padL + (z.end   / 24) * plotW;
+    ctx.fillStyle = z.color;
+    ctx.fillRect(x0, padT, x1 - x0, plotH);
+    ctx.font      = `10px 'DM Mono', monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.textAlign = 'center';
+    ctx.fillText(z.label, x0 + (x1 - x0) / 2, padT + 14);
+  });
+
+  ctx.strokeStyle = 'rgba(155,107,255,0.07)';
+  ctx.lineWidth   = 1;
+  [-1, -0.5, 0, 0.5, 1].forEach(v => {
+    const y = midY - v * (plotH / 2.2);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    ctx.font      = `10px 'DM Mono', monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(1), padL - 4, y + 3.5);
+  });
+
+  ctx.font      = `10px 'DM Mono', monospace`;
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.textAlign = 'center';
+  for (let h = 0; h <= 24; h += 4) {
+    const x = padL + (h / 24) * plotW;
+    ctx.fillText(String(h).padStart(2,'0') + ':00', x, H - 6);
+    ctx.beginPath(); ctx.moveTo(x, padT + plotH); ctx.lineTo(x, padT + plotH + 4);
+    ctx.strokeStyle = 'rgba(155,107,255,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  if (curve.length > 1) {
+    ctx.beginPath();
+    curve.forEach((pt, i) => {
+      const x = padL + (pt.hour / 24) * plotW;
+      const y = midY - pt.alertness * (plotH / 2.2);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = 'rgba(196,160,255,0.9)';
+    ctx.lineWidth   = 2;
+    ctx.lineJoin    = 'round';
+    ctx.stroke();
+
+    ctx.beginPath();
+    curve.forEach((pt, i) => {
+      const x = padL + (pt.hour / 24) * plotW;
+      const y = midY - pt.alertness * (plotH / 2.2);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(padL + plotW, midY);
+    ctx.lineTo(padL, midY);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(155,107,255,0.06)';
+    ctx.fill();
+  }
+
+  const markerX = padL + (currentCT / 24) * plotW;
+  ctx.beginPath();
+  ctx.moveTo(markerX, padT); ctx.lineTo(markerX, padT + plotH);
+  ctx.strokeStyle = 'rgba(0,255,178,0.85)';
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font      = `10px 'DM Mono', monospace`;
+  ctx.fillStyle = 'rgba(0,255,178,0.95)';
+  ctx.textAlign = markerX > padL + plotW * 0.85 ? 'right' : 'left';
+  ctx.fillText('CT ' + currentCT.toFixed(1), markerX + (ctx.textAlign === 'right' ? -4 : 4), padT + 28);
+}
+
+function renderCompounds(compounds) {
+  const grid = document.getElementById('compoundsGrid');
+  grid.innerHTML = compounds.map(c => `
+    <div class="compound-row glass-inner">
+      <div>
+        <div class="compound-name">${escHtml(c.name)}</div>
+        ${c.active ? '<span class="active-pill">Currently active</span>' : ''}
+      </div>
+      <div class="compound-ct">${escHtml(c.ctWindow)}</div>
+      <div class="compound-local">${escHtml(c.localWindow)}</div>
+      <span class="evidence-badge evidence-${escHtml(c.evidence)}">${escHtml(c.evidence)}</span>
+    </div>
+  `).join('');
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
+// ─── Chatbot ───────────────────────────────────
+let chatOpen      = false;
+let chatSession   = 'kuroglass-' + Date.now();
+let chatStreaming = false;
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatbot-panel').classList.toggle('open', chatOpen);
+  if (chatOpen) setTimeout(() => document.getElementById('chatInput').focus(), 350);
+}
+
+async function sendChat() {
+  if (chatStreaming) return;
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  appendMsg('user', text);
+
+  const typingEl = appendTyping();
+  chatStreaming  = true;
+
+  try {
+    const resp = await fetch('/api/stream', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        messages:  [{ role: 'user', content: text }],
+        mode:      'main',
+        sessionId: chatSession,
+      }),
+    });
+
+    typingEl.remove();
+    const msgEl = appendMsg('kuro', '');
+
+    if (!resp.ok || !resp.body) {
+      msgEl.textContent = 'Unable to reach KURO right now.';
+      return;
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let   buf     = '';
+    let   content = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data:')) continue;
+        const raw = part.slice(5).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.type === 'text_delta' || evt.type === 'content_block_delta') {
+            const chunk = evt.delta?.text || evt.text || '';
+            content += chunk;
+            msgEl.textContent = content;
+            scrollChat();
+          } else if (evt.type === 'gate') {
+            msgEl.textContent = evt.message || 'Demo limit reached. Upgrade for full access.';
+          }
+        } catch (_) {}
+      }
+    }
+    if (!content) msgEl.textContent = 'KURO is thinking — try again in a moment.';
+  } catch (err) {
+    typingEl.remove();
+    appendMsg('kuro', 'Connection error. KURO OS may be offline.');
+  } finally {
+    chatStreaming = false;
+  }
+}
+
+function appendMsg(role, text) {
+  const wrap = document.getElementById('chatMessages');
+  const el   = document.createElement('div');
+  el.className   = 'msg msg-' + role;
+  el.textContent = text;
+  wrap.appendChild(el);
+  scrollChat();
+  return el;
+}
+function appendTyping() {
+  const wrap = document.getElementById('chatMessages');
+  const el   = document.createElement('div');
+  el.className = 'msg msg-kuro msg-typing';
+  el.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  wrap.appendChild(el);
+  scrollChat();
+  return el;
+}
+function scrollChat() {
+  const wrap = document.getElementById('chatMessages');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// ─── Toast ─────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+
+</body>
+</html>

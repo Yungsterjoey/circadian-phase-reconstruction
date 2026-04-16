@@ -1,0 +1,18 @@
+{
+  "base_url": "https://api.grab.com",
+  "endpoints": {
+    "rides": "",
+    "food_orders": "",
+    "wallet": "",
+    "tracking_ws": "",
+    "token_refresh": ""
+  },
+  "auth": {
+    "access_token": "",
+    "refresh_token": "",
+    "token_expiry": 0,
+    "device_id": "",
+    "user_agent": ""
+  },
+  "headers": {}
+}

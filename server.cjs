@@ -1561,19 +1561,20 @@ try {
 }
 
 // ═══ KURO::PAY — Sovereign Financial Intelligence ═══════════════════════════
-try {
-  const payModule = require('./modules/pay/index.cjs');
-  app.use('/api/pay', guestOrAuth(resolveUser), payModule.router);
-  payModule.initPayModule().catch(e => console.warn('[KURO::PAY] Init warning:', e.message));
-  console.log('[KURO::PAY] Routes mounted at /api/pay/* (auth required)');
-} catch(e) {
-  console.warn('[KURO::PAY] Module not loaded:', e.message);
-}
+// v1 DEPRECATED — use pay_routes.cjs (v2)
+// try {
+//   const payModule = require('./modules/pay/index.cjs');
+//   app.use('/api/pay', guestOrAuth(resolveUser), payModule.router);
+//   payModule.initPayModule().catch(e => console.warn('[KURO::PAY] Init warning:', e.message));
+//   console.log('[KURO::PAY] Routes mounted at /api/pay/* (auth required)');
+// } catch(e) {
+//   console.warn('[KURO::PAY] Module not loaded:', e.message);
+// }
 
 // ═══ KURO::PAY v2 — x402 / VietQR Routes ═══════════════════════════════════
 try {
   const { mountPayRoutes } = require('./modules/pay/pay_routes.cjs');
-  mountPayRoutes(app, auth);
+  mountPayRoutes(app, auth.required);
 } catch(e) {
   console.warn('[KURO::PAY v2] Routes not loaded:', e.message);
 }

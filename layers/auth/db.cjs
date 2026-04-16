@@ -27,7 +27,7 @@ db.pragma('synchronous = NORMAL');
 // SCHEMA MIGRATION
 // ═══════════════════════════════════════════════════════
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function migrate() {
   const current = db.pragma('user_version', { simple: true });
@@ -308,6 +308,44 @@ function migrate() {
         negative_prompt TEXT,
         updated_at      INTEGER NOT NULL
       );
+    `);
+  }
+
+  if (current < 9) {
+    // v9: x402 payment sessions and linked payment methods
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS x402_payments (
+        id                TEXT PRIMARY KEY,
+        user_id           TEXT NOT NULL,
+        status            TEXT NOT NULL DEFAULT 'pending',
+        qr_standard       TEXT,
+        qr_parsed         TEXT,
+        amount_aud        REAL,
+        amount_local      REAL,
+        local_currency    TEXT,
+        fx_rate           REAL,
+        commission_aud    REAL,
+        stripe_intent_id  TEXT,
+        coinbase_charge_id TEXT,
+        solana_tx         TEXT,
+        error             TEXT,
+        created_at        INTEGER DEFAULT (strftime('%s','now')),
+        settled_at        INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS pay_methods (
+        id             TEXT PRIMARY KEY,
+        user_id        TEXT NOT NULL,
+        stripe_pm_id   TEXT NOT NULL,
+        card_last4     TEXT,
+        card_brand     TEXT,
+        card_country   TEXT,
+        is_default     INTEGER DEFAULT 0,
+        created_at     INTEGER DEFAULT (strftime('%s','now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_x402_payments_user ON x402_payments(user_id);
+      CREATE INDEX IF NOT EXISTS idx_pay_methods_user   ON pay_methods(user_id);
     `);
   }
 

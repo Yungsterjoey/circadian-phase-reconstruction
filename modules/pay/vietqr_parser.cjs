@@ -69,6 +69,40 @@ const VIETQR_BIN_MAP = {
 // ── Countries served ──────────────────────────────────────────────
 const SUPPORTED_COUNTRIES = ['VN', 'TH', 'ID', 'MY', 'PH'];
 
+// ── GPS bounding boxes (ISO country code → {latMin, latMax, lngMin, lngMax}) ─
+const GPS_BBOX = {
+  VN: { latMin: 8,    latMax: 24,  lngMin: 102, lngMax: 110 },
+  TH: { latMin: 5,    latMax: 21,  lngMin: 97,  lngMax: 106 },
+  PH: { latMin: 4,    latMax: 21,  lngMin: 116, lngMax: 127 },
+  ID: { latMin: -11,  latMax: 6,   lngMin: 95,  lngMax: 141 },
+  MY: { latMin: 1,    latMax: 7,   lngMin: 99,  lngMax: 119 },
+  SG: { latMin: 1.1,  latMax: 1.5, lngMin: 103, lngMax: 104 },
+  KH: { latMin: 10,   latMax: 15,  lngMin: 102, lngMax: 108 },
+  LA: { latMin: 13,   latMax: 23,  lngMin: 100, lngMax: 108 },
+};
+
+// ── Standard → expected country (for GPS cross-check) ─────────────
+const STANDARD_COUNTRY = {
+  vietqr:    'VN',
+  promptpay: 'TH',
+  qris:      'ID',
+  duitnow:   'MY',
+  qrph:      'PH',
+  gcash:     'PH',
+  maya:      'PH',
+};
+
+function gpsCountryFromCoords(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+  for (const iso of Object.keys(GPS_BBOX)) {
+    const b = GPS_BBOX[iso];
+    if (lat >= b.latMin && lat <= b.latMax && lng >= b.lngMin && lng <= b.lngMax) {
+      return iso;
+    }
+  }
+  return null;
+}
+
 // ── CRC16-CCITT (poly 0x1021, init 0xFFFF) ────────────────────────
 function crc16(str) {
   let crc = 0xFFFF;
@@ -130,14 +164,32 @@ function extractVietQRAccount(merchantInfoValue) {
   };
 }
 
+// ── ATM QR detection ──────────────────────────────────────────────
+// Heuristics:
+//   1. Tag 62 sub-tag 01 contains 'ATM' or 'CASH' (case-insensitive)
+//   2. Merchant name contains 'ATM'
+//   3. Account number matches a known ATM pool pattern
+//      (Vietnamese major-bank ATM pool accounts begin '9704' with length 11-13)
+function detectATM({ addDataSubTag01, merchantName, accountNumber }) {
+  const a = (addDataSubTag01 || '').toUpperCase();
+  if (a.includes('ATM') || a.includes('CASH')) return true;
+  if (merchantName && /\bATM\b/i.test(merchantName)) return true;
+  if (accountNumber && /^9704\d{7,9}$/.test(accountNumber)) return true;
+  return false;
+}
+
 // ── Main parse function ───────────────────────────────────────────
 /**
  * Parse an EMVCo QR string.
  * @param {string} qr — raw QR string
+ * @param {object} [opts]
+ * @param {number} [opts.lat] — device latitude (optional, enables GPS bias)
+ * @param {number} [opts.lng] — device longitude (optional, enables GPS bias)
  * @returns {object} parsed result
  */
-function parseEMVQR(qr) {
+function parseEMVQR(qr, opts = {}) {
   if (!qr || typeof qr !== 'string') throw new Error('QR must be a non-empty string');
+  const { lat, lng } = opts || {};
 
   const warnings = [];
   const crcValid = validateCRC(qr);
@@ -168,10 +220,12 @@ function parseEMVQR(qr) {
 
   // Transaction reference (tag 62, sub-tag 05 = reference label)
   let reference = null;
+  let addDataSubTag01 = null;
   const addData = tags.get('62');
   if (addData) {
     const addSub = parseTLV(addData);
-    reference = addSub.get('05') || addSub.get('01') || null;
+    reference       = addSub.get('05') || addSub.get('01') || null;
+    addDataSubTag01 = addSub.get('01') || null;
   }
 
   // Bank account extraction (merchant account info tags 26–45)
@@ -203,18 +257,46 @@ function parseEMVQR(qr) {
   const bank = bankBin ? (VIETQR_BIN_MAP[bankBin] || null) : null;
   if (bankBin && !bank) warnings.push(`Unknown bank BIN: ${bankBin}`);
 
-  // Confidence score
-  let confidence = 0;
-  if (bank)           confidence += 0.40;
-  if (accountNumber)  confidence += 0.40;
-  if (merchantName)   confidence += 0.15;
-  if (crcValid)       confidence += 0.05;
-  confidence = Math.min(1, confidence);
+  // ── Weighted confidence: C = (w1·G + w2·E + w3·V) / (w1 + w2 + w3) ──
+  const w1 = 0.3, w2 = 0.4, w3 = 0.3;
 
-  if (confidence < 0.5) warnings.push('Low confidence — manual review recommended');
+  // G — GPS bias
+  const gpsCountry      = gpsCountryFromCoords(lat, lng);
+  const standardCountry = STANDARD_COUNTRY[standard] || null;
+  let G;
+  if (gpsCountry == null)              G = 0.5;            // no GPS provided (or unknown region) — neutral
+  else if (standardCountry == null)    G = 0.5;            // standard not country-specific — neutral
+  else if (gpsCountry === standardCountry) G = 1.0;        // GPS confirms detected standard
+  else                                 G = 0.0;            // GPS contradicts detected standard
+  const gpsMatch = (gpsCountry != null && standardCountry != null && gpsCountry === standardCountry);
+
+  // E — CRC valid
+  const E = crcValid ? 1.0 : 0.0;
+
+  // V — both critical tags 00 (payload format) AND 01 (initiation method) present
+  const V = (tags.has('00') && tags.has('01')) ? 1.0 : 0.0;
+
+  const confidence = parseFloat(((w1 * G + w2 * E + w3 * V) / (w1 + w2 + w3)).toFixed(2));
+
+  let routable, flag;
+  if (confidence >= 0.85)      { routable = true;  flag = null; }
+  else if (confidence >= 0.5)  { routable = false; flag = 'manual_review'; }
+  else                         { routable = false; flag = 'unsupported'; }
+
+  if (!routable) warnings.push(`Confidence ${confidence} — ${flag}`);
+
+  // ── QR type classification (merchant | personal | atm) ──
+  const isATM = detectATM({ addDataSubTag01, merchantName, accountNumber });
+  let qrType;
+  if (isATM)                                qrType = 'atm';
+  else if (merchantName)                    qrType = 'merchant';
+  else                                      qrType = 'personal';
 
   return {
     standard,
+    qrType,
+    gpsCountry,
+    gpsMatch,
     bankBin:       bankBin       || null,
     bankName:      bank?.name    || null,
     bankShortName: bank?.shortName || null,
@@ -229,10 +311,17 @@ function parseEMVQR(qr) {
     isStatic:      !isDynamic && amount === null,
     isDynamic:     isDynamic || amount !== null,
     reference:     reference,
-    confidence:    parseFloat(confidence.toFixed(2)),
+    confidence,
+    routable,
+    flag,
     warnings,
     crcValid,
   };
+}
+
+// ── parseQR — public alias with explicit GPS-aware signature ─────
+function parseQR(qrString, opts = {}) {
+  return parseEMVQR(qrString, opts);
 }
 
 // ── getBankFromBin ────────────────────────────────────────────────
@@ -248,10 +337,14 @@ function isRoutable(parsed) {
 
 module.exports = {
   parseEMVQR,
+  parseQR,
   getBankFromBin,
   isRoutable,
   validateCRC,
+  gpsCountryFromCoords,
   VIETQR_BIN_MAP,
   SUPPORTED_COUNTRIES,
   CURRENCY_MAP,
+  GPS_BBOX,
+  STANDARD_COUNTRY,
 };

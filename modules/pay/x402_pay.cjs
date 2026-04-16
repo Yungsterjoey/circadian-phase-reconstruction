@@ -83,6 +83,7 @@ function buildPaymentRequired(parsedQR, amountAUD, amountVND, stripeIntentId, re
  * @returns {object} settlement response
  */
 async function verifyPayment(paymentRequired) {
+  const startTime = Date.now();
   try {
     const resp = await axios.post(
       `${FACILITATOR_URL}/verify`,
@@ -93,26 +94,47 @@ async function verifyPayment(paymentRequired) {
         validateStatus: null, // handle all status codes ourselves
       }
     );
+    const settlementLatencyMs = Date.now() - startTime;
+    const data = resp.data || {};
+    const txSignature = data.txSignature || data.transaction_id || data.txHash || null;
+    const network     = data.network || paymentRequired.network || 'base';
 
     if (resp.status === 200 || resp.status === 201) {
-      return { success: true, facilitatorResponse: resp.data };
+      return {
+        success: true,
+        facilitatorResponse: data,
+        settlementLatencyMs,
+        txSignature,
+        network,
+      };
     }
 
     // Facilitator responded with error — store response for audit
     return {
-      success:            false,
-      facilitatorStatus:  resp.status,
-      facilitatorResponse: resp.data,
-      error:              resp.data?.error || `Facilitator returned HTTP ${resp.status}`,
+      success:             false,
+      facilitatorStatus:   resp.status,
+      facilitatorResponse: data,
+      error:               data.error || `Facilitator returned HTTP ${resp.status}`,
+      settlementLatencyMs,
+      txSignature,
+      network,
     };
   } catch (err) {
     // Network error or facilitator unreachable — record locally, flag for retry
     return {
-      success:  false,
-      error:    err.message,
-      offline:  true,
+      success:             false,
+      error:               err.message,
+      offline:             true,
+      settlementLatencyMs: Date.now() - startTime,
+      txSignature:         null,
+      network:             paymentRequired.network || 'base',
     };
   }
+}
+
+// Alias used by new ATM flow (semantically clearer for the submit-and-await path)
+async function submitPayment(paymentRequired) {
+  return verifyPayment(paymentRequired);
 }
 
 // ── generateReceipt ───────────────────────────────────────────────
@@ -162,6 +184,10 @@ function generateReceipt(paymentId, paymentRequired, settlementResponse) {
       error:               settlementResponse.error  || null,
     },
 
+    settlementLatencyMs: settlementResponse.settlementLatencyMs ?? null,
+    txSignature:         settlementResponse.txSignature ?? null,
+    network:             settlementResponse.network || paymentRequired.network || 'base',
+
     reference: paymentRequired.reference,
     status:    settlementResponse.success ? 'settled' : 'pending_settlement',
   };
@@ -170,6 +196,7 @@ function generateReceipt(paymentId, paymentRequired, settlementResponse) {
 module.exports = {
   buildPaymentRequired,
   verifyPayment,
+  submitPayment,
   generateReceipt,
   FACILITATOR_URL,
   X402_VERSION,

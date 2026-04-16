@@ -1,0 +1,109 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# KURO::TRAINING — Advantage-Weighted Behavioral Cloning hyperparameters
+# ═══════════════════════════════════════════════════════════════════════════
+# Spec §5 (advantage pipeline) + §6 (loss) + §8 (token weights).
+# The engine JS defaults in advantage.cjs/DEFAULTS must stay aligned with
+# the pipeline section below — if you bump γ here, bump it there too.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── Base model ─────────────────────────────────────────────────────────────
+model:
+  name: "Qwen/Qwen2.5-32B-Instruct"      # nearest public tag; swap for the
+                                         # local Qwen3.5 35B snapshot at train-time
+  trust_remote_code: true
+  torch_dtype: bfloat16
+  attn_implementation: flash_attention_2
+
+# ── QLoRA ──────────────────────────────────────────────────────────────────
+quant:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  bias: none
+  # Attention + MLP projections. Spec calls for "minimal parameter update"
+  # — these seven projections are the standard Qwen2-family LoRA target set.
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+# ── Pipeline thresholds (keep aligned with advantage.cjs DEFAULTS) ─────────
+pipeline:
+  gamma: 0.5          # short-horizon discount §5 B
+  alpha_weight: 2.0   # softplus sharpness §5 G (α in w = softplus(α(A-b))·c*)
+  tau_A: 0.10         # advantage retention §5 E
+  tau_E: 0.30         # calibration gate §5 F
+  clip_A: 1.0         # batch-norm clip §5 C
+  metric_improve_eps: 0.05
+  conf_lo: 0.6
+  conf_hi: 1.0
+
+# ── Loss coefficients (§6) ─────────────────────────────────────────────────
+# L = CE·w_t + lambda_huber·Huber(ΔV_pred, ΔV_actual) + beta_kl·KL(π||π_base)
+loss:
+  lambda_huber: 0.1
+  beta_kl: 0.01
+  kl_sample_fraction: 0.25    # compute KL on this fraction of batch to save memory
+  huber_delta: 1.0
+
+# ── Token weighting (§8) ───────────────────────────────────────────────────
+# Must mirror layers/kuro_engine/prompts.cjs TOKEN_WEIGHTS.
+tokens:
+  reasoning:  1.0
+  plan:       2.5
+  delta:      2.0
+  next_state: 1.5
+  filler:     0.1
+  plan_mask_prob: 0.15      # 15% random PLAN-arg masking
+
+# ── Balancing (§14) ────────────────────────────────────────────────────────
+balance:
+  oversample_top_abs_A_fraction: 0.20   # "top 20% |A_t|"
+  negative_fraction: 0.35               # 30–40% negative samples
+  shuffle_seed: 17
+
+# ── Training loop ──────────────────────────────────────────────────────────
+train:
+  output_dir: "./checkpoints/kuro-v25-lora"
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
+  learning_rate: 1.0e-4
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  max_seq_length: 4096
+  save_strategy: steps
+  save_steps: 200
+  logging_steps: 10
+  bf16: true
+  gradient_checkpointing: true
+  seed: 42
+
+# ── Evaluation (§16) ───────────────────────────────────────────────────────
+eval:
+  calibration_target: 0.15    # mean |ΔV_pred − ΔV_actual|
+  monotonicity_window: 50
+  token_efficiency_expected_len: 400
+  adversarial_set_path: "./eval/adversarial.jsonl"
+
+# ── Promotion (§15) ────────────────────────────────────────────────────────
+promote:
+  min_uplift_pct: 5.0         # new checkpoint must beat previous V by ≥ +5%
+  uplift_metric: "mean_V"
+
+# ── Data paths ─────────────────────────────────────────────────────────────
+data:
+  raw_glob: "${KURO_DATA}/trajectories/*.jsonl"
+  sanitized_out: "${KURO_DATA}/training/sanitized.parquet"
+  balanced_out: "${KURO_DATA}/training/balanced.parquet"

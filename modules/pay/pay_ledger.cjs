@@ -60,8 +60,58 @@ function initSchema() {
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kpp_user ON kuro_pay_payments(user_id, created_at DESC)`); } catch(_){}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kpc_user ON kuro_pay_cards(user_id)`); } catch(_){}
 
+  // ── ATM session table ───────────────────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kuro_pay_atm_sessions (
+      id                 TEXT PRIMARY KEY,
+      user_id            TEXT NOT NULL,
+      atm_qr_raw         TEXT,
+      atm_country        TEXT,
+      requested_amount   REAL,
+      requested_currency TEXT,
+      warm_token_id      TEXT,
+      payment_id         TEXT,
+      status             TEXT DEFAULT 'pending',
+      created_at         INTEGER NOT NULL,
+      expires_at         INTEGER NOT NULL
+    );
+  `);
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kpa_user ON kuro_pay_atm_sessions(user_id, status)`); } catch(_){}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kpa_expiry ON kuro_pay_atm_sessions(expires_at, status)`); } catch(_){}
+
+  // ── Reserve ledger ──────────────────────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kuro_pay_reserve (
+      id                   TEXT PRIMARY KEY,
+      payment_id           TEXT NOT NULL,
+      payment_amount_usd   REAL NOT NULL,
+      reserve_contribution REAL NOT NULL,
+      reserve_rate         REAL DEFAULT 0.03,
+      event_type           TEXT DEFAULT 'payment',
+      created_at           INTEGER NOT NULL
+    );
+  `);
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kpr_pid ON kuro_pay_reserve(payment_id)`); } catch(_){}
+
+  // ── Additive columns on kuro_pay_payments (ignore if column exists) ──
+  for (const col of [
+    'settlement_latency_ms INTEGER',
+    'x402_tx_signature TEXT',
+    'x402_network TEXT',
+    'warm_token_id TEXT',
+  ]) {
+    try { db.exec(`ALTER TABLE kuro_pay_payments ADD COLUMN ${col}`); } catch(_){}
+  }
+
+  // ── Additive column on kuro_pay_cards (ignore if column exists) ──
+  try { db.exec(`ALTER TABLE kuro_pay_cards ADD COLUMN warm_token_id TEXT`); } catch(_){}
+  try { db.exec(`ALTER TABLE kuro_pay_cards ADD COLUMN warm_token_expires_at INTEGER`); } catch(_){}
+
   console.log('[KURO::PAY] Ledger schema ready');
 }
+
+// runMigrations alias (matches spec's test invocation)
+function runMigrations() { return initSchema(); }
 
 // ── Payment record helpers ────────────────────────────────────────
 
@@ -120,15 +170,81 @@ function getUserCards(db, userId) {
   return db.prepare(`SELECT * FROM kuro_pay_cards WHERE user_id=? ORDER BY is_default DESC, created_at DESC`).all(userId);
 }
 
+// ── ATM session helpers ───────────────────────────────────────────
+const crypto = require('crypto');
+
+function createATMSession(userId, qrRaw, country, amount, currency, warmTokenId) {
+  const db = getDB();
+  if (!db) throw new Error('DB unavailable');
+  const id  = crypto.randomUUID();
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO kuro_pay_atm_sessions
+      (id, user_id, atm_qr_raw, atm_country, requested_amount, requested_currency,
+       warm_token_id, status, created_at, expires_at)
+    VALUES (?,?,?,?,?,?,?,'pending',?,?)
+  `).run(id, userId, qrRaw, country, amount, currency, warmTokenId, now, now + 60_000);
+  return id;
+}
+
+function attachATMPayment(sessionId, paymentId, status = 'settled') {
+  const db = getDB();
+  if (!db) return;
+  db.prepare(`UPDATE kuro_pay_atm_sessions SET payment_id=?, status=? WHERE id=?`)
+    .run(paymentId, status, sessionId);
+}
+
+function expireATMSessions() {
+  const db = getDB();
+  if (!db) return 0;
+  const r = db.prepare(`UPDATE kuro_pay_atm_sessions SET status='expired'
+                         WHERE expires_at < ? AND status='pending'`).run(Date.now());
+  return r.changes || 0;
+}
+
+// ── Reserve helpers ───────────────────────────────────────────────
+function recordReserve(paymentId, amountUSD, eventType = 'payment') {
+  const db = getDB();
+  if (!db) throw new Error('DB unavailable');
+  const rate         = 0.03;
+  const contribution = parseFloat((amountUSD * rate).toFixed(4));
+  db.prepare(`
+    INSERT INTO kuro_pay_reserve
+      (id, payment_id, payment_amount_usd, reserve_contribution, reserve_rate,
+       event_type, created_at)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(crypto.randomUUID(), paymentId, amountUSD, contribution, rate, eventType, Date.now());
+  return contribution;
+}
+
+function deductReserveForDispute(paymentId, amountUSD) {
+  // Negative entry — preserves audit trail rather than mutating the original row.
+  return recordReserve(paymentId, -Math.abs(amountUSD), 'dispute');
+}
+
+// ── Updates for new payment columns ───────────────────────────────
+function updatePaymentSettlementMeta(db, id, { latencyMs, txSignature, network }) {
+  db.prepare(`UPDATE kuro_pay_payments
+              SET settlement_latency_ms=?, x402_tx_signature=?, x402_network=?
+              WHERE id=?`).run(latencyMs ?? null, txSignature ?? null, network ?? null, id);
+}
+
 module.exports = {
   initSchema,
+  runMigrations,
   getDB,
   insertPayment,
   updatePaymentStripe,
   updatePaymentSettled,
   updatePaymentError,
+  updatePaymentSettlementMeta,
   getPayment,
   getUserPayments,
   upsertCard,
   getUserCards,
+  createATMSession,
+  attachATMPayment,
+  expireATMSessions,
+  recordReserve,
+  deductReserveForDispute,
 };

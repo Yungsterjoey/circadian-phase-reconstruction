@@ -156,7 +156,8 @@ function mountPayRoutes(app, requireAuth) {
         row.stripe_customer_id,
         grossAUD,
         paymentMethodId,
-        { paymentId, reference, network: parsed.standard }
+        { paymentId, reference, network: parsed.standard },
+        'aud'
       );
 
       if (db) ledger.updatePaymentStripe(db, paymentId, stripeIntent.id);
@@ -222,7 +223,248 @@ function mountPayRoutes(app, requireAuth) {
     return res.json({ payment: row, receipt });
   });
 
-  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,card/*,initiate,history,receipt/*}');
+  // ── POST /api/pay/camera/open — requireAuth ────────────────────
+  // Pre-warms a card so the ATM flow can charge in <1 RTT.
+  // Stores warm_token_id + expiry on the card row.
+  app.post('/api/pay/camera/open', requireAuth, express.json(), async (req, res) => {
+    const userId = req.user.userId;
+    const { paymentMethodId } = req.body || {};
+    if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required' });
+
+    const db = ledger.getDB();
+    try {
+      const row = db?.prepare(`SELECT stripe_customer_id FROM users WHERE id=?`).get(userId);
+      if (!row?.stripe_customer_id) {
+        return res.status(400).json({ error: 'No Stripe customer — call /api/pay/card/setup first' });
+      }
+
+      const warm = await stripe.warmPreAuth(row.stripe_customer_id, paymentMethodId);
+
+      if (db) {
+        db.prepare(`UPDATE kuro_pay_cards
+                     SET warm_token_id=?, warm_token_expires_at=?
+                     WHERE user_id=? AND stripe_payment_method_id=?`)
+          .run(warm.paymentIntentId, warm.expiresAt * 1000, userId, paymentMethodId);
+      }
+
+      return res.json({
+        warmTokenId: warm.paymentIntentId,
+        expiresIn:   300,
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/pay/atm/initiate — requireAuth ───────────────────
+  // Single-shot ATM flow: QR (with GPS + ATM gate) → Stripe charge →
+  // x402 submit → reserve + receipt. No user confirmation step; warm
+  // token is the confirmation.
+  app.post('/api/pay/atm/initiate', requireAuth, express.json(), async (req, res) => {
+    const userId = req.user.userId;
+    const { qr, amount, currency, lat, lng, paymentMethodId, warmTokenId } = req.body || {};
+
+    if (!qr)              return res.status(400).json({ error: 'qr is required' });
+    if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required' });
+    if (!warmTokenId)     return res.status(400).json({ flag: 'warm_token_required', error: 'warmTokenId is required' });
+    if (!(amount > 0))    return res.status(400).json({ error: 'amount must be > 0' });
+
+    // 1. Parse QR with GPS
+    let parsed;
+    try { parsed = parser.parseQR(qr, { lat, lng }); }
+    catch (err) { return res.status(400).json({ error: 'QR parse failed: ' + err.message }); }
+
+    if (parsed.confidence < 0.85) {
+      return res.status(422).json({
+        flag:       parsed.flag || 'low_confidence',
+        confidence: parsed.confidence,
+        gpsMatch:   parsed.gpsMatch,
+        warnings:   parsed.warnings,
+      });
+    }
+
+    // 2. Require ATM QR
+    if (parsed.qrType !== 'atm') {
+      return res.status(422).json({ flag: 'not_an_atm_qr', qrType: parsed.qrType });
+    }
+
+    // 3. Verify warm token exists and not expired
+    const db = ledger.getDB();
+    const card = db?.prepare(`SELECT * FROM kuro_pay_cards
+                              WHERE user_id=? AND stripe_payment_method_id=? AND warm_token_id=?`)
+                   .get(userId, paymentMethodId, warmTokenId);
+    if (!card || !card.warm_token_expires_at || card.warm_token_expires_at < Date.now()) {
+      return res.status(401).json({ flag: 'warm_token_required', error: 'warm token missing or expired' });
+    }
+
+    // 4. Create ATM session
+    const atmCountry = parsed.gpsCountry || parsed.countryCode || null;
+    const localCurrency = parsed.currency || currency || 'VND';
+    const sessionId = ledger.createATMSession(
+      userId, qr, atmCountry, parseFloat(amount), localCurrency, warmTokenId
+    );
+
+    // 5. FX amount (USD)
+    const fxSpot   = parseFloat(req.body.fxSpot || '0');
+    const userTier = (req.user.tier || req.body.userTier || 'payg');
+    if (!(fxSpot > 0)) {
+      return res.status(400).json({ error: 'fxSpot is required (facilitator-quoted rate)' });
+    }
+
+    let fx;
+    try { fx = stripe.calculateAmount(parseFloat(amount), localCurrency, fxSpot, userTier); }
+    catch (err) {
+      ledger.attachATMPayment(sessionId, null, 'rejected');
+      return res.status(422).json({ flag: 'cap_exceeded', error: err.message });
+    }
+
+    // 6. Charge the card (USD)
+    const paymentId = crypto.randomUUID();
+    const reference = `KURO-ATM-${Date.now().toString(36).toUpperCase()}`;
+
+    if (db) {
+      ledger.insertPayment(db, {
+        id:              paymentId,
+        userId,
+        qrRaw:           qr,
+        merchantAccount: parsed.accountNumber,
+        merchantName:    parsed.merchantName || 'ATM',
+        bankBin:         parsed.bankBin,
+        bankCode:        parsed.bankShortName,
+        bankName:        parsed.bankName,
+        amountAUD:       fx.amountAUD,
+        amountVND:       parseFloat(amount),
+        currency:        localCurrency,
+        reference,
+        network:         parsed.standard,
+      });
+      db.prepare(`UPDATE kuro_pay_payments SET warm_token_id=? WHERE id=?`).run(warmTokenId, paymentId);
+    }
+
+    let stripeIntent;
+    try {
+      stripeIntent = await stripe.createPaymentIntent(
+        card.stripe_customer_id,
+        fx.amountAUD,
+        paymentMethodId,
+        { paymentId, reference, type: 'atm', session: sessionId },
+        'aud'
+      );
+      if (db) ledger.updatePaymentStripe(db, paymentId, stripeIntent.id);
+    } catch (err) {
+      if (db) ledger.updatePaymentError(db, paymentId, err.message);
+      ledger.attachATMPayment(sessionId, paymentId, 'failed');
+      return res.status(402).json({ flag: 'charge_failed', error: err.message, paymentId });
+    }
+
+    // 7. x402 submit (funding currency is AUD — matches Stripe charge)
+    const paymentRequired  = x402.buildPaymentRequired(parsed, fx.amountAUD, parseFloat(amount), stripeIntent.id, reference);
+    const settlementResult = await x402.submitPayment(paymentRequired);
+    const receipt          = x402.generateReceipt(paymentId, paymentRequired, settlementResult);
+
+    // 8. Update payment + session + reserve
+    if (db) {
+      ledger.updatePaymentSettled(db, paymentId, JSON.stringify(receipt));
+      ledger.updatePaymentSettlementMeta(db, paymentId, {
+        latencyMs:   settlementResult.settlementLatencyMs,
+        txSignature: settlementResult.txSignature,
+        network:     settlementResult.network,
+      });
+    }
+    ledger.attachATMPayment(sessionId, paymentId, settlementResult.success ? 'settled' : 'pending');
+    let reserveContribution = 0;
+    try { reserveContribution = ledger.recordReserve(paymentId, fx.amountUSD); } catch (_) {}
+
+    // 9. Display object — never expose breakdown
+    return res.status(settlementResult.success ? 200 : 202).json({
+      paymentId,
+      sessionId,
+      reference,
+      status:              receipt.status,
+      settled:             settlementResult.success,
+      settlementLatencyMs: settlementResult.settlementLatencyMs,
+      txSignature:         settlementResult.txSignature,
+      display: {
+        chargedAUD:    fx.amountAUD,
+        chargedUSD:    fx.amountUSD,   // audit/x402 reference; not user-facing
+        localAmount:   parseFloat(amount),
+        localCurrency,
+        displayRate:   fx.displayRate,
+      },
+      merchant: {
+        name:    parsed.merchantName,
+        bank:    parsed.bankName,
+        account: parsed.accountNumber,
+      },
+      reserveContribution,
+    });
+  });
+
+  // ── POST /api/pay/webhook/stripe — no auth, signature-verified ─
+  // Raw body required for Stripe signature verification.
+  const rawBody = express.raw({ type: 'application/json' });
+  app.post('/api/pay/webhook/stripe', rawBody, (req, res) => {
+    const stripeSDK = (() => { try { return require('stripe')(process.env.STRIPE_SECRET_KEY); } catch(_) { return null; } })();
+    const secret    = process.env.STRIPE_WEBHOOK_SECRET;
+    const sig       = req.headers['stripe-signature'];
+    if (!stripeSDK || !secret || !sig) {
+      return res.status(400).json({ error: 'webhook not configured' });
+    }
+
+    let event;
+    try { event = stripeSDK.webhooks.constructEvent(req.body, sig, secret); }
+    catch (err) { return res.status(400).json({ error: `signature verification failed: ${err.message}` }); }
+
+    const db = ledger.getDB();
+
+    // Look up internal payment by the Stripe PaymentIntent id
+    function findPaymentByIntent(intentId) {
+      if (!db || !intentId) return null;
+      return db.prepare(`SELECT id, user_id FROM kuro_pay_payments WHERE stripe_payment_intent_id=?`).get(intentId);
+    }
+
+    function securityLog(kind, meta) {
+      try { require('../../layers/auth/security.cjs').securityLog?.(kind, meta); }
+      catch (_) { console.warn('[KURO::PAY webhook]', kind, meta); }
+    }
+
+    try {
+      switch (event.type) {
+        case 'payment_intent.succeeded': {
+          const pi  = event.data.object;
+          const row = findPaymentByIntent(pi.id);
+          if (db && row) db.prepare(`UPDATE kuro_pay_payments SET status='settled', settled_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
+          break;
+        }
+        case 'payment_intent.payment_failed': {
+          const pi  = event.data.object;
+          const row = findPaymentByIntent(pi.id);
+          if (db && row) db.prepare(`UPDATE kuro_pay_payments SET status='failed', error=? WHERE id=?`)
+                          .run(pi.last_payment_error?.message || 'payment_failed', row.id);
+          break;
+        }
+        case 'charge.dispute.created': {
+          const dispute = event.data.object;
+          const row     = findPaymentByIntent(dispute.payment_intent);
+          if (db && row) {
+            db.prepare(`UPDATE kuro_pay_payments SET status='disputed' WHERE id=?`).run(row.id);
+            try {
+              const pmt = db.prepare(`SELECT amount_aud FROM kuro_pay_payments WHERE id=?`).get(row.id);
+              if (pmt?.amount_aud) ledger.deductReserveForDispute(row.id, pmt.amount_aud);
+            } catch (_) {}
+          }
+          securityLog('pay.dispute', { paymentId: row?.id, amount: dispute.amount, reason: dispute.reason });
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('[KURO::PAY webhook] handler error:', err.message);
+    }
+
+    return res.json({ received: true, type: event.type });
+  });
+
+  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,card/*,initiate,history,receipt/*,camera/open,atm/initiate,webhook/stripe}');
 }
 
 module.exports = { mountPayRoutes };

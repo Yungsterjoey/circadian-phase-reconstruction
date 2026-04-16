@@ -1,0 +1,31 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# KURO::TRAINING — Python dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+# Target: QLoRA 4-bit NF4 training of Qwen3.5 35B on the AWBC objective.
+# Pinned to tested versions as of 2026-04. Bump together, never piecewise —
+# transformers/accelerate/peft/trl ABI-couple against bitsandbytes.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Core training stack
+torch==2.3.1
+transformers==4.44.2
+accelerate==0.33.0
+peft==0.12.0
+trl==0.10.1
+bitsandbytes==0.43.3
+deepspeed==0.14.4
+
+# Data
+datasets==2.21.0
+pyarrow==16.1.0
+pandas==2.2.2
+numpy==1.26.4
+
+# Training-side utilities
+scipy==1.13.1
+scikit-learn==1.5.1
+tqdm==4.66.4
+pyyaml==6.0.2
+
+# Telemetry (opt-in; off by default)
+tensorboard==2.17.0

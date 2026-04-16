@@ -23,7 +23,7 @@
 let _config = {
   // τ: intrinsic free-running period (hours).
   // Empirical mean: Czeisler et al., 1999, Science 284:2177.
-  tauHours: 24.2,
+  tauHours: 25.0,
 
   // λ: confidence decay rate (h⁻¹).
   // C(t) = C₀ · e^(−λ · Δt). λ = 0.08 → half-confidence at ≈ 8.7 h.
