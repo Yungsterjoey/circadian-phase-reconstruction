@@ -904,6 +904,41 @@
 
     a { color: inherit; }
     ::selection { background: var(--lg-accent-glass); color: var(--text-primary); }
+
+    /* ─── Mobile body-copy readability (iOS HIG) ───────────────────────
+       Instrument Serif italic is beautiful on desktop but loses fidelity
+       below ~15px on phones. On mobile only, swap body copy to the Apple
+       system stack — keep Clash Display / DM Mono for headlines + badges
+       and keep Instrument Serif on the desktop viewport where it shines.
+       Placed at the end of the stylesheet so source order trumps the
+       unconditional .card-body / .hero-sub rules earlier in the file. */
+    @media (max-width: 768px) {
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                     "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+      .hero-sub {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                     "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+        font-size: 16px; line-height: 1.5;
+        font-style: normal; letter-spacing: -0.01em;
+      }
+      .hero-sub strong { font-style: normal; font-weight: 500; opacity: 1; }
+      .card-body,
+      .card-body[style] {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                     "Helvetica Neue", "Segoe UI", system-ui, sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+        letter-spacing: -0.01em;
+        color: var(--lg-text-secondary);
+      }
+      .footer-tagline {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                     "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+      }
+    }
   </style>
 </head>
 <body>
