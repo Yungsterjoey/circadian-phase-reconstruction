@@ -1,126 +1,113 @@
 /**
- * KURO OS — Public Homepage ("/")
- * Conceptual glass + editorial. No pricing, no demo, no interactive elements beyond "Sign in."
- * 2 sections + footer. Architectural glass planes, museum-placard metadata.
+ * kuroglass.net — Front Page (spec §3)
+ * Three product tiles: KURO OS → /app · NeuroKURO → /neuro · KUROPay → kuropay.com
+ * Sovereignty positioning, ABN + x402 Foundation footer.
  */
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import DesktopBackground from '../components/DesktopBackground';
 import CookieBanner from '../components/CookieBanner';
-
-/* ─── Scroll-triggered fade-in ─────────────────────────────────────────── */
-function useScrollReveal(ref) {
-  useEffect(() => {
-    if (!ref.current) return;
-    const els = ref.current.querySelectorAll('.hp-reveal');
-    if (!els.length) return;
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('hp-visible'); io.unobserve(e.target); } });
-    }, { threshold: 0.15 });
-    els.forEach(el => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-}
+import '../styles/kuroglass-tokens.css';
 
 export default function HomePage() {
-  const s2Ref = useRef(null);
-  useScrollReveal(s2Ref);
-
-  const scrollToAbout = (e) => {
-    e.preventDefault();
-    document.getElementById('hp-about')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <div className="hp-root">
-      <DesktopBackground />
+    <div className="kg-root">
       <CookieBanner />
 
-      {/* ═══ SECTION 1: HERO ═══ */}
-      <section className="hp-hero">
-        <div className="hp-hero-glass">
-          <h1 className="hp-title">KURO OS</h1>
-          <p className="hp-build">Build 0.9.x</p>
-          <p className="hp-lead">
-            Sovereign intelligence infrastructure.<br />
-            Your hardware. Your data. Your audit trail.
-          </p>
-          <div className="hp-ctas">
-            <Link to="/login" className="hp-btn-primary">Sign in</Link>
-            <button className="hp-btn-secondary" onClick={scrollToAbout}>Learn more ↓</button>
-          </div>
+      {/* ═══ TOP NAV ═══ */}
+      <nav className="kg-nav">
+        <span className="kg-brand">KURO</span>
+        <div className="kg-nav-right">
+          <a href="/docs" className="kg-nav-link">Docs</a>
+          <span className="kg-nav-dot">·</span>
+          <Link to="/login" className="kg-nav-link">Sign in</Link>
         </div>
-        <div className="hp-placard">
-          <span>kuroglass.net</span>
-        </div>
-        <div className="hp-auth-line">AUTHORIZED ACCESS ONLY</div>
+      </nav>
+
+      {/* ═══ HERO ═══ */}
+      <section className="kg-hero">
+        <h1 className="kg-hero-title">Sovereign infrastructure<br />for the agentic era.</h1>
+        <p className="kg-hero-sub">
+          Local AI, circadian intelligence, and card-native payments —
+          built in Australia and Vietnam, shipped as open protocols.
+        </p>
       </section>
 
-      {/* ═══ SECTION 2: WHAT IS KURO ═══ */}
-      <section id="hp-about" className="hp-about" ref={s2Ref}>
-        <div className="hp-about-inner">
-          <span className="hp-section-label hp-reveal">WHAT IS KURO</span>
-
-          <div className="hp-card hp-reveal" style={{ animationDelay: '60ms' }}>
-            <p>
-              A desktop operating system for AI inference. 12-layer cognitive pipeline.
-              Dedicated GPU hardware. Cryptographic audit trail on every interaction.
-            </p>
-          </div>
-
-          <div className="hp-compare hp-reveal" style={{ animationDelay: '120ms' }}>
-            <div className="hp-compare-col">
-              <span className="hp-compare-label hp-compare-them-label">CLOUD LLMS</span>
-              <ul>
-                <li>Your data trains their models</li>
-                <li>Rate limits imposed</li>
-                <li>No audit trail</li>
-                <li>Conversations on shared servers</li>
-              </ul>
-            </div>
-            <div className="hp-compare-divider" />
-            <div className="hp-compare-col">
-              <span className="hp-compare-label hp-compare-us-label">KURO OS</span>
-              <ul>
-                <li>Dedicated GPU inference</li>
-                <li>No rate limits on your hardware</li>
-                <li>Ed25519 signed audit chain</li>
-                <li>Data never used for training</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="hp-card hp-reveal" style={{ animationDelay: '180ms' }}>
-            <span className="hp-card-label">SECURITY</span>
-            <p>
-              Ed25519 signatures. TLS 1.3. Isolated GPU infrastructure.
-              90-day retention. Australian Privacy Act compliant.
-            </p>
-          </div>
-        </div>
+      {/* ═══ THREE TILES ═══ */}
+      <section className="kg-tiles">
+        <Tile
+          title="KURO OS"
+          gradient="var(--kg-gradient-os)"
+          tagline="Local AI with agency."
+          body="Runs on your own hardware. No frontier-API dependency. Gemma 4 natively multimodal, 128K context, circadian-aware."
+          buttonLabel="Open →"
+          to="/app"
+        />
+        <Tile
+          title="NeuroKURO"
+          gradient="var(--kg-gradient-neuro)"
+          tagline="Circadian phase science."
+          body="Validated phase reconstruction on N=368 adolescent sessions. MAE 0.31h. Paper under review at Journal of Sleep Research."
+          buttonLabel="Learn →"
+          to="/neuro"
+        />
+        <Tile
+          title="KUROPay"
+          gradient="var(--kg-gradient-pay)"
+          tagline="Card → local QR, anywhere in SEA."
+          body="Scan VietQR, PromptPay, QRIS, QR Ph, DuitNow with your home card. No wallet, no top-up, no minimum. First app on Linux Foundation's x402 protocol."
+          buttonLabel="Open →"
+          href="https://kuropay.com"
+          external
+        />
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="hp-footer hp-reveal">
-        <div className="hp-footer-inner">
-          <div className="hp-footer-brand">
-            <span className="hp-footer-name">KURO OS</span>
-            <span className="hp-footer-entity">
-              Henry George Lowe trading as KURO Technologies<br />
-              ABN 45 340 322 909 · Melbourne, Victoria
-            </span>
+      <footer className="kg-footer">
+        <div className="kg-footer-inner">
+          <div className="kg-footer-top">
+            <div className="kg-footer-brand">
+              <span className="kg-footer-name">KURO</span>
+              <span className="kg-footer-tag">Sovereign infrastructure for the agentic era.</span>
+            </div>
           </div>
-          <div className="hp-footer-links">
-            <Link to="/login?doc=terms">Terms</Link>
-            <span>·</span>
-            <Link to="/login?doc=privacy">Privacy</Link>
-            <span>·</span>
-            <Link to="/login?doc=terms">Acceptable Use</Link>
+          <hr className="kg-footer-rule" />
+          <div className="kg-footer-cols">
+            <div className="kg-footer-col">
+              <span className="kg-footer-col-label">Products</span>
+              <Link to="/app">KURO OS</Link>
+              <Link to="/neuro">NeuroKURO</Link>
+              <a href="https://kuropay.com">KUROPay</a>
+              <a href="/docs">Docs</a>
+            </div>
+            <div className="kg-footer-col">
+              <span className="kg-footer-col-label">Research</span>
+              <Link to="/neuro">NeuroKURO</Link>
+              <span className="kg-footer-muted">Paper (soon)</span>
+              <a href="https://www.x402.org">x402 docs</a>
+              <a href="https://doi.org/10.5281/zenodo.18869320">Zenodo DOI</a>
+            </div>
+            <div className="kg-footer-col">
+              <span className="kg-footer-col-label">Company</span>
+              <a href="/about">About</a>
+              <a href="mailto:hi@kuroglass.net">Contact</a>
+              <a href="/press">Press</a>
+              <a href="/careers">Careers</a>
+            </div>
           </div>
-          <p className="hp-footer-infra">
-            Built in Melbourne. Running on dedicated GPU hardware in the United States.
+          <hr className="kg-footer-rule" />
+          <div className="kg-footer-meta">
+            <span className="kg-footer-membership">x402 Foundation member</span>
+            <span className="kg-footer-locations">Built in Da Nang and Melbourne</span>
+            <a href="/docs" className="kg-footer-docs">kuroglass.net/docs</a>
+          </div>
+          <div className="kg-footer-socials">
+            <a href="https://x.com/kuroglass">x.com/kuroglass</a>
+            <span>·</span>
+            <a href="https://kuroglass.net">kuroglass.net</a>
+          </div>
+          <p className="kg-footer-copy">
+            © 2026 KURO Technologies · ABN 45 340 322 909
           </p>
-          <p className="hp-footer-contact">hi@kuroglass.net</p>
         </div>
       </footer>
 
@@ -129,269 +116,212 @@ export default function HomePage() {
   );
 }
 
+/* ─── Tile component ─────────────────────────────────────────────── */
+function Tile({ title, gradient, tagline, body, buttonLabel, to, href, external }) {
+  const ButtonEl = external
+    ? <a className="kg-tile-btn" href={href}>{buttonLabel}</a>
+    : to ? <Link className="kg-tile-btn" to={to}>{buttonLabel}</Link>
+         : <a className="kg-tile-btn" href={href}>{buttonLabel}</a>;
+  return (
+    <div className="kg-tile">
+      <div className="kg-tile-accent" style={{ background: gradient }} />
+      <h3 className="kg-tile-title">{title}</h3>
+      <p className="kg-tile-tagline">{tagline}</p>
+      <p className="kg-tile-body">{body}</p>
+      <div className="kg-tile-button-row">{ButtonEl}</div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   STYLES — Conceptual glass, editorial, macOS-restraint motion
+   STYLES — per §3.2/§3.4
    ═══════════════════════════════════════════════════════════════════════════ */
 function HomeStyles() {
   return (
     <style>{`
-/* ─── Root ─────────────────────────────────────────────────────────────── */
-.hp-root {
-  width: 100%; min-height: 100vh; min-height: 100dvh;
-  overflow-y: auto; overflow-x: hidden;
-  color: rgba(255,255,255,0.92);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  position: relative;
-}
-
-/* ─── Scroll reveal ───────────────────────────────────────────────────── */
-.hp-reveal {
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 500ms cubic-bezier(0.22, 0.68, 0, 1), transform 500ms cubic-bezier(0.22, 0.68, 0, 1);
-}
-.hp-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ═══ HERO ═══════════════════════════════════════════════════════════════ */
-.hp-hero {
+.kg-root {
   min-height: 100vh; min-height: 100dvh;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 48px 24px;
-  position: relative;
+  background: var(--kg-bg);
+  background-image:
+    radial-gradient(ellipse 800px 600px at 20% 0%, rgba(0,217,197,0.18), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 85% 30%, rgba(168,121,255,0.20), transparent 65%),
+    radial-gradient(ellipse 600px 800px at 50% 100%, rgba(168,121,255,0.08), transparent 70%);
+  color: var(--kg-text);
+  font-family: var(--kg-font);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-.hp-hero-glass {
-  max-width: 580px; width: 100%;
-  padding: 56px 48px;
-  background: var(--kuro-hero-bg);
-  border: 1px solid var(--kuro-hero-border);
-  border-radius: 20px;
-  backdrop-filter: blur(var(--kuro-hero-blur)) saturate(1.4) brightness(1.02);
-  -webkit-backdrop-filter: blur(var(--kuro-hero-blur)) saturate(1.4) brightness(1.02);
-  box-shadow:
-    0 1px 3px 0 rgba(0,0,0,0.3),
-    0 8px 24px -4px rgba(0,0,0,0.2),
-    inset 0 0.5px 0 0 var(--kuro-hero-highlight);
-  text-align: center;
-  animation: hp-materialize 600ms cubic-bezier(0.22, 0.68, 0, 1) both;
+/* ── Top nav ── */
+.kg-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 32px;
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid var(--kg-card-border);
 }
-@keyframes hp-materialize {
-  from { opacity: 0; transform: scale(0.97) translateY(6px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+.kg-brand {
+  font-size: 15px; font-weight: 600;
+  letter-spacing: 3px; color: var(--kg-text);
 }
+.kg-nav-right { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.kg-nav-link {
+  color: var(--kg-text-muted); text-decoration: none;
+  transition: color 150ms;
+}
+.kg-nav-link:hover { color: var(--kg-text); }
+.kg-nav-dot { color: var(--kg-text-dim); }
 
-.hp-title {
-  font-size: clamp(42px, 6vw, 64px);
-  font-weight: 300;
-  letter-spacing: 6px;
-  color: rgba(255,255,255,0.95);
-  margin: 0 0 12px;
-  line-height: 1;
+/* ── Hero ── */
+.kg-hero {
+  max-width: 960px; margin: 0 auto;
+  padding: 96px 32px 48px;
+  text-align: left;
 }
-
-.hp-build {
-  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
-  font-size: 11px;
-  color: rgba(255,255,255,0.25);
-  letter-spacing: 0.5px;
+.kg-hero-title {
+  font-size: clamp(40px, 6.5vw, 64px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
   margin: 0 0 24px;
+  color: var(--kg-text);
 }
-
-.hp-lead {
-  font-size: clamp(15px, 2vw, 18px);
+.kg-hero-sub {
+  font-size: clamp(17px, 1.8vw, 22px);
   font-weight: 300;
-  color: rgba(255,255,255,0.58);
-  line-height: 1.6;
-  margin: 0 0 32px;
-}
-
-.hp-ctas {
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-}
-
-.hp-btn-primary {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 12px 36px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 9999px;
-  color: rgba(255,255,255,0.88);
-  font-size: 14px; font-weight: 500;
-  text-decoration: none;
-  transition: background 200ms, border-color 200ms, color 200ms, transform 150ms;
-  cursor: pointer;
-  min-width: 160px;
-}
-.hp-btn-primary:hover {
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.18);
-  color: #fff;
-  transform: translateY(-1px);
-}
-.hp-btn-primary:active { transform: scale(0.985); }
-
-.hp-btn-secondary {
-  background: none; border: none;
-  color: rgba(255,255,255,0.32);
-  font-size: 13px; font-family: inherit;
-  cursor: pointer;
-  transition: color 200ms;
-}
-.hp-btn-secondary:hover { color: rgba(255,255,255,0.55); }
-
-.hp-placard {
-  position: absolute; bottom: 32px; left: 32px;
-  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
-  font-size: 11px;
-  color: var(--kuro-placard-color);
-  letter-spacing: 0.5px;
-}
-.hp-auth-line {
-  position: absolute; bottom: 32px; right: 32px;
-  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--kuro-auth-line-color);
-  text-transform: uppercase;
-}
-
-/* ═══ ABOUT SECTION ═════════════════════════════════════════════════════ */
-.hp-about {
-  min-height: 80vh;
-  display: flex; align-items: center; justify-content: center;
-  padding: 96px 24px;
-}
-
-.hp-about-inner {
-  max-width: 620px; width: 100%;
-  display: flex; flex-direction: column; gap: 24px;
-}
-
-.hp-section-label {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 2.5px;
-  color: rgba(255,255,255,0.28);
-  text-transform: uppercase;
-}
-
-.hp-card {
-  padding: 24px;
-  background: var(--kuro-slab-bg);
-  border: 1px solid var(--kuro-slab-border);
-  border-radius: 0;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.hp-card p {
-  font-size: 15px; font-weight: 300;
-  color: rgba(255,255,255,0.62);
-  line-height: 1.7;
+  color: var(--kg-text-muted);
+  line-height: 1.5;
+  max-width: 640px;
   margin: 0;
 }
-.hp-card-label {
-  display: block;
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 2px;
-  color: rgba(255,255,255,0.25);
-  margin-bottom: 10px;
-}
 
-/* Compare — split column + hairline */
-.hp-compare {
-  display: grid; grid-template-columns: 1fr auto 1fr; gap: 0;
-  backdrop-filter: none; -webkit-backdrop-filter: none;
+/* ── Tiles row ── */
+.kg-tiles {
+  max-width: 1200px; margin: 0 auto;
+  padding: 48px 32px 96px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
-.hp-compare-col {
-  padding: 20px 24px;
+.kg-tile {
+  background: var(--kg-card-surface);
+  border: 1px solid var(--kg-card-border);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex; flex-direction: column; gap: 14px;
+  transition: background 200ms, transform 200ms, border-color 200ms;
+  min-height: 320px;
+  position: relative;
+  overflow: hidden;
 }
-.hp-compare-divider {
-  width: 1px;
+.kg-tile:hover {
+  background: var(--kg-card-hover);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateY(-2px);
+}
+.kg-tile-accent {
+  height: 4px; border-radius: 2px;
+  margin: -8px -8px 0;
+}
+.kg-tile-title {
+  font-size: 22px; font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--kg-text);
+  margin: 6px 0 0;
+}
+.kg-tile-tagline {
+  font-size: 16px; font-weight: 500;
+  color: var(--kg-text);
+  margin: 0;
+}
+.kg-tile-body {
+  font-size: 14px; font-weight: 300;
+  color: var(--kg-text-muted);
+  line-height: 1.55;
+  margin: 0; flex: 1;
+}
+.kg-tile-button-row { margin-top: auto; }
+.kg-tile-btn {
+  display: inline-flex; align-items: center;
+  padding: 10px 20px;
   background: rgba(255,255,255,0.06);
-  align-self: stretch;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  color: var(--kg-text);
+  font-size: 14px; font-weight: 500;
+  text-decoration: none;
+  transition: background 150ms, border-color 150ms, transform 100ms;
+  cursor: pointer;
 }
-.hp-compare-label {
-  display: block;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 2px;
-  margin-bottom: 12px;
-  text-transform: uppercase;
+.kg-tile-btn:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.2);
 }
-.hp-compare-them-label { color: rgba(255,100,100,0.45); }
-.hp-compare-us-label { color: rgba(120,144,156,0.7); }
-.hp-compare-col ul {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.hp-compare-col ul li {
-  font-size: 13px; font-weight: 300;
-  color: rgba(255,255,255,0.38);
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.hp-compare-col ul li:last-child { border-bottom: none; padding-bottom: 0; }
-.hp-compare-col:last-child ul li { color: rgba(255,255,255,0.62); }
+.kg-tile-btn:active { transform: scale(0.98); }
 
-/* ═══ FOOTER ════════════════════════════════════════════════════════════ */
-.hp-footer {
-  padding: 64px 24px 48px;
-  border-top: 1px solid rgba(255,255,255,0.04);
+/* ── Footer ── */
+.kg-footer {
+  border-top: 1px solid var(--kg-card-border);
+  padding: 64px 32px 48px;
 }
-.hp-footer-inner {
-  max-width: 620px; margin: 0 auto;
-  display: flex; flex-direction: column; gap: 16px;
+.kg-footer-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 24px;
 }
-.hp-footer-brand {
-  display: flex; flex-direction: column; gap: 6px;
+.kg-footer-top { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.kg-footer-brand { display: flex; flex-direction: column; gap: 6px; }
+.kg-footer-name { font-size: 15px; font-weight: 600; letter-spacing: 3px; color: var(--kg-text); }
+.kg-footer-tag { font-size: 13px; color: var(--kg-text-muted); }
+.kg-footer-rule { border: none; border-top: 1px solid var(--kg-card-border); margin: 8px 0; }
+.kg-footer-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 24px;
 }
-.hp-footer-name {
-  font-size: 13px; font-weight: 600;
-  letter-spacing: 2px; color: rgba(255,255,255,0.4);
-}
-.hp-footer-entity {
-  font-size: 12px; color: rgba(255,255,255,0.2);
-  line-height: 1.6;
-}
-.hp-footer-links {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px;
-}
-.hp-footer-links a {
-  color: rgba(255,255,255,0.3);
+.kg-footer-col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.kg-footer-col a, .kg-footer-col span {
+  color: var(--kg-text-muted);
   text-decoration: none;
   transition: color 150ms;
 }
-.hp-footer-links a:hover { color: rgba(255,255,255,0.55); }
-.hp-footer-links span { color: rgba(255,255,255,0.12); }
-.hp-footer-infra {
-  font-size: 12px; color: rgba(255,255,255,0.16);
-  margin: 0; line-height: 1.5;
+.kg-footer-col a:hover { color: var(--kg-text); }
+.kg-footer-col-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--kg-text-dim) !important;
+  margin-bottom: 4px;
 }
-.hp-footer-contact {
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 11px; color: rgba(255,255,255,0.2);
+.kg-footer-muted { color: var(--kg-text-dim); font-style: italic; }
+.kg-footer-meta {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-size: 12px; color: var(--kg-text-muted);
+}
+.kg-footer-membership { color: var(--kg-teal); }
+.kg-footer-docs { color: var(--kg-text-muted); text-decoration: none; }
+.kg-footer-docs:hover { color: var(--kg-text); }
+.kg-footer-socials {
+  display: flex; gap: 10px;
+  font-size: 12px; color: var(--kg-text-dim);
+}
+.kg-footer-socials a { color: var(--kg-text-muted); text-decoration: none; }
+.kg-footer-socials a:hover { color: var(--kg-text); }
+.kg-footer-copy {
+  font-size: 12px; color: var(--kg-text-dim);
   margin: 0;
 }
 
-/* ─── MOBILE ────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .hp-hero-glass { padding: 40px 24px; border-radius: 16px; }
-  .hp-hero { padding: 32px 16px; }
-  .hp-about { padding: 64px 16px; }
-  .hp-compare { grid-template-columns: 1fr; }
-  .hp-compare-divider { width: auto; height: 1px; align-self: auto; }
-  .hp-placard { bottom: 20px; left: 20px; }
-  .hp-auth-line { bottom: 20px; right: 20px; }
-  .hp-footer { padding: 48px 16px 32px; }
+/* ─── Mobile ─── */
+@media (max-width: 900px) {
+  .kg-tiles { grid-template-columns: 1fr; }
+  .kg-footer-cols { grid-template-columns: 1fr 1fr; }
 }
-
-/* ─── REDUCED MOTION ────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  .hp-hero-glass { animation: none !important; }
-  .hp-reveal { transition: none !important; opacity: 1 !important; transform: none !important; }
+@media (max-width: 560px) {
+  .kg-nav { padding: 16px 20px; }
+  .kg-hero { padding: 56px 20px 32px; }
+  .kg-tiles { padding: 32px 20px 64px; }
+  .kg-footer { padding: 48px 20px 32px; }
+  .kg-footer-cols { grid-template-columns: 1fr; }
 }
     `}</style>
   );

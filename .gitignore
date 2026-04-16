@@ -5,3 +5,8 @@ dist/
 *.log
 *.bak.*
 *.bak
+
+# Binary artefacts and flat deploy snapshots — kept locally, never committed
+*.zip
+*.pdf
+KURO_COMPLETE/

@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import KuroCubeSpinner from '../ui/KuroCubeSpinner';
 import { renderKuroText, isEmojiOnly } from '../ui/KuroEmoji';
-import { useLiveEdit, LiveEditBar } from './LiveEdit';
 import usePreempt from '../../hooks/usePreempt';
 
 
@@ -515,6 +514,34 @@ const ConversationSheet = ({ open, conversations, activeId, onSelect, onCreate, 
   }, [open]);
   if (!visible) return null;
   const handleClose = () => { setClosing(true); setTimeout(() => { setVisible(false); setClosing(false); onClose(); }, 200); };
+
+  // Bucket by day: Today / Yesterday / Earlier (spec §5.5)
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const buckets = { today: [], yesterday: [], earlier: [] };
+  conversations.forEach(c => {
+    const ts = Number(c.id) || 0;
+    const diff = (startOfDay - ts) / 86400000;
+    if (diff < 1) buckets.today.push(c);
+    else if (diff < 2) buckets.yesterday.push(c);
+    else buckets.earlier.push(c);
+  });
+  const renderGroup = (label, items) => items.length ? (
+    <div className="k8-sheet-group" key={label}>
+      <div className="k8-sheet-group-label">{label}</div>
+      {items.map(c => (
+        <button key={c.id} className={`k8-sheet-item ${c.id === activeId ? 'active' : ''}`}
+          onClick={() => { onSelect(c.id); handleClose(); }}>
+          <MessageSquare size={14} />
+          <span className="k8-sheet-item-title">{c.title || 'New chat'}</span>
+          <button className="k8-sheet-item-del" onClick={e => { e.stopPropagation(); onDelete(c.id); }}>
+            <Trash2 size={12} />
+          </button>
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <>
       <div className={`k8-sheet-backdrop ${closing ? 'closing' : ''}`} onClick={handleClose} />
@@ -527,16 +554,9 @@ const ConversationSheet = ({ open, conversations, activeId, onSelect, onCreate, 
           <Plus size={16} /><span>New conversation</span>
         </button>
         <div className="k8-sheet-list">
-          {conversations.map(c => (
-            <button key={c.id} className={`k8-sheet-item ${c.id === activeId ? 'active' : ''}`}
-              onClick={() => { onSelect(c.id); handleClose(); }}>
-              <MessageSquare size={14} />
-              <span className="k8-sheet-item-title">{c.title || 'New chat'}</span>
-              <button className="k8-sheet-item-del" onClick={e => { e.stopPropagation(); onDelete(c.id); }}>
-                <Trash2 size={12} />
-              </button>
-            </button>
-          ))}
+          {renderGroup('Today', buckets.today)}
+          {renderGroup('Yesterday', buckets.yesterday)}
+          {renderGroup('Earlier', buckets.earlier)}
         </div>
       </div>
     </>
@@ -1039,24 +1059,6 @@ export default function KuroChat() {
     }, 100);
   }, [sendMessage]);
 
-  // ── LiveEdit hook ──────────────────────────────────────────────────
-  const {
-    correctionPhrase, showBar: showLiveEditBar, adapting, error: liveEditError,
-    applyCorrection, dismiss: dismissLiveEdit,
-  } = useLiveEdit({
-    isStreaming: isLoading,
-    sessionId: activeId,
-    activeId,
-    messages: activeConv?.messages || [],
-    input,
-    abortRef,
-    sendMessage,
-    updateMessages,
-    setInput,
-    setIsLoading,
-    authHeaders,
-  });
-
 
   /* ═══════════════════════════════════════════════════════════════════════
      RENDER
@@ -1193,15 +1195,6 @@ export default function KuroChat() {
 
       {/* ── iOS Toolbar ─── */}
       <div className="k8-toolbar">
-        {/* ── LiveEdit bar — floats above input when correction detected ── */}
-        <LiveEditBar
-          phrase={correctionPhrase}
-          visible={showLiveEditBar}
-          adapting={adapting}
-          error={liveEditError}
-          onApply={applyCorrection}
-          onDismiss={dismissLiveEdit}
-        />
         <input type="file" ref={fileInputRef} hidden
           accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.css,.html,.csv"
           onChange={e => handleFiles(e.target.files)}
@@ -1239,6 +1232,8 @@ export default function KuroChat() {
             </div>
           </div>
         </div>
+        {/* ── Model indicator (spec §5.8) ── */}
+        <div className="k8-model-indicator">Gemma 4 E4B · running locally</div>
       </div>
 
       {/* ── Drop zone ─── */}
@@ -1444,6 +1439,18 @@ export default function KuroChat() {
 }
 .k8-sheet-item:hover .k8-sheet-item-del { opacity: 1; }
 .k8-sheet-item-del:hover { color: var(--danger); }
+.k8-sheet-group { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
+.k8-sheet-group-label {
+  font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--text-3);
+  padding: 12px 12px 6px;
+}
+.k8-model-indicator {
+  text-align: center; padding: 6px 8px 0;
+  font-size: 11px; color: var(--text-3);
+  letter-spacing: 0.2px; user-select: none;
+}
 
 /* ── MESSAGES SCROLL ──────────────────────────────────────── */
 .k8-scroll {

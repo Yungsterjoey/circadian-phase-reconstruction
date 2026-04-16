@@ -18,8 +18,6 @@ const SYSTEM_APPS = [
   { id: 'kuro.chat',     canonical: 'KUROChat',     displayName: 'Chat',        realm: null,         icon: 'kuro.chat',     component: 'KuroChatApp',     defaultWidth: 800, defaultHeight: 600, minTier: 'free',      locked: true  },
   { id: 'kuro.pay',      canonical: 'KUROPay',      displayName: 'Pay',         realm: null,         icon: 'kuro.pay',      component: 'KuroPayApp',      defaultWidth: 500, defaultHeight: 750, minTier: 'sovereign', locked: true  },
   { id: 'kuro.wager',    canonical: 'KUROWager',    displayName: 'Wager',       realm: 'FluxKURO',   icon: 'kuro.wager',    component: 'WagerApp',        defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign', locked: true  },
-  { id: 'kuro.phone',    canonical: 'KUROCall',     displayName: 'Call',        realm: null,         icon: 'kuro.phone',    component: 'PhoneApp',        defaultWidth: 400, defaultHeight: 700, minTier: 'sovereign', locked: true  },
-  { id: 'kuro.media',    canonical: 'KUROFlix',     displayName: 'Flix',        realm: null,         icon: 'kuro.media',    component: 'KuroMediaApp',    defaultWidth: 600, defaultHeight: 700, minTier: 'pro',       locked: true  },
   { id: 'kuro.messages', canonical: 'KUROMessages', displayName: 'Messages',    realm: null,         icon: 'kuro.messages', component: 'MessagesApp',     defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign', locked: false },
   { id: 'kuro.files',    canonical: 'KUROFiles',    displayName: 'Files',       realm: null,         icon: 'kuro.files',    component: 'FileExplorerApp', defaultWidth: 700, defaultHeight: 500, minTier: 'pro',       locked: false },
   { id: 'kuro.sandbox',  canonical: 'KUROForge',    displayName: 'Forge',       realm: null,         icon: 'kuro.sandbox',  component: 'SandboxApp',      defaultWidth: 800, defaultHeight: 600, minTier: 'pro',       locked: false },
@@ -61,7 +59,7 @@ const TIER_LEVEL = { guest: -1, free: 0, pro: 1, sovereign: 2 };
 
 // ─── Persistence helpers ────────────────────────────────────────────────────
 const DEFAULT_APP_ORDER = SYSTEM_APPS.map(a => a.id);
-const DEFAULT_PINNED    = ['kuro.chat', 'kuro.phone', 'kuro.messages', 'kuro.files', 'kuro.about'];
+const DEFAULT_PINNED    = ['kuro.chat', 'kuro.messages', 'kuro.files', 'kuro.about'];
 const MAX_BG_APPS       = 4; // LRU eviction limit for background apps
 
 function loadLS(key, fallback) {

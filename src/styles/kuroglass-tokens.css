@@ -1,0 +1,26 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   kuroglass.net — design tokens (spec §3.2)
+   Additive. Imported only by HomePage.jsx + NeuroPage.jsx.
+   Does NOT override liquid-glass.css; leaves /app shell unchanged.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --kg-bg:             #000;
+  --kg-text:           #fff;
+  --kg-text-muted:     rgba(255, 255, 255, 0.6);
+  --kg-text-dim:       rgba(255, 255, 255, 0.3);
+
+  --kg-teal:           #00D9C5;
+  --kg-purple:         #A879FF;
+
+  --kg-gradient-hero:  linear-gradient(135deg, #00D9C5 0%, #A879FF 100%);
+  --kg-gradient-os:    linear-gradient(135deg, #00D9C5 0%, #00A5B8 100%);
+  --kg-gradient-neuro: linear-gradient(135deg, #A879FF 0%, #6C45E0 100%);
+  --kg-gradient-pay:   linear-gradient(135deg, #00D9C5 0%, #A879FF 100%);
+
+  --kg-card-surface:   rgba(255, 255, 255, 0.04);
+  --kg-card-border:    rgba(255, 255, 255, 0.08);
+  --kg-card-hover:     rgba(255, 255, 255, 0.06);
+
+  --kg-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --kg-font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+}

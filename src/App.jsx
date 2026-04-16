@@ -27,11 +27,9 @@ const APP_COMPONENTS = {
   AdminApp:        lazy(() => import('./components/apps/AdminApp')),
   GitPatchApp:     lazy(() => import('./components/apps/GitPatchApp')),
   SandboxApp:      lazy(() => import('./components/apps/SandboxPanel')),
-  PhoneApp:        lazy(() => import('./components/apps/PhoneApp')),
   MessagesApp:     lazy(() => import('./components/apps/MessagesApp')),
   WagerApp:        lazy(() => import('./components/apps/WagerApp')),
   KuroPayApp:      lazy(() => import('./components/apps/KuroPayApp')),
-  KuroMediaApp:    lazy(() => import('./components/apps/KuroMediaApp')),
 };
 
 // ─── Loading spinner ─────────────────────────────────────────────────────────

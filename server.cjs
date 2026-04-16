@@ -422,19 +422,19 @@ const MODEL_REGISTRY = {
     desc: 'Intent classifier (Llama 3.2 3B)', vram: 2
   },
   'kuro-free': {
-    name: 'KURO::FREE', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
-    ctx: 16384, thinking: false, tier: 'free',
-    desc: 'Sovereign intelligence — Free tier (no thinking)', vram: 14, abliterated: true
+    name: 'KURO::FREE', ollama: 'huihui_ai/gemma-4-abliterated:e4b',
+    ctx: 32768, thinking: false, tier: 'free', multimodal: true,
+    desc: 'Sovereign intelligence — Free tier (Gemma 4 E4B, natively multimodal)', vram: 4, abliterated: true
   },
   'kuro-pro': {
-    name: 'KURO::PRO', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
-    ctx: 16384, thinking: true, tier: 'pro',
-    desc: 'Sovereign intelligence — Pro tier (thinking enabled)', vram: 14, abliterated: true
+    name: 'KURO::PRO', ollama: 'huihui_ai/gemma-4-abliterated:e4b',
+    ctx: 32768, thinking: true, tier: 'pro', multimodal: true,
+    desc: 'Sovereign intelligence — Pro tier (Gemma 4 E4B, thinking enabled)', vram: 4, abliterated: true
   },
   'kuro-sov': {
-    name: 'KURO::SOVEREIGN', ollama: 'huihui_ai/huihui-moe-abliterated:24b-a8b-Q4_K_M',
-    ctx: 16384, thinking: true, tier: 'sovereign',
-    desc: 'Sovereign intelligence — Sovereign tier (thinking enabled)', vram: 14, abliterated: true
+    name: 'KURO::SOVEREIGN', ollama: 'huihui_ai/gemma-4-abliterated:e4b',
+    ctx: 32768, thinking: true, tier: 'sovereign', multimodal: true,
+    desc: 'Sovereign intelligence — Sovereign tier (Gemma 4 E4B, thinking enabled)', vram: 4, abliterated: true
   },
   'kuro-vision': {
     name: 'KURO::VISION', ollama: 'huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct-q4_K_M',
