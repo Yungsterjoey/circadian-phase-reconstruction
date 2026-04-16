@@ -1,6 +1,6 @@
 # KURO OS — UX Master Spec
 
-> **Single source of truth** for visual design, naming, and interaction across kuroglass.net (`/`, `/landing-legacy`, `/offline.html`) and the in-app SPA shell. Locked 2026-04-16.
+> **Single source of truth** for visual design, naming, and interaction across kuroglass.net (`/`, `/landing-legacy`, `/offline.html`) and the in-app SPA shell. Locked 2026-04-16 (amended 2026-04-16: §2 mobile body-copy exemption).
 >
 > If you are about to add UI without reading this, stop.
 
@@ -111,6 +111,28 @@ Loaded via:
 
 **Never use:** `-apple-system`, `system-ui`, `Inter`, `Roboto`, `Arial`, `SF Pro` as primary. They are AI-slop defaults. The above stack with system fallbacks is fine.
 
+### Mobile body-copy exemption (added 2026-04-16)
+
+Instrument Serif italic loses fidelity below ~15px on phones. On viewports `≤768px` only, body-copy elements (`body`, `.hero-sub`, `.card-body`, `.footer-tagline` and similar long-form prose surfaces) MAY swap to the iOS HIG stack:
+
+```css
+@media (max-width: 768px) {
+  body, .hero-sub, .card-body, .footer-tagline {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  }
+}
+```
+
+Constraints on the exemption:
+
+1. **Body copy only.** Headlines (`h1`, `.section-heading`, `.card-title`, `.sim-head h2`) MUST still use `--font-head` (Clash Display) — they're large enough that brand voice trumps system metrics. Badges, labels, and telemetry MUST still use `--font-mono` (DM Mono).
+2. **Mobile only.** No use of system stacks at `≥769px`. If you find yourself wanting it on desktop, the underlying issue is size/weight/contrast — fix that instead.
+3. **Place the override at the end of the stylesheet.** `@media` queries don't add specificity; a later unconditional rule will beat them. Put the mobile exemption block as the last `@media` in the file so source order makes it the winner. Use `!important` only as a surgical override for inline `style="font-size:..."` declarations.
+4. **Bump sizes when you swap.** A 13px serif and a 13px sans-serif read very differently. Card body 13→15px, hero sub 15→16px, line-height tightened to ~1.5.
+
+Rationale: this preserves the editorial brand voice on tablet+desktop where Instrument Serif at 15–19px reads beautifully, while ensuring touch-device users aren't squinting at italic serifs at 13px. The "ban system fonts as primary" rule still holds — what's exempted here is a *narrow secondary use* on a single device class.
+
 ---
 
 ## 3. The `<kuro-icon>` web component
@@ -158,9 +180,10 @@ grep -c "lg-regular\|lg-frosted\|lg-tinted\|lg-clear\|lg-toolbar\|lg-dock\|lg-pi
 python3 -c "import re; [print(f) for f in ['public/index.html','landing.html','public/offline.html'] if re.search(r'[\U0001F300-\U0001FAFF]', open(f).read())]"
 # Expected: empty
 
-# 4. No SF Pro / system fonts as PRIMARY
+# 4. No SF Pro / system fonts as PRIMARY (outside the mobile body-copy exemption)
 grep -nE "font-family:\s*-apple-system" public/*.html landing.html
-# Expected: empty (only in fallback chains is OK)
+# Expected: matches ONLY inside @media (max-width: 768px) blocks or inside fallback chains.
+# Manual review when a match is found — verify it's inside the §2 mobile exemption block.
 
 # 5. No naming-convention violations
 grep -nEi "PayKURO|ChatKURO|KURONeuro|KUROFlux|KUROShadow" .
@@ -177,7 +200,7 @@ grep -nE "canonical:\s*'(KUROChat|KUROPay|KUROWager|KUROCall|KUROFlix|KUROSound|
 
 | Page | URL | liquid-glass.css | Brand fonts | `<kuro-icon>` | H1/H2/H3 | Locked naming |
 |---|---|---|---|---|---|---|
-| Live landing | `/` | ✅ linked | ✅ Clash + DM Mono + Instrument Serif | ✅ embedded | ✅ enforced | ✅ surfaced |
+| Live landing | `/` | ✅ linked | ✅ Clash + DM Mono + Instrument Serif (mobile body: HIG stack per §2 exemption) | ✅ embedded | ✅ enforced | ✅ surfaced |
 | Legacy landing | `/landing-legacy` | ✅ linked (overlay only) | ✅ adopted | ❌ uses old SVG K | partial — kept as historical preview | n/a |
 | PWA offline | `/offline.html` | ✅ linked | ✅ adopted | ✅ embedded (with fallback) | ✅ enforced | n/a |
 | In-app SPA shell | `/app/*` (Vite) | imports liquid-glass.css | per Vite bundle | per `LiquidGlassProvider` | per spec | ✅ via `osStore.canonical` |
