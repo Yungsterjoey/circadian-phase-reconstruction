@@ -19,6 +19,46 @@ function signReceipt(body) {
   return crypto.createHmac('sha256', key).update(JSON.stringify(body)).digest('hex');
 }
 
+const FIAT_META = {
+  'fiat-napas247':  { country: 'VN', currency: 'VND', rail: 'NAPAS 247' },
+  'fiat-promptpay': { country: 'TH', currency: 'THB', rail: 'PromptPay'  },
+  'fiat-instapay':  { country: 'PH', currency: 'PHP', rail: 'InstaPay'   },
+  'fiat-duitnow':   { country: 'MY', currency: 'MYR', rail: 'DuitNow'    },
+  'fiat-bifast':    { country: 'ID', currency: 'IDR', rail: 'BI-FAST'    },
+};
+
+function envKey(prefix, scheme) {
+  return `${prefix}_${scheme.toUpperCase().replace(/-/g, '_')}`;
+}
+
+function railCapabilities() {
+  const rails = {};
+
+  rails['exact-evm-base'] = {
+    status:  (process.env.KURO_FACILITATOR_BASE_PRIVKEY_HEX && process.env.KURO_FACILITATOR_BASE_RPC) ? 'ready' : 'stub',
+    network: 'base-mainnet',
+    asset:   'USDC',
+  };
+
+  rails['exact-svm-solana'] = {
+    status:  (process.env.KURO_SOLANA_WALLET_PRIVKEY_HEX && process.env.KURO_FACILITATOR_SOLANA_RPC) ? 'ready' : 'stub',
+    network: 'solana-mainnet',
+    asset:   'USDC',
+  };
+
+  for (const [scheme, meta] of Object.entries(FIAT_META)) {
+    const hasUrl  = !!process.env[envKey('KURO_FACILITATOR_RAIL_URL',  scheme)];
+    const hasCred = !!process.env[envKey('KURO_FACILITATOR_RAIL_CRED', scheme)];
+    rails[scheme] = {
+      status:   (hasUrl && hasCred) ? 'ready' : 'stub',
+      country:  meta.country,
+      currency: meta.currency,
+      rail:     meta.rail,
+    };
+  }
+  return rails;
+}
+
 function mountRoutes(app, requireAuth, requireAdmin) {
   const gate = [requireAuth, requireAdmin].filter(Boolean);
 
@@ -133,7 +173,7 @@ function mountRoutes(app, requireAuth, requireAdmin) {
     replay.sweep();
     res.json({
       ok:    true,
-      rails: verifier.supportedSchemes(),
+      rails: railCapabilities(),
       ts:    Math.floor(Date.now() / 1000),
     });
   });
