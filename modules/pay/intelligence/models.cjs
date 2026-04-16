@@ -7,16 +7,18 @@ const OLLAMA_URL = process.env.OLLAMA_HOST
   ? `${process.env.OLLAMA_HOST.replace(/\/$/, '')}/api/chat`
   : 'http://127.0.0.1:11434/api/chat';
 
+// Role → Ollama tag. Swap tags here (one line each) to migrate models
+// across every intelligence module. Abliterated variants for KURO stack consistency.
 const ORCHESTRATOR = {
   id: 'kuro-pay-orchestrator',
-  model: 'qwen3:0.6b',
+  model: 'huihui_ai/qwen3.5-abliterated:0.8B',
   options: { num_ctx: 4096, temperature: 0.2 },
   timeout_ms: 15_000,
 };
 
 const BRAIN = {
   id: 'kuro-pay-brain',
-  model: 'gemma4:e4b',
+  model: 'huihui_ai/gemma-4-abliterated:e4b',
   options: { num_ctx: 8192, temperature: 0.3 },
   timeout_ms: 60_000,
 };

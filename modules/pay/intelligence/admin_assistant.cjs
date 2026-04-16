@@ -1,5 +1,5 @@
 'use strict';
-// §4.5 — Henry's admin NL interface. gemma4:e4b with tool calls (JSON protocol).
+// §4.5 — Henry's admin NL interface. BRAIN model (abliterated gemma-4) with tool calls (JSON protocol).
 // Two-turn loop: planner emits tool spec, executor returns data, synthesiser answers.
 const { BRAIN, chat, safeParse } = require('./models.cjs');
 const { wrap } = require('./prompt_safety.cjs');

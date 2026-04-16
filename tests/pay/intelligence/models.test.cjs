@@ -3,13 +3,13 @@ const test = require('node:test');
 const assert = require('node:assert');
 const models = require('../../../modules/pay/intelligence/models.cjs');
 
-test('orchestrator config points at qwen3:0.6b', () => {
-  assert.strictEqual(models.ORCHESTRATOR.model, 'qwen3:0.6b');
+test('orchestrator config points at abliterated qwen3.5', () => {
+  assert.strictEqual(models.ORCHESTRATOR.model, 'huihui_ai/qwen3.5-abliterated:0.8B');
   assert.strictEqual(models.ORCHESTRATOR.id, 'kuro-pay-orchestrator');
 });
 
-test('brain config points at gemma4:e4b', () => {
-  assert.strictEqual(models.BRAIN.model, 'gemma4:e4b');
+test('brain config points at abliterated gemma-4', () => {
+  assert.strictEqual(models.BRAIN.model, 'huihui_ai/gemma-4-abliterated:e4b');
   assert.strictEqual(models.BRAIN.id, 'kuro-pay-brain');
 });
 

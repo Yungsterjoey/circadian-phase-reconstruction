@@ -447,12 +447,12 @@ const MODEL_REGISTRY = {
     desc: 'Embedding model', vram: 0.3
   },
   'kuro-pay-orchestrator': {
-    name: 'KURO::PAY-ORCH', ollama: 'qwen3:0.6b',
+    name: 'KURO::PAY-ORCH', ollama: 'huihui_ai/qwen3.5-abliterated:0.8B',
     ctx: 4096, thinking: false, tier: 'system',
     desc: 'KUROPay v2.5 small model — classification/extraction', vram: 1
   },
   'kuro-pay-brain': {
-    name: 'KURO::PAY-BRAIN', ollama: 'gemma4:e4b',
+    name: 'KURO::PAY-BRAIN', ollama: 'huihui_ai/gemma-4-abliterated:e4b',
     ctx: 8192, thinking: false, tier: 'system',
     desc: 'KUROPay v2.5 reasoning model — ticket triage, admin assistant', vram: 4
   }
