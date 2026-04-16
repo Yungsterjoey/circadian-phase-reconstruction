@@ -1,7 +1,14 @@
 'use strict';
 // §4.5 + §8.2 — READ-ONLY whitelisted tools. No raw SQL ever reaches the model.
 // Every tool: validate args, build prepared statement with placeholders, return structured data.
+//
+// DB routing (post-fix for dual-DB split):
+//   - kuro_pay_payments lives in the AUTH db (layers/auth/db.cjs)
+//     — this is where production payments actually land (x402 + Stripe)
+//   - pay_anomalies lives in the v2.5 db (modules/pay/core/ledger.cjs)
+//     — intelligence layer owns this table end-to-end
 const ledger = require('../core/ledger.cjs');
+const { db: authDb } = require('../../../layers/auth/db.cjs');
 
 const SQL_META = /[;'"\\]|--|\/\*|\*\//;  // any SQL meta-char in a scalar arg => reject
 
@@ -18,8 +25,14 @@ function query_payments({ status, user_id, limit = 20 } = {}) {
   if (user_id) { clauses.push('user_id=?'); args.push(user_id); }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const lim = Math.min(Math.max(1, Number(limit) || 20), 200);
-  return ledger._db().prepare(
-    `SELECT id, created_at, type, amount_minor, currency, status, ai_memo FROM pay_ledger ${where} ORDER BY created_at DESC LIMIT ?`
+  return authDb.prepare(
+    `SELECT id, created_at, user_id, status, currency,
+            merchant_account, merchant_name,
+            amount_aud, amount_vnd,
+            network, settled_at, error
+       FROM kuro_pay_payments ${where}
+      ORDER BY created_at DESC
+      LIMIT ?`
   ).all(...args, lim);
 }
 
@@ -38,12 +51,12 @@ function query_anomalies({ severity, user_id, acknowledged, limit = 20 } = {}) {
 function get_stats({ timeframe = 'today' } = {}) {
   const bounds = { today: "date('now')", '7d': "date('now','-7 days')", '30d': "date('now','-30 days')" }[timeframe];
   if (!bounds) throw new Error('invalid timeframe');
-  const db = ledger._db();
+  const v25 = ledger._db();
   return {
     timeframe,
-    payments_count: db.prepare(`SELECT COUNT(*) AS c FROM pay_ledger WHERE date(created_at) >= ${bounds}`).get().c,
-    payments_failed: db.prepare(`SELECT COUNT(*) AS c FROM pay_ledger WHERE status='failed' AND date(created_at) >= ${bounds}`).get().c,
-    anomalies_warn: db.prepare(`SELECT COUNT(*) AS c FROM pay_anomalies WHERE severity='warn' AND date(created_at) >= ${bounds}`).get().c,
+    payments_count:  authDb.prepare(`SELECT COUNT(*) AS c FROM kuro_pay_payments WHERE date(created_at) >= ${bounds}`).get().c,
+    payments_failed: authDb.prepare(`SELECT COUNT(*) AS c FROM kuro_pay_payments WHERE status='failed' AND date(created_at) >= ${bounds}`).get().c,
+    anomalies_warn:  v25.prepare(`SELECT COUNT(*) AS c FROM pay_anomalies WHERE severity='warn' AND date(created_at) >= ${bounds}`).get().c,
   };
 }
 
