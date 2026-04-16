@@ -21,6 +21,27 @@ const ledger   = require('./pay_ledger.cjs');
 ledger.initSchema();
 stripe.runMigration();
 
+// ── ENV check — log missing keys, never fail startup ─────────────
+(function checkEnv() {
+  const required = [
+    'NIUM_API_KEY', 'NIUM_API_URL', 'NIUM_CLIENT_ID',
+    'X402_FACILITATOR_URL', 'KURO_X402_SIGNING_KEY', 'KURO_X402_RECEIVE_ADDRESS',
+    'WISE_API_TOKEN', 'WISE_PROFILE_ID', 'WISE_DESTINATION_ACCOUNT_ID',
+  ];
+  const defaults = {
+    KURO_PAY_COMMISSION_MIN_PAYOUT_AUD:   '5',
+    KURO_PAY_PAYOUT_MAX_PER_TRANSFER_AUD: '500',
+    KURO_PAY_PAYOUT_ENABLED:              'false',
+  };
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length > 0) {
+    console.warn('[KURO::PAY] Missing env vars (connectors will degrade):', missing.join(', '));
+  }
+  for (const [k, v] of Object.entries(defaults)) {
+    if (!process.env[k]) process.env[k] = v;
+  }
+})();
+
 // ── mountPayRoutes ────────────────────────────────────────────────
 function mountPayRoutes(app, requireAuth) {
 
@@ -464,7 +485,55 @@ function mountPayRoutes(app, requireAuth) {
     return res.json({ received: true, type: event.type });
   });
 
-  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,card/*,initiate,history,receipt/*,camera/open,atm/initiate,webhook/stripe}');
+  // ── POST /api/pay/detect — public ──────────────────────────────
+  // Runs all rail adapters' detect() in parallel and returns the best match.
+  app.post('/api/pay/detect', express.json(), async (req, res) => {
+    const { input } = req.body;
+    if (!input) return res.status(400).json({ error: 'input is required' });
+
+    try {
+      // Lazy-require so rails register themselves on first detect call
+      require('./rails/vietqr.cjs');
+      require('./rails/promptpay.cjs');
+      require('./rails/qris.cjs');
+      require('./rails/qrph.cjs');
+      require('./rails/duitnow.cjs');
+
+      const router = require('./core/rail_router.cjs');
+      const result = await router.detect(input);
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── GET /api/pay/status/:id — requireAuth ───────────────────────
+  app.get('/api/pay/status/:id', requireAuth, async (req, res) => {
+    const userId = req.user.userId;
+    const db     = ledger.getDB();
+    if (!db) return res.status(503).json({ error: 'Database unavailable' });
+
+    const row = ledger.getPayment(db, req.params.id);
+    if (!row)                  return res.status(404).json({ error: 'Payment not found' });
+    if (row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const receipt = row.x402_receipt_json ? JSON.parse(row.x402_receipt_json) : null;
+    return res.json({ status: row.status, settledAt: row.settled_at, receipt, paymentId: row.id });
+  });
+
+  // ── POST /api/pay/admin/sweep — requireAuth (admin) ────────────
+  // Manual trigger for commission payout logic. Respects MIN/MAX/ENABLED flags.
+  app.post('/api/pay/admin/sweep', requireAuth, async (req, res) => {
+    try {
+      const { runPayout } = require('./scheduler/commission_payout_hourly.cjs');
+      await runPayout();
+      return res.json({ swept: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,detect,card/*,initiate,status/*,history,receipt/*,camera/open,atm/initiate,webhook/stripe,admin/sweep}');
 }
 
 module.exports = { mountPayRoutes };
