@@ -1633,6 +1633,22 @@ try {
   console.warn('[KURO::PAY v1 shim] Not loaded:', e.message);
 }
 
+// ═══ KURO::PAY admin assistant — /api/pay/admin/assistant ═════════════════
+try {
+  const { mountAssistantRoute } = require('./modules/pay/admin/assistant_routes.cjs');
+  const { stmts: _payStmts } = require('./layers/auth/db.cjs');
+  const _payRequireAdmin = (req, res, next) => {
+    if (!req.user || req.user.userId === 'anon') return res.status(401).json({ error: 'Auth required' });
+    const row = _payStmts.isAdmin.get(req.user.userId);
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  };
+  mountAssistantRoute(app, auth.required, _payRequireAdmin);
+  console.log('[KURO::PAY admin] Assistant mounted at /api/pay/admin/assistant');
+} catch(e) {
+  console.warn('[KURO::PAY admin] Not loaded:', e.message);
+}
+
 // ═══ KURO::FACILITATOR — self-hosted x402 facilitator ════════════════════
 // /api/facilitator/{verify,settle,health}. Admin-gated.
 try {
