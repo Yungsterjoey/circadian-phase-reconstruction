@@ -51,9 +51,12 @@ export const createPayment  = (payload) => postJSON('/api/pay/x402/create',  pay
 export const confirmPayment = (payload) => postJSON('/api/pay/x402/confirm', payload);
 
 // ── New unified routes (Phase A) ──
-export const detect         = (payload) => postJSON('/api/pay/detect',       payload);
-export const initiatePayment = (payload) => postJSON('/api/pay/initiate',    payload);
-export const getPaymentStatus = (id)    => getJSON (`/api/pay/status/${id}`);
+export const detect            = (payload)   => postJSON('/api/pay/detect',              payload);
+export const initiatePayment   = (payload)   => postJSON('/api/pay/initiate',            payload);
+export const initiateATMPayment = (payload)  => postJSON('/api/pay/atm/initiate',        payload);
+export const getPaymentStatus  = (id)        => getJSON (`/api/pay/status/${id}`);
+export const getFxRate         = (currency)  => getJSON (`/api/pay/fx-rate?currency=${encodeURIComponent(currency)}`);
+export const warmCard          = (payload)   => postJSON('/api/pay/camera/open',         payload);
 
 // ── v2 native (card management) ──
 export const fetchCards     = ()        => getJSON ('/api/pay/card/list');

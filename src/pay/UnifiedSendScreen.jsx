@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
-import { detect, initiatePayment, fetchCards } from './api.js';
+import { detect, initiatePayment, initiateATMPayment, getFxRate, warmCard, fetchCards } from './api.js';
 
 const RAIL_LABELS = {
   vietqr:    { name: 'VietQR',   flag: '🇻🇳', currency: 'VND' },
@@ -20,6 +20,8 @@ export default function UnifiedSendScreen() {
   const [amountLocal, setAmountLocal]   = useState('');
   const [selectedRail, setSelectedRail] = useState(null);
   const [card, setCard]           = useState(null);
+  const [fxSpot, setFxSpot]       = useState(null);   // { rate, source, currency }
+  const [warmTokenId, setWarmTokenId] = useState(null);
   const [paying, setPaying]       = useState(false);
   const [err, setErr]             = useState(null);
   const [camErr, setCamErr]       = useState(null);
@@ -54,8 +56,22 @@ export default function UnifiedSendScreen() {
       try {
         const res = await detect({ input: trimmed });
         setDetectResult(res);
-        if (res.matched) setSelectedRail(res.rail);
-        else              setSelectedRail(null);
+        if (res.matched) {
+          setSelectedRail(res.rail);
+          const currency = RAIL_LABELS[res.rail]?.currency || 'VND';
+          // Fetch live rate in parallel; don't block render
+          getFxRate(currency).then(r => setFxSpot(r)).catch(() => {});
+          // Pre-warm card for ATM QR immediately — fires in background
+          if (res.parsed?.qrType === 'atm' && card) {
+            const pmId = card.stripe_pm_id || card.id;
+            warmCard({ paymentMethodId: pmId })
+              .then(w => setWarmTokenId(w.warmTokenId))
+              .catch(() => {});
+          }
+        } else {
+          setSelectedRail(null);
+          setFxSpot(null);
+        }
         setErr(null);
       } catch (e) {
         setDetectResult(null);
@@ -149,14 +165,47 @@ export default function UnifiedSendScreen() {
     if (!canPay) return;
     setPaying(true);
     setErr(null);
+
+    const isATM     = detectResult?.parsed?.qrType === 'atm';
+    const pmId      = card.stripe_pm_id || card.id;
+    const spotRate  = fxSpot?.rate || null;
+
     try {
-      const result = await initiatePayment({
-        input:           input.trim(),
-        rail,
-        amountLocal:     parseFloat(amountLocal),
-        currency:        railMeta?.currency,
-        paymentMethodId: card.stripe_pm_id || card.id,
-      });
+      let result;
+      if (isATM) {
+        // Get GPS for ATM geo-verification (best-effort; 5s max)
+        let lat, lng;
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (_) {}
+
+        if (!warmTokenId) throw new Error('Card pre-auth not ready — please wait a moment and retry');
+        if (!spotRate)    throw new Error('Exchange rate not loaded — please wait and retry');
+
+        result = await initiateATMPayment({
+          qr:              input.trim(),
+          amount:          parseFloat(amountLocal),
+          currency:        railMeta?.currency,
+          paymentMethodId: pmId,
+          warmTokenId,
+          fxSpot:          spotRate,
+          lat, lng,
+        });
+      } else {
+        result = await initiatePayment({
+          input:           input.trim(),
+          rail,
+          amountLocal:     parseFloat(amountLocal),
+          currency:        railMeta?.currency,
+          paymentMethodId: pmId,
+          ...(spotRate ? { fxSpot: spotRate } : {}),
+        });
+      }
+
       if (!result.paymentId) throw new Error('No paymentId returned');
       nav('/confirming', { state: { paymentId: result.paymentId, rail, railMeta, amountLocal, card } });
     } catch (e) {
@@ -266,8 +315,12 @@ export default function UnifiedSendScreen() {
           </div>
           {amtValid && (
             <div className="kp-aud-hint kp-dim kp-xs">
-              ≈ AUD {(parseFloat(amountLocal) * (railMeta?.currency === 'VND' ? 1/16500 : railMeta?.currency === 'THB' ? 1/23.5 : railMeta?.currency === 'IDR' ? 1/10300 : railMeta?.currency === 'PHP' ? 1/36.5 : railMeta?.currency === 'MYR' ? 1/3.05 : 1)).toFixed(2)}
-              <span className="kp-indicative"> (indicative)</span>
+              ≈ AUD {fxSpot?.rate
+                ? (parseFloat(amountLocal) / fxSpot.rate).toFixed(2)
+                : '…'}
+              {fxSpot?.source === 'facilitator'
+                ? <span className="kp-live"> (live)</span>
+                : <span className="kp-indicative"> (indicative)</span>}
             </div>
           )}
         </div>

@@ -64,4 +64,30 @@ async function getStatus(payoutId) {
   return { status: data.status || 'unknown', settledAt: data.settledAt, proof: data };
 }
 
-module.exports = { initiate, getStatus };
+// Ask the facilitator for its current exchange rate (local currency → AUD).
+// Falls back to KURO_PAY_FX_RATE_<CURRENCY> env var, then hardcoded floor.
+const FALLBACK_RATES = { VND: 16500, THB: 23.5, IDR: 10300, PHP: 36.5, MYR: 3.05 };
+
+async function getRate(fromCurrency) {
+  const envKey = `KURO_PAY_FX_RATE_${fromCurrency.toUpperCase()}`;
+  if (!URL || !SIGNING_KEY) {
+    const rate = parseFloat(process.env[envKey]) || FALLBACK_RATES[fromCurrency] || null;
+    return { rate, source: process.env[envKey] ? 'env' : 'fallback', currency: fromCurrency };
+  }
+  try {
+    const body = { from: fromCurrency, to: 'AUD', timestamp: Math.floor(Date.now() / 1000) };
+    const resp  = await axios.get(`${URL}/rate`, {
+      params:  body,
+      headers: { 'X-KURO-Sig': sign(body) },
+      timeout: 5_000,
+      validateStatus: null,
+    });
+    if (resp.status === 200 && resp.data?.rate > 0) {
+      return { rate: resp.data.rate, source: 'facilitator', currency: fromCurrency, fetchedAt: Date.now() };
+    }
+  } catch (_) {}
+  const rate = parseFloat(process.env[envKey]) || FALLBACK_RATES[fromCurrency] || null;
+  return { rate, source: process.env[envKey] ? 'env' : 'fallback', currency: fromCurrency };
+}
+
+module.exports = { initiate, getStatus, getRate, FALLBACK_RATES };

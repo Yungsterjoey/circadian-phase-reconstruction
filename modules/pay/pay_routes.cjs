@@ -12,10 +12,11 @@
 const express = require('express');
 const crypto  = require('crypto');
 
-const parser   = require('./vietqr_parser.cjs');
-const stripe   = require('./stripe_connector.cjs');
-const x402     = require('./x402_pay.cjs');
-const ledger   = require('./pay_ledger.cjs');
+const parser      = require('./vietqr_parser.cjs');
+const stripe      = require('./stripe_connector.cjs');
+const x402        = require('./x402_pay.cjs');
+const ledger      = require('./pay_ledger.cjs');
+const facilitator = require('./connectors/x402_facilitator.cjs');
 
 // ── Init DB schema on first require ──────────────────────────────
 ledger.initSchema();
@@ -133,13 +134,19 @@ function mountPayRoutes(app, requireAuth) {
       });
     }
 
-    // 3. Resolve AUD amount
-    // For now: caller provides amount in AUD via req.body.amountAUD,
-    // or we treat the local amount as VND and use 1 AUD ≈ 16500 VND (indicative).
-    // In production the facilitator quotes the FX rate.
-    const amountAUD = req.body.amountAUD
-      ? parseFloat(req.body.amountAUD)
-      : parseFloat((localAmount / 16500).toFixed(4));
+    // 3. Resolve AUD amount — prefer caller-supplied fxSpot, then facilitator live rate
+    let amountAUD;
+    if (req.body.amountAUD) {
+      amountAUD = parseFloat(req.body.amountAUD);
+    } else {
+      const fxSpot = parseFloat(req.body.fxSpot) || 0;
+      if (fxSpot > 0) {
+        amountAUD = parseFloat((localAmount / fxSpot).toFixed(4));
+      } else {
+        const { rate } = await facilitator.getRate(parsed.currency || 'VND');
+        amountAUD = parseFloat((localAmount / (rate || 16500)).toFixed(4));
+      }
+    }
 
     if (amountAUD <= 0) return res.status(400).json({ error: 'Computed AUD amount must be > 0' });
 
@@ -485,6 +492,19 @@ function mountPayRoutes(app, requireAuth) {
     return res.json({ received: true, type: event.type });
   });
 
+  // ── GET /api/pay/fx-rate — public ─────────────────────────────
+  // Returns live or fallback rate for ?currency=VND (etc).
+  // Source field: 'facilitator' | 'env' | 'fallback'
+  app.get('/api/pay/fx-rate', async (req, res) => {
+    const currency = (req.query.currency || 'VND').toUpperCase();
+    try {
+      const result = await facilitator.getRate(currency);
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ── POST /api/pay/detect — public ──────────────────────────────
   // Runs all rail adapters' detect() in parallel and returns the best match.
   app.post('/api/pay/detect', express.json(), async (req, res) => {
@@ -533,7 +553,7 @@ function mountPayRoutes(app, requireAuth) {
     }
   });
 
-  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,detect,card/*,initiate,status/*,history,receipt/*,camera/open,atm/initiate,webhook/stripe,admin/sweep}');
+  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,fx-rate,detect,card/*,initiate,status/*,history,receipt/*,camera/open,atm/initiate,webhook/stripe,admin/sweep}');
 }
 
 module.exports = { mountPayRoutes };
