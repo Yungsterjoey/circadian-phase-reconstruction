@@ -1172,6 +1172,39 @@ app.post('/api/stream', guestOrAuth(resolveUser), async (req, res) => {
       }
     }
     
+    // ═══ KURO::PREEMPT — claim speculation cache if fully completed ═══
+    // Conservative consume: only flush if speculation reached `done`. Partial
+    // buffers are discarded to avoid context-mismatch artifacts (preempt runs
+    // without system prompt / RAG, so token stream may diverge from fresh
+    // inference). claim() handles abort+cleanup of the speculation either way.
+    if (!full) {
+      try {
+        const preempt = require('./layers/preempt/preempt_engine.cjs');
+        const claimed = preempt.claim(sid, lastMsg);
+        if (claimed && claimed.status === 'done' && claimed.tokenCount > 0) {
+          sendSSE(res, { type: 'preempt_start', buffered: claimed.tokenCount });
+          for (const tok of claimed.buffer) {
+            const visible = thinkFilter.push(tok);
+            if (visible) {
+              sendSSE(res, { type: 'token', content: visible, preempted: true });
+              sentVisibleToken = true;
+              streamController.appendPartial(sid, visible);
+            }
+            full += tok; tc++;
+          }
+          const trailing = thinkFilter.flush();
+          if (trailing) {
+            sendSSE(res, { type: 'token', content: trailing, preempted: true });
+            sentVisibleToken = true;
+            streamController.appendPartial(sid, trailing);
+          }
+          sendSSE(res, { type: 'preempt_end', flushed: claimed.tokenCount });
+          resolvedModel = `preempt:${claimed.model}`;
+          logEvent({ agent: 'preempt', action: 'claim_done', userId: user.userId, requestId: req.requestId, meta: { tokens: tc, speculatedInput: claimed.speculatedInput } });
+        }
+      } catch(e) { /* preempt optional — fall through to Ollama */ }
+    }
+
     // ═══ LOCAL OLLAMA PATH (default or frontier fallback) ═══
     if (!full) {
       if (!(await checkOllama())) { sendSSE(res, { type: 'error', message: 'AI model temporarily unavailable. Please retry.' }); clearInterval(ka); return res.end(); }
