@@ -33,11 +33,22 @@ const SUPPORTED_CRYPTO_SCHEMES = new Set([
 ]);
 
 const SUPPORTED_FIAT_SCHEMES = new Set([
+  // SEA
   'fiat-napas247',
   'fiat-promptpay',
   'fiat-instapay',
   'fiat-duitnow',
   'fiat-bifast',
+  // AU
+  'fiat-payid',
+  // UK
+  'fiat-fps',
+  // EU
+  'fiat-sepa-instant',
+  // IN
+  'fiat-upi',
+  // BR
+  'fiat-pix',
 ]);
 
 function supportedSchemes() {

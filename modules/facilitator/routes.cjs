@@ -20,11 +20,22 @@ function signReceipt(body) {
 }
 
 const FIAT_META = {
-  'fiat-napas247':  { country: 'VN', currency: 'VND', rail: 'NAPAS 247' },
-  'fiat-promptpay': { country: 'TH', currency: 'THB', rail: 'PromptPay'  },
-  'fiat-instapay':  { country: 'PH', currency: 'PHP', rail: 'InstaPay'   },
-  'fiat-duitnow':   { country: 'MY', currency: 'MYR', rail: 'DuitNow'    },
-  'fiat-bifast':    { country: 'ID', currency: 'IDR', rail: 'BI-FAST'    },
+  // SEA
+  'fiat-napas247':     { country: 'VN', currency: 'VND', rail: 'NAPAS 247'      },
+  'fiat-promptpay':    { country: 'TH', currency: 'THB', rail: 'PromptPay'      },
+  'fiat-instapay':     { country: 'PH', currency: 'PHP', rail: 'InstaPay'       },
+  'fiat-duitnow':      { country: 'MY', currency: 'MYR', rail: 'DuitNow'        },
+  'fiat-bifast':       { country: 'ID', currency: 'IDR', rail: 'BI-FAST'        },
+  // AU
+  'fiat-payid':        { country: 'AU', currency: 'AUD', rail: 'PayID / Osko'   },
+  // UK
+  'fiat-fps':          { country: 'GB', currency: 'GBP', rail: 'Faster Payments'},
+  // EU
+  'fiat-sepa-instant': { country: 'EU', currency: 'EUR', rail: 'SEPA Instant'   },
+  // IN
+  'fiat-upi':          { country: 'IN', currency: 'INR', rail: 'UPI'            },
+  // BR
+  'fiat-pix':          { country: 'BR', currency: 'BRL', rail: 'PIX'            },
 };
 
 function envKey(prefix, scheme) {

@@ -5,7 +5,15 @@
 const verifier = require('./verifier.cjs');
 const baseRail   = require('./rails/base_usdc.cjs');
 const solanaRail = require('./rails/solana_usdc.cjs');
-const fiatRail   = require('./rails/fiat_sea.cjs');
+
+const FIAT_RAILS = [
+  require('./rails/fiat_sea.cjs'),
+  require('./rails/fiat_au.cjs'),
+  require('./rails/fiat_uk.cjs'),
+  require('./rails/fiat_eu.cjs'),
+  require('./rails/fiat_in.cjs'),
+  require('./rails/fiat_br.cjs'),
+];
 
 const CRYPTO_DISPATCH = {
   'exact-evm-base':   baseRail,
@@ -14,7 +22,9 @@ const CRYPTO_DISPATCH = {
 
 function railFor(scheme) {
   if (CRYPTO_DISPATCH[scheme]) return CRYPTO_DISPATCH[scheme];
-  if (fiatRail.SCHEME_TO_NETWORK[scheme]) return fiatRail;
+  for (const rail of FIAT_RAILS) {
+    if (rail.SCHEME_TO_NETWORK && rail.SCHEME_TO_NETWORK[scheme]) return rail;
+  }
   return null;
 }
 
