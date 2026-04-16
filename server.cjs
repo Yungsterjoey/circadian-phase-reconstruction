@@ -1658,6 +1658,22 @@ try {
   console.warn('[KURO::PAY intel] Not loaded:', e.message);
 }
 
+// ═══ KURO::PAY monitoring — /api/pay/admin/monitoring/queue ═══════════════
+try {
+  const { mountMonitoringRoute } = require('./modules/pay/routes/monitoring.cjs');
+  const { stmts: _monStmts } = require('./layers/auth/db.cjs');
+  const _monRequireAdmin = (req, res, next) => {
+    if (!req.user || req.user.userId === 'anon') return res.status(401).json({ error: 'Auth required' });
+    const row = _monStmts.isAdmin.get(req.user.userId);
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  };
+  mountMonitoringRoute(app, auth.required, _monRequireAdmin);
+  console.log('[KURO::PAY monitoring] Queue dashboard at /api/pay/admin/monitoring/queue');
+} catch(e) {
+  console.warn('[KURO::PAY monitoring] Not loaded:', e.message);
+}
+
 // ═══ KURO::FACILITATOR — self-hosted x402 facilitator ════════════════════
 // /api/facilitator/{verify,settle,health}. Admin-gated.
 try {
