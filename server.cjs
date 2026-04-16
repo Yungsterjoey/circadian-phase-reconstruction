@@ -154,6 +154,7 @@ let mountVfsRoutes = null; try { mountVfsRoutes = require('./layers/vfs/vfs_rout
 let mountRunnerRoutes = null; try { mountRunnerRoutes = require('./layers/runner/runner_routes.cjs'); } catch(e) { console.warn('[WARN] Runner routes not loaded:', e.message); }
 let mountGitRoutes = null; try { mountGitRoutes = require('./layers/git/git_routes.cjs'); } catch(e) { console.warn('[WARN] Git routes not loaded:', e.message); }
 let mountSearchRoutes = null; try { mountSearchRoutes = require('./layers/search/search_routes.cjs'); } catch(e) { console.warn('[WARN] Search routes not loaded:', e.message); }
+let mountNeuroRoutes = null; try { mountNeuroRoutes = require('./neuro/neuro_routes.cjs'); } catch(e) { console.warn('[WARN] Neuro routes not loaded:', e.message); }
 let rbac = null; try { rbac = require('./layers/auth/rbac.cjs'); console.log('[RBAC] Loaded'); } catch(e) { console.warn('[WARN] RBAC not loaded:', e.message); }
 
 // Phase 3.5: Web (o) Mode
@@ -316,6 +317,9 @@ try {
   app.use('/api/auth/reset-password', authLimiter);
   console.log('[RATE_LIMIT] Global 200/min, auth 20/15min');
 } catch(e) { console.warn('[WARN] Rate limiting not loaded:', e.message); }
+
+// Serve kuroglass public files (index.html, screenshots, etc.)
+app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
 
 // Serve built frontend assets (hashed filenames — cache forever)
 app.use(express.static(path.join(__dirname, 'dist'), {
@@ -683,6 +687,7 @@ if (createAuthRoutes) {
   app.use('/api/auth', createAuthRoutes(auth));
   console.log('[AUTH] v2 routes mounted (session + OAuth)');
 }
+if (mountNeuroRoutes) { try { mountNeuroRoutes(app); console.log('[NEURO] Routes mounted at /api/neuro/*'); } catch(e) { console.warn('[NEURO] Failed to mount:', e.message); } }
 if (createStripeRoutes) {
   app.use('/api/stripe', createStripeRoutes(auth));
   console.log('[STRIPE] Checkout + portal routes mounted');
@@ -1542,6 +1547,10 @@ try {
   console.warn('[KURO::CALL] Module not loaded:', e.message);
 }
 
+// ═══ KURO::SMS — SMS Forwarding ════════════════════════════════════════════
+const mountSMSForwardRoutes = require('./layers/sms_forward.cjs');
+mountSMSForwardRoutes(app);
+
 // ═══ KURO::WAGER — Sovereign Betting Intelligence ══════════════════════════
 try {
   const wagerModule = require('./modules/wager/index.cjs');
@@ -1559,6 +1568,24 @@ try {
   console.log('[KURO::PAY] Routes mounted at /api/pay/* (auth required)');
 } catch(e) {
   console.warn('[KURO::PAY] Module not loaded:', e.message);
+}
+
+// ═══ KURO::PAY v2 — x402 / VietQR Routes ═══════════════════════════════════
+try {
+  const { mountPayRoutes } = require('./modules/pay/pay_routes.cjs');
+  mountPayRoutes(app, auth);
+} catch(e) {
+  console.warn('[KURO::PAY v2] Routes not loaded:', e.message);
+}
+
+// ═══ KURO::GRAB — Native Grab API Client ════════════════════════════════════
+const authMiddleware = auth;
+try {
+  const { mountGrabRoutes } = require('./modules/grab/grab_routes.cjs');
+  mountGrabRoutes(app, authMiddleware);
+  console.log('[KURO::GRAB] mounted');
+} catch (e) {
+  console.warn('[KURO::GRAB] not loaded:', e.message);
 }
 
 // ═══ KURO::MEDIA — Smart Wake Proxy to TensorDock GPU ═══════════════════════
