@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 const { randomUUID } = require('crypto');
 const path = require('path');
 
-const DB_PATH = path.join('/opt/kuro/data', 'pay.db');
+const DB_PATH = process.env.PAY_DB_PATH || path.join('/opt/kuro/data', 'pay.db');
 
 let _db = null;
 
@@ -91,6 +91,58 @@ function initSchema() {
       metadata        TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_payees_fav ON pay_payees(favourite DESC, last_used DESC);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS merchant_cache (
+      merchant_account_number TEXT PRIMARY KEY,
+      display_name            TEXT,
+      category                TEXT,
+      confidence              REAL,
+      raw_name                TEXT,
+      normalized_at           TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS pay_anomalies (
+      id            TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      payment_id    TEXT NOT NULL,
+      flag_type     TEXT NOT NULL,
+      reason        TEXT NOT NULL,
+      severity      TEXT NOT NULL CHECK (severity IN ('info','notice','warn')),
+      acknowledged  INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_anom_user_ack ON pay_anomalies(user_id, acknowledged);
+    CREATE INDEX IF NOT EXISTS idx_anom_payment ON pay_anomalies(payment_id);
+
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id                    TEXT PRIMARY KEY,
+      user_id               TEXT NOT NULL,
+      payment_id            TEXT,
+      category              TEXT,
+      severity              TEXT,
+      user_message          TEXT,
+      prefilled_body        TEXT,
+      suggested_resolution  TEXT,
+      status                TEXT NOT NULL DEFAULT 'open',
+      created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at           TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS intelligence_queue (
+      id            TEXT PRIMARY KEY,
+      task_type     TEXT NOT NULL,
+      payload_json  TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','done','failed')),
+      attempts      INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      started_at    TEXT,
+      processed_at  TEXT,
+      error         TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_iq_status ON intelligence_queue(status, created_at);
   `);
 }
 
@@ -275,6 +327,7 @@ function touchPayee(id) { getDb().prepare("UPDATE pay_payees SET last_used = dat
 
 module.exports = {
   getDb,
+  _db: getDb,
   initSchema,
   insertLedger,
   updateLedgerStatus,
