@@ -1,19 +1,61 @@
 import { create } from 'zustand';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KURO OS — APP & REALM REGISTRY
+//
+// Naming convention (locked 2026-04-16):
+//   • KURO[App]   — discrete apps (KUROChat, KUROPay, KUROSound, ...)
+//                   Display in OS UI WITHOUT the prefix → "Chat", "Pay"
+//   • [Realm]KURO — architectural families (NeuroKURO, FluxKURO, ShadowKURO)
+//                   Modules live beneath a realm, not as standalone apps
+//
+// Internal `id` keeps the legacy `kuro.<name>` form so user localStorage
+// (kuro_app_order, kuro_pinned_apps) doesn't reset on rename.
+// ═══════════════════════════════════════════════════════════════════════════
+
 const SYSTEM_APPS = [
-  { id: 'kuro.auth',      name: 'Sign In',      icon: 'kuro.auth',      component: 'AuthGateApp',     defaultWidth: 440, defaultHeight: 620, minTier: 'guest' },
-  { id: 'kuro.chat',      name: 'KURO Chat',   icon: 'kuro.chat',      component: 'KuroChatApp',     defaultWidth: 800, defaultHeight: 600, minTier: 'free' },
-  { id: 'kuro.files',     name: 'Files',        icon: 'kuro.files',     component: 'FileExplorerApp', defaultWidth: 700, defaultHeight: 500, minTier: 'pro' },
-  { id: 'kuro.sandbox',   name: 'Sandbox',      icon: 'kuro.sandbox',   component: 'SandboxApp',      defaultWidth: 800, defaultHeight: 600, minTier: 'pro' },
-  { id: 'kuro.about',     name: 'About KURO',   icon: 'kuro.about',     component: 'AboutApp',        defaultWidth: 680, defaultHeight: 580, minTier: 'guest' },
-  { id: 'kuro.admin',     name: 'Admin',        icon: 'kuro.admin',     component: 'AdminApp',        defaultWidth: 700, defaultHeight: 500, minTier: 'sovereign' },
-  { id: 'kuro.git',       name: 'Git Patches',  icon: 'kuro.git',       component: 'GitPatchApp',     defaultWidth: 920, defaultHeight: 620, minTier: 'pro' },
-  { id: 'kuro.phone',     name: 'Phone',        icon: 'kuro.phone',     component: 'PhoneApp',        defaultWidth: 400, defaultHeight: 700, minTier: 'sovereign' },
-  { id: 'kuro.messages',  name: 'Messages',     icon: 'kuro.messages',  component: 'MessagesApp',     defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
-  { id: 'kuro.wager',    name: 'WAGER',        icon: 'kuro.wager',    component: 'WagerApp',        defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign' },
-  { id: 'kuro.pay',      name: 'KURO Pay',     icon: 'kuro.pay',      component: 'KuroPayApp',      defaultWidth: 500, defaultHeight: 750, minTier: 'sovereign' },
-  { id: 'kuro.media',    name: 'Media',        icon: 'kuro.media',    component: 'KuroMediaApp',    defaultWidth: 600, defaultHeight: 700, minTier: 'pro' },
+  { id: 'kuro.auth',     canonical: 'KUROAuth',     displayName: 'Sign In',     realm: null,         icon: 'kuro.auth',     component: 'AuthGateApp',     defaultWidth: 440, defaultHeight: 620, minTier: 'guest',     locked: false },
+  { id: 'kuro.chat',     canonical: 'KUROChat',     displayName: 'Chat',        realm: null,         icon: 'kuro.chat',     component: 'KuroChatApp',     defaultWidth: 800, defaultHeight: 600, minTier: 'free',      locked: true  },
+  { id: 'kuro.pay',      canonical: 'KUROPay',      displayName: 'Pay',         realm: null,         icon: 'kuro.pay',      component: 'KuroPayApp',      defaultWidth: 500, defaultHeight: 750, minTier: 'sovereign', locked: true  },
+  { id: 'kuro.wager',    canonical: 'KUROWager',    displayName: 'Wager',       realm: 'FluxKURO',   icon: 'kuro.wager',    component: 'WagerApp',        defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign', locked: true  },
+  { id: 'kuro.phone',    canonical: 'KUROCall',     displayName: 'Call',        realm: null,         icon: 'kuro.phone',    component: 'PhoneApp',        defaultWidth: 400, defaultHeight: 700, minTier: 'sovereign', locked: true  },
+  { id: 'kuro.media',    canonical: 'KUROFlix',     displayName: 'Flix',        realm: null,         icon: 'kuro.media',    component: 'KuroMediaApp',    defaultWidth: 600, defaultHeight: 700, minTier: 'pro',       locked: true  },
+  { id: 'kuro.messages', canonical: 'KUROMessages', displayName: 'Messages',    realm: null,         icon: 'kuro.messages', component: 'MessagesApp',     defaultWidth: 500, defaultHeight: 700, minTier: 'sovereign', locked: false },
+  { id: 'kuro.files',    canonical: 'KUROFiles',    displayName: 'Files',       realm: null,         icon: 'kuro.files',    component: 'FileExplorerApp', defaultWidth: 700, defaultHeight: 500, minTier: 'pro',       locked: false },
+  { id: 'kuro.sandbox',  canonical: 'KUROForge',    displayName: 'Forge',       realm: null,         icon: 'kuro.sandbox',  component: 'SandboxApp',      defaultWidth: 800, defaultHeight: 600, minTier: 'pro',       locked: false },
+  { id: 'kuro.git',      canonical: 'KUROGit',      displayName: 'Git Patches', realm: null,         icon: 'kuro.git',      component: 'GitPatchApp',     defaultWidth: 920, defaultHeight: 620, minTier: 'pro',       locked: false },
+  { id: 'kuro.admin',    canonical: 'KUROAdmin',    displayName: 'Admin',       realm: null,         icon: 'kuro.admin',    component: 'AdminApp',        defaultWidth: 700, defaultHeight: 500, minTier: 'sovereign', locked: false },
+  { id: 'kuro.about',    canonical: 'KUROAbout',    displayName: 'About',       realm: null,         icon: 'kuro.about',    component: 'AboutApp',        defaultWidth: 680, defaultHeight: 580, minTier: 'guest',     locked: false },
+  // ─── Locked apps not yet implemented (surface in registry for IA continuity) ───
+  { id: 'kuro.sound',    canonical: 'KUROSound',    displayName: 'Sound',       realm: null,         icon: 'kuro.sound',    component: null,              defaultWidth: 500, defaultHeight: 700, minTier: 'pro',       locked: true,  available: false },
+  { id: 'kuro.grab',     canonical: 'KUROGrab',     displayName: 'Grab',        realm: null,         icon: 'kuro.grab',     component: null,              defaultWidth: 500, defaultHeight: 700, minTier: 'pro',       locked: true,  available: false },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REALMS — architectural families with multiple modules beneath them
+// (Realms are not opened as apps; they group modules and surface in /api/realms)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const REALMS = {
+  NeuroKURO: {
+    canonical: 'NeuroKURO',
+    displayName: 'Neuro',
+    description: 'Circadian, pharmacokinetics, clinical, recommendation',
+    modules: ['circadian_phase', 'pharmacokinetics', 'clinical_trials', 'recommendation'],
+  },
+  FluxKURO: {
+    canonical: 'FluxKURO',
+    displayName: 'Flux',
+    description: 'Trading system — hunt, confirm, execute',
+    modules: ['hunt', 'confirm', 'execute'],
+  },
+  ShadowKURO: {
+    canonical: 'ShadowKURO',
+    displayName: 'Shadow',
+    description: 'Sovereign network layer',
+    modules: ['nephilim_gate', 'babylon_protocol', 'mnemosyne_cache', 'shadow_vpn'],
+  },
+};
 
 const TIER_LEVEL = { guest: -1, free: 0, pro: 1, sovereign: 2 };
 
@@ -42,8 +84,9 @@ function mergeAppOrder(saved) {
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 export const useOSStore = create((set, get) => ({
-  // App registry
+  // App + realm registry
   apps: [...SYSTEM_APPS],
+  realms: { ...REALMS },
 
   // ── iOS Home Screen state ──────────────────────────────────────────────────
   // Icon grid order (persisted + merged with new apps on every load)
@@ -81,6 +124,7 @@ export const useOSStore = create((set, get) => ({
   canAccessApp: (appId, userTier) => {
     const app = get().apps.find(a => a.id === appId);
     if (!app) return false;
+    if (app.available === false) return false;
     const effectiveTier = userTier || 'guest';
     return (TIER_LEVEL[effectiveTier] ?? -1) >= (TIER_LEVEL[app.minTier] ?? -1);
   },
@@ -89,7 +133,7 @@ export const useOSStore = create((set, get) => ({
   openApp: (appId) => {
     const state = get();
     const app = state.apps.find(a => a.id === appId);
-    if (!app) return;
+    if (!app || app.available === false) return;
 
     set(s => {
       // If already open, just bring to front
@@ -252,3 +296,6 @@ export const useOSStore = create((set, get) => ({
   setModelMode:     (mode) => set({ modelMode: mode }),
   setPowerDial:     (dial) => set({ powerDial: dial }),
 }));
+
+// ─── Convenience exports ────────────────────────────────────────────────────
+export { SYSTEM_APPS, REALMS, TIER_LEVEL };
