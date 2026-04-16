@@ -61,3 +61,8 @@ export const warmCard          = (payload)   => postJSON('/api/pay/camera/open',
 // ── v2 native (card management) ──
 export const fetchCards     = ()        => getJSON ('/api/pay/card/list');
 export const getSetupIntent = ()        => postJSON('/api/pay/card/setup', {});
+
+// ── Commission tier policy ──
+// Returns { tier, minimum_fee_aud, rate, cap_aud, daily_limit_aud, local_round_unit }.
+// The Confirm screen uses this to render the localized minimum fee hint.
+export const fetchPolicy    = ()        => getJSON ('/api/pay/policy');

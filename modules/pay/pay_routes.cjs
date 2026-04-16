@@ -553,7 +553,26 @@ function mountPayRoutes(app, requireAuth) {
     }
   });
 
-  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,fx-rate,detect,card/*,initiate,status/*,history,receipt/*,camera/open,atm/initiate,webhook/stripe,admin/sweep}');
+  // ── GET /api/pay/policy — requireAuth ─────────────────────────
+  // Returns the caller's commission-tier policy so the Confirm screen
+  // can show "3,500 VND minimum" and similar localized hints. FX for
+  // localization is computed client-side using the rate already loaded
+  // for the selected rail.
+  app.get('/api/pay/policy', requireAuth, (req, res) => {
+    const policy = require('./core/commission_policy.cjs');
+    const tier   = policy.normalizeTier(req.user && req.user.tier);
+    const p      = policy.getPolicy(tier);
+    return res.json({
+      tier,
+      minimum_fee_aud: p.minimum_fee_aud,
+      rate:            p.rate,
+      cap_aud:         p.cap_aud,
+      daily_limit_aud: policy.getDailyLimitAUD(tier),
+      local_round_unit: policy.LOCAL_ROUND_UNIT,
+    });
+  });
+
+  console.log('[KURO::PAY] v2 routes mounted at /api/pay/{parse,fx-rate,detect,card/*,initiate,status/*,history,receipt/*,camera/open,atm/initiate,webhook/stripe,admin/sweep,policy}');
 }
 
 module.exports = { mountPayRoutes };

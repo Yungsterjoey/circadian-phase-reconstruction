@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
-import { detect, initiatePayment, initiateATMPayment, getFxRate, warmCard, fetchCards } from './api.js';
+import { detect, initiatePayment, initiateATMPayment, getFxRate, warmCard, fetchCards, fetchPolicy } from './api.js';
 
 const RAIL_LABELS = {
   vietqr:    { name: 'VietQR',   flag: '🇻🇳', currency: 'VND' },
@@ -25,6 +25,7 @@ export default function UnifiedSendScreen() {
   const [paying, setPaying]       = useState(false);
   const [err, setErr]             = useState(null);
   const [camErr, setCamErr]       = useState(null);
+  const [policy, setPolicy]       = useState(null);  // { tier, minimum_fee_aud, local_round_unit, ... }
 
   const debounceRef  = useRef(null);
   const videoRef     = useRef(null);
@@ -45,6 +46,15 @@ export default function UnifiedSendScreen() {
       .catch(e => { if (!cancelled) setErr(e.message); });
     return () => { cancelled = true; };
   }, [nav]);
+
+  // Fetch commission policy on mount — drives the localized-minimum hint.
+  useEffect(() => {
+    let cancelled = false;
+    fetchPolicy()
+      .then(p => { if (!cancelled) setPolicy(p); })
+      .catch(() => {});  // Hint is optional — silently degrade.
+    return () => { cancelled = true; };
+  }, []);
 
   // Debounced detect call on input change
   useEffect(() => {
@@ -160,6 +170,16 @@ export default function UnifiedSendScreen() {
   const railMeta = rail ? RAIL_LABELS[rail] : null;
   const amtValid = parseFloat(amountLocal) > 0;
   const canPay   = !!rail && amtValid && !!card && !paying;
+
+  // Localized minimum hint — e.g. "3,500 VND minimum" for a Free user paying in VND.
+  // Only shown when the tier has a non-zero AUD minimum AND we have a live rail FX rate.
+  const localizedMin = (() => {
+    if (!policy || !policy.minimum_fee_aud) return null;
+    if (!fxSpot || !fxSpot.rate || fxSpot.rate <= 0) return null;
+    if (!railMeta || !railMeta.currency) return null;
+    const unit = (policy.local_round_unit && policy.local_round_unit[railMeta.currency]) || 1;
+    return Math.ceil((policy.minimum_fee_aud * fxSpot.rate) / unit) * unit;
+  })();
 
   async function onPay() {
     if (!canPay) return;
@@ -321,6 +341,11 @@ export default function UnifiedSendScreen() {
               {fxSpot?.source === 'facilitator'
                 ? <span className="kp-live"> (live)</span>
                 : <span className="kp-indicative"> (indicative)</span>}
+            </div>
+          )}
+          {localizedMin != null && (
+            <div className="kp-min-hint kp-dim kp-xs">
+              {localizedMin.toLocaleString('en-US')} {railMeta.currency} minimum
             </div>
           )}
         </div>
