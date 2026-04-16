@@ -1649,6 +1649,15 @@ try {
   console.warn('[KURO::PAY admin] Not loaded:', e.message);
 }
 
+// ═══ KURO::PAY intelligence — /api/pay/intel/* ════════════════════════════
+try {
+  const { mountIntelRoutes } = require('./modules/pay/routes/intelligence.cjs');
+  mountIntelRoutes(app, auth.required);
+  console.log('[KURO::PAY intel] Routes mounted at /api/pay/intel/*');
+} catch(e) {
+  console.warn('[KURO::PAY intel] Not loaded:', e.message);
+}
+
 // ═══ KURO::FACILITATOR — self-hosted x402 facilitator ════════════════════
 // /api/facilitator/{verify,settle,health}. Admin-gated.
 try {
