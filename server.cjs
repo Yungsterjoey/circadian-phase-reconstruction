@@ -1612,6 +1612,33 @@ try {
   console.warn('[KURO::PAY v2] Routes not loaded:', e.message);
 }
 
+// ═══ KURO::PAY v1 shim — /api/pay/x402/{quote,create,confirm} ═════════════
+// Mounted AFTER v2 so that if v2 ever adds an /api/pay/x402/* path, v2
+// wins the route match. Current v2 uses /parse and /initiate — no
+// collision today.
+try {
+  const { mountShimRoutes } = require('./modules/pay/index.cjs');
+  mountShimRoutes(app, auth.required);
+} catch(e) {
+  console.warn('[KURO::PAY v1 shim] Not loaded:', e.message);
+}
+
+// ═══ KURO::FACILITATOR — self-hosted x402 facilitator ════════════════════
+// /api/facilitator/{verify,settle,health}. Admin-gated.
+try {
+  const { mountFacilitator } = require('./modules/facilitator/index.cjs');
+  const { stmts: _facStmts } = require('./layers/auth/db.cjs');
+  const _facRequireAdmin = (req, res, next) => {
+    if (!req.user || req.user.userId === 'anon') return res.status(401).json({ error: 'Auth required' });
+    const row = _facStmts.isAdmin.get(req.user.userId);
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  };
+  mountFacilitator(app, auth.required, _facRequireAdmin);
+} catch(e) {
+  console.warn('[FACILITATOR] Not loaded:', e.message);
+}
+
 // ═══ KURO::GRAB — Native Grab API Client ════════════════════════════════════
 const authMiddleware = auth;
 try {
@@ -1726,6 +1753,22 @@ try {
 
   console.log('[KURO::MEDIA] Smart wake proxy mounted at /api/media/*');
 })();
+
+// ═══ KURO::PAY standalone /pay app ═════════════════════════════════════════
+// Serves dist/pay/index.html for /pay and any /pay/* deep link (BrowserRouter
+// with basename="/pay"). Must be registered BEFORE the main SPA catch-all
+// below — otherwise that catch-all would hand /pay/* the main OS index.html.
+// Asset requests (/assets/*) are already handled by the express.static('dist')
+// mount at the top of the file.
+app.get(/^\/pay(\/.*)?$/, (req, res, next) => {
+  const payIndex = path.join(__dirname, 'dist', 'pay', 'index.html');
+  if (fs.existsSync(payIndex)) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.sendFile(payIndex);
+  }
+  // If the pay bundle isn't built yet, fall through — don't hijack the path.
+  next();
+});
 
 // React OS SPA (all /app routes)
 app.use((req, res, next) => {
