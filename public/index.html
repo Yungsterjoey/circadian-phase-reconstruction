@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-lg-perf="standard">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>KURO OS — Sovereign AI Operating System</title>
   <meta name="description" content="KURO OS: a 12-layer sovereign cognitive pipeline. Local inference. Your hardware, your data, your audit trail. NeuroKURO reconstructs circadian phase from sleep timing alone.">
 
+  <!-- Favicon: web component can't be a favicon; keep JPEG for browser tab. -->
   <link rel="icon" type="image/jpeg" href="/kuro-logo.jpg">
   <link rel="apple-touch-icon" href="/kuro-logo.jpg">
   <link rel="manifest" href="/manifest.json">
@@ -15,7 +16,13 @@
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="/kuro-logo.jpg">
-  <meta name="theme-color" content="#04040c">
+  <meta name="theme-color" content="#000000">
+
+  <!-- Liquid Glass token foundation — MUST come before inline overrides -->
+  <link rel="stylesheet" href="/liquid-glass.css">
+
+  <!-- KURO::ICON web component (registers <kuro-icon>) -->
+  <script type="module" src="/kuro-icon/src/kuro-icon.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,29 +31,30 @@
 
   <style>
     :root {
-      --void:             #04040c;
-      --glass:            rgba(100,65,210,0.07);
-      --glass-border:     rgba(150,110,255,0.16);
-      --glass-border-dim: rgba(150,110,255,0.08);
-      --pulse:            #9B6BFF;
-      --pulse-bright:     #C4A0FF;
-      --pulse-glow:       rgba(155,107,255,0.35);
-      --signal:           #00FFB2;
-      --amber:            #FFB347;
-      --heat:             #FF4D4D;
-      --text-primary:     rgba(255,255,255,0.92);
-      --text-secondary:   rgba(200,175,240,0.48);
-      --text-tertiary:    rgba(200,175,240,0.28);
+      /* Brand typography — STRONGER than the spec's SF Pro default. Preserve. */
       --font-head:        'Clash Display', 'Bebas Neue', sans-serif;
       --font-mono:        'DM Mono', 'Courier New', monospace;
       --font-body:        'Instrument Serif', Georgia, serif;
+
+      /* Reconcile legacy --pulse onto the spec accent so all old rules still compose. */
+      --pulse:            var(--lg-accent);
+      --pulse-bright:     #C4A0FF;
+      --pulse-glow:       var(--lg-accent-glow);
+      --signal:           #00FFB2;
+      --amber:            #FFB347;
+      --heat:             #FF4D4D;
+
+      /* Map legacy text tokens to spec tokens. */
+      --text-primary:     var(--lg-text-primary);
+      --text-secondary:   var(--lg-text-secondary);
+      --text-tertiary:    var(--lg-text-tertiary);
     }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
 
     body {
-      background: var(--void);
+      background: var(--lg-surface-0);  /* OLED black */
       color: var(--text-primary);
       font-family: var(--font-body);
       overflow-x: hidden;
@@ -54,7 +62,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ─── Custom cursor ──────────────────────────── */
+    /* ─── Custom cursor (brand identity — keep) ──────────────────── */
     #cursor {
       position: fixed;
       width: 8px; height: 8px;
@@ -68,7 +76,7 @@
     #cursor-ring {
       position: fixed;
       width: 32px; height: 32px;
-      border: 1px solid rgba(155,107,255,0.4);
+      border: 1px solid rgba(168, 85, 247, 0.4);
       border-radius: 50%;
       pointer-events: none;
       z-index: 9998;
@@ -77,7 +85,7 @@
     }
     #cursor-ring.expand { width: 52px; height: 52px; opacity: 0; }
 
-    /* ─── Wallpaper / particles ──────────────────── */
+    /* ─── Wallpaper / particles (brand identity — keep) ──────────── */
     #wallpaper {
       position: fixed; inset: 0;
       z-index: 0; pointer-events: none;
@@ -85,32 +93,13 @@
     #wallpaper::after {
       content: '';
       position: absolute; inset: 0;
-      background-image: radial-gradient(circle, rgba(155,107,255,0.12) 1px, transparent 1px);
+      background-image: radial-gradient(circle, rgba(168, 85, 247, 0.10) 1px, transparent 1px);
       background-size: 40px 40px;
       pointer-events: none;
     }
     #particles {
       position: fixed; inset: 0;
       z-index: 1; pointer-events: none;
-    }
-
-    /* ─── Glass surfaces ─────────────────────────── */
-    .glass {
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(28px) saturate(160%);
-      -webkit-backdrop-filter: blur(28px) saturate(160%);
-      border-radius: 18px;
-      transition: transform .3s ease, box-shadow .3s ease;
-    }
-    .glass:hover {
-      transform: translateY(-3px);
-      box-shadow: inset 0 0 40px rgba(155,107,255,.07), 0 20px 60px rgba(0,0,0,.55);
-    }
-    .glass-inner {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(155,107,255,0.10);
-      border-radius: 12px;
     }
 
     /* ─── Reveal animation ───────────────────────── */
@@ -121,68 +110,34 @@
     }
     .reveal.visible { opacity: 1; transform: translateY(0); }
 
-    /* ─── CSS Glass Cube ─────────────────────────── */
-    .cube-wrap { display: inline-block; perspective: 80px; }
-    .cube {
-      position: relative;
-      transform-style: preserve-3d;
-      animation: cube-spin 14s linear infinite;
-    }
-    .cube .face {
-      position: absolute;
-      border: 1px solid rgba(180,140,255,0.5);
-    }
-    .cube .front  { background: rgba(140,90,255,0.22); }
-    .cube .back   { background: rgba(100,60,200,0.10); }
-    .cube .right  { background: rgba(120,80,240,0.15); }
-    .cube .left   { background: rgba(80,50,180,0.08);  }
-    .cube .top    { background: rgba(170,120,255,0.28); }
-    .cube .bottom { background: rgba(90,55,190,0.08);  }
-
-    .cube-nav { width: 22px; height: 22px; }
-    .cube-nav .face { width: 22px; height: 22px; }
-    .cube-nav .front  { transform: translateZ(11px); }
-    .cube-nav .back   { transform: rotateY(180deg) translateZ(11px); }
-    .cube-nav .right  { transform: rotateY(90deg) translateZ(11px); }
-    .cube-nav .left   { transform: rotateY(-90deg) translateZ(11px); }
-    .cube-nav .top    { transform: rotateX(90deg) translateZ(11px); }
-    .cube-nav .bottom { transform: rotateX(-90deg) translateZ(11px); }
-
-    .cube-hero { width: 72px; height: 72px; }
-    .cube-hero .face { width: 72px; height: 72px; }
-    .cube-hero .front  { transform: translateZ(36px); }
-    .cube-hero .back   { transform: rotateY(180deg) translateZ(36px); }
-    .cube-hero .right  { transform: rotateY(90deg) translateZ(36px); }
-    .cube-hero .left   { transform: rotateY(-90deg) translateZ(36px); }
-    .cube-hero .top    { transform: rotateX(90deg) translateZ(36px); }
-    .cube-hero .bottom { transform: rotateX(-90deg) translateZ(36px); }
-
-    @keyframes cube-spin {
-      from { transform: rotateX(-22deg) rotateY(0deg); }
-      to   { transform: rotateX(-22deg) rotateY(360deg); }
-    }
-
-    /* ─── Navigation ─────────────────────────────── */
+    /* ─── Navigation: H2 floating glass island ────────────────────
+       Centered floating pill with rounded corners + glass backdrop.
+       NOT a full-width opaque bar. Safe-area margin (H3) for notch. */
     nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      padding: 16px clamp(20px, 5vw, 80px);
-      display: flex; justify-content: space-between; align-items: center;
-      background: rgba(4,4,12,.72);
-      backdrop-filter: blur(24px);
-      border-bottom: 1px solid var(--glass-border-dim);
+      position: fixed;
+      top: max(8px, env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 10px 18px;
+      max-width: calc(100% - 16px);
     }
     .nav-logo {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 10px;
       font-family: var(--font-head);
-      font-size: 18px; font-weight: 700;
+      font-size: 16px; font-weight: 700;
       color: var(--text-primary); text-decoration: none;
       letter-spacing: .06em;
     }
+    .nav-logo kuro-icon { vertical-align: middle; }
     .logo-wordmark { letter-spacing: .08em; }
     .logo-wordmark span { color: var(--pulse-bright); }
 
-    .nav-right { display: flex; align-items: center; gap: 32px; }
-    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-right { display: flex; align-items: center; gap: 24px; }
+    .nav-links { display: flex; gap: 22px; list-style: none; }
     .nav-links a {
       font-family: var(--font-mono); font-size: 11px;
       color: var(--text-secondary); text-decoration: none;
@@ -202,34 +157,37 @@
       animation: status-pulse 2.5s ease infinite;
     }
     @keyframes status-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-    @media (max-width: 768px) { .nav-links { display: none; } }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-right { gap: 12px; }
+    }
 
     /* ─── Hero ──────────────────────────────────── */
     #hero {
-      height: 100vh; min-height: 720px;
+      min-height: 100vh; min-height: 100dvh;
       display: flex; align-items: center; justify-content: center;
       position: relative; overflow: hidden;
-      padding: 0 clamp(16px,4vw,48px);
+      padding: clamp(96px,12vw,140px) clamp(16px,4vw,48px) clamp(48px,6vw,80px);
     }
     .hero-inner {
       position: relative; z-index: 2;
       max-width: 920px; width: 100%;
-      padding: clamp(48px, 6vw, 88px);
+      padding: clamp(40px, 6vw, 80px);
       text-align: center;
     }
-    .hero-cube-wrap {
+    .hero-icon-wrap {
       display: flex; justify-content: center; margin-bottom: 36px;
       opacity: 0; animation: fadeUp .8s ease forwards .08s;
     }
-    .hero-cube-glow {
+    .hero-icon-glow {
       position: relative;
       display: flex; align-items: center; justify-content: center;
     }
-    .hero-cube-glow::before {
+    .hero-icon-glow::before {
       content: '';
       position: absolute;
       width: 140px; height: 140px;
-      background: radial-gradient(circle, rgba(155,107,255,0.28) 0%, transparent 70%);
+      background: radial-gradient(circle, var(--lg-accent-glow) 0%, transparent 70%);
       border-radius: 50%;
       animation: glow-breathe 4s ease infinite;
     }
@@ -237,12 +195,12 @@
       0%,100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.15); opacity: .7; }
     }
-    .hero-cube-wrap .cube-wrap { perspective: 260px; }
+    .hero-icon-glow kuro-icon { position: relative; z-index: 1; }
 
     .hero-eyebrow {
       font-family: var(--font-mono);
       font-size: clamp(10px,1vw,11px);
-      color: var(--pulse); letter-spacing: .24em;
+      color: var(--pulse-bright); letter-spacing: .24em;
       text-transform: uppercase; margin-bottom: 22px;
       opacity: 0; animation: fadeUp .8s ease forwards .22s;
     }
@@ -255,7 +213,7 @@
     }
     h1.hero-headline em {
       font-style: italic;
-      background: linear-gradient(135deg, #C4A0FF 0%, #7B61FF 50%, #00FFB2 100%);
+      background: linear-gradient(135deg, #C4A0FF 0%, #a855f7 50%, #00FFB2 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
@@ -265,7 +223,7 @@
       max-width: 580px; margin: 0 auto 36px;
       opacity: 0; animation: fadeUp .8s ease forwards .52s;
     }
-    .hero-sub strong { color: rgba(200,175,240,0.85); font-weight: normal; font-style: italic; }
+    .hero-sub strong { color: var(--text-primary); font-weight: normal; font-style: italic; opacity: .85; }
     .cta-group {
       display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
       opacity: 0; animation: fadeUp .8s ease forwards .66s;
@@ -274,31 +232,19 @@
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 13px 28px;
-      background: var(--pulse);
       color: #ffffff;
       font-family: var(--font-mono); font-size: 12px; font-weight: 500;
-      letter-spacing: .06em; border-radius: 100px; text-decoration: none;
-      box-shadow: 0 0 32px rgba(155,107,255,0.4);
-      transition: transform .2s ease, box-shadow .2s ease;
+      letter-spacing: .06em; text-decoration: none;
       cursor: none;
-      border: none;
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 52px rgba(155,107,255,0.6);
     }
     .btn-ghost {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 13px 28px;
-      background: var(--glass); border: 1px solid var(--glass-border);
       color: var(--text-primary);
       font-family: var(--font-mono); font-size: 12px;
-      letter-spacing: .06em; border-radius: 100px; text-decoration: none;
-      backdrop-filter: blur(20px);
-      transition: transform .2s ease, border-color .2s ease;
+      letter-spacing: .06em; text-decoration: none;
       cursor: none;
     }
-    .btn-ghost:hover { transform: translateY(-2px); border-color: rgba(150,110,255,.35); }
 
     .hero-stat-pills {
       display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
@@ -314,13 +260,13 @@
     .section-label {
       font-family: var(--font-mono); font-size: 10px;
       letter-spacing: .3em; text-transform: uppercase;
-      color: var(--pulse); margin-bottom: 12px;
+      color: var(--pulse-bright); margin-bottom: 12px;
       display: flex; align-items: center; gap: 10px;
     }
     .section-label::before {
       content: '';
       display: block; width: 24px; height: 1px;
-      background: var(--pulse); opacity: .6;
+      background: var(--lg-accent); opacity: .6;
     }
     .section-label-static {
       font-family: var(--font-mono); font-size: 10px;
@@ -333,30 +279,18 @@
       line-height: 1.12; margin-bottom: 56px; max-width: 600px;
     }
 
-    /* ─── Pills ──────────────────────────────────── */
-    .pill {
-      display: inline-block;
-      padding: 5px 13px;
-      background: rgba(155,107,255,.05);
-      border: 1px solid rgba(155,107,255,.28);
-      border-radius: 100px;
+    /* ─── Pills (use lg-pill base; these are content variants) ── */
+    .pill-content {
       font-family: var(--font-mono);
       font-size: 10px;
       letter-spacing: .08em;
       color: var(--pulse-bright);
+      padding: 5px 13px;
     }
-    .pill-signal {
-      background: rgba(0,255,178,.06);
-      border-color: rgba(0,255,178,.32);
-      color: var(--signal);
-    }
-    .pill-muted {
-      background: rgba(255,255,255,.03);
-      border-color: rgba(255,255,255,.10);
-      color: var(--text-secondary);
-    }
+    .pill-signal { color: var(--signal); }
+    .pill-muted  { color: var(--text-secondary); }
 
-    /* ─── Science cards ──────────────────────────── */
+    /* ─── Cards grid ─────────────────────────────── */
     .cards-3 {
       display: grid;
       grid-template-columns: repeat(3,1fr);
@@ -382,8 +316,8 @@
     }
     .formula {
       background: rgba(0,0,0,.5);
-      border: 1px solid rgba(155,107,255,.18);
-      border-radius: 10px;
+      border: 1px solid rgba(168, 85, 247, .18);
+      border-radius: var(--lg-radius-sm);
       padding: 14px 16px;
       font-family: var(--font-mono);
       font-size: clamp(10px,.9vw,12px);
@@ -405,7 +339,7 @@
 
     /* ─── Live simulator ────────────────────────── */
     #simulator {
-      background: linear-gradient(180deg, transparent 0%, rgba(155,107,255,0.025) 50%, transparent 100%);
+      background: linear-gradient(180deg, transparent 0%, rgba(168, 85, 247, 0.025) 50%, transparent 100%);
     }
     .sim-head { text-align: center; margin-bottom: 48px; }
     .sim-head h2 {
@@ -438,30 +372,28 @@
       margin-bottom: 8px;
       text-transform: uppercase;
     }
+    /* H3: input islands — 8px margin + glass border-radius for notch devices */
     .sim-input {
       width: 100%;
       padding: 12px 16px;
       background: rgba(255,255,255,0.04);
-      border: 1px solid var(--glass-border);
-      border-radius: 10px;
+      border: 1px solid var(--lg-glass-border);
+      border-radius: var(--lg-radius-sm);
       color: var(--text-primary);
       font-family: var(--font-mono);
       font-size: 14px;
       outline: none;
       transition: border-color 0.2s;
-      margin-bottom: 20px;
+      margin: 0 0 20px;
       -webkit-appearance: none;
       color-scheme: dark;
       cursor: none;
     }
-    .sim-input:focus { border-color: rgba(155,107,255,0.4); }
+    .sim-input:focus { border-color: var(--lg-accent); }
     .sim-input option { background: #0a0a14; }
     .btn-compute {
       width: 100%;
       padding: 16px;
-      background: var(--pulse);
-      border: none;
-      border-radius: 12px;
       color: #ffffff;
       font-family: var(--font-mono);
       font-size: 12px;
@@ -469,12 +401,10 @@
       letter-spacing: .14em;
       text-transform: uppercase;
       cursor: none;
-      transition: all 0.25s ease;
       margin-top: 8px;
-      box-shadow: 0 0 24px rgba(155,107,255,0.3);
+      border: none;
     }
-    .btn-compute:hover { box-shadow: 0 0 36px rgba(155,107,255,0.5); }
-    .btn-compute:disabled { background: rgba(155,107,255,0.3); color: rgba(255,255,255,0.6); }
+    .btn-compute:disabled { opacity: 0.55; }
     .sim-subtext {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -515,14 +445,14 @@
     .conf-header strong { font-family: var(--font-mono); font-size: 13px; color: var(--pulse-bright); }
     .conf-track {
       width: 100%; height: 4px;
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
+      background: var(--lg-glass-bg);
+      border: 1px solid var(--lg-glass-border);
       border-radius: 2px;
       overflow: hidden;
     }
     .conf-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--pulse) 0%, var(--pulse-bright) 100%);
+      background: linear-gradient(90deg, var(--lg-accent) 0%, var(--pulse-bright) 100%);
       border-radius: 2px;
       width: 0%;
       transition: width 0.8s cubic-bezier(0.23,1,0.32,1);
@@ -534,7 +464,7 @@
       font-family: var(--font-mono); font-size: 12px;
       color: var(--text-secondary);
       padding: 6px 0;
-      border-bottom: 1px solid rgba(155,107,255,.06);
+      border-bottom: 1px solid rgba(168, 85, 247, .06);
     }
     .sub-metric span:last-child { color: var(--text-primary); }
 
@@ -548,7 +478,7 @@
     #phaseCanvas {
       width: 100%;
       height: 220px;
-      border-radius: 12px;
+      border-radius: var(--lg-radius-sm);
       display: block;
     }
     @media (max-width: 768px) { #phaseCanvas { height: 150px; } }
@@ -575,7 +505,6 @@
       align-items: center;
       padding: 16px 20px;
       margin-bottom: 8px;
-      border-radius: 12px;
     }
     @media (max-width: 640px) {
       .compound-row { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -586,20 +515,20 @@
     .evidence-badge {
       display: inline-block;
       padding: 3px 10px;
-      border-radius: 100px;
+      border-radius: var(--lg-radius-pill);
       font-family: var(--font-mono);
       font-size: 10px;
       letter-spacing: .06em;
       text-transform: uppercase;
     }
-    .evidence-literature   { background: rgba(155,107,255,0.10); color: var(--pulse-bright); border: 1px solid rgba(155,107,255,0.25); }
+    .evidence-literature   { background: rgba(168, 85, 247, 0.10); color: var(--pulse-bright); border: 1px solid rgba(168, 85, 247, 0.25); }
     .evidence-experimental { background: rgba(0,255,178,0.08);    color: var(--signal);       border: 1px solid rgba(0,255,178,0.25); }
     .active-pill {
       display: inline-block;
       padding: 3px 10px;
       background: rgba(0,255,178,0.12);
       border: 1px solid rgba(0,255,178,0.35);
-      border-radius: 100px;
+      border-radius: var(--lg-radius-pill);
       font-family: var(--font-mono);
       font-size: 10px;
       color: var(--signal);
@@ -612,9 +541,7 @@
       margin: 24px auto 0;
       padding: 20px 28px;
       text-decoration: none;
-      transition: all 0.3s cubic-bezier(0.23,1,0.32,1);
     }
-    .pro-cta:hover { transform: translateY(-4px); }
     .pro-cta-inner {
       display: flex; justify-content: space-between; align-items: center;
       flex-wrap: wrap; gap: 8px;
@@ -622,7 +549,7 @@
     .pro-cta-title { font-family: var(--font-head); font-size: 18px; font-weight: 600; }
     .pro-cta-price { font-family: var(--font-mono); font-size: 13px; color: var(--pulse-bright); }
 
-    /* ─── OS section ─────────────────────────────── */
+    /* ─── KURO OS section ────────────────────────── */
     .os-grid {
       display: grid; grid-template-columns: 1fr 1fr;
       gap: 64px; align-items: center;
@@ -635,19 +562,35 @@
       font-size: clamp(14px,1.2vw,17px); color: var(--text-secondary);
       line-height: 1.78; margin-bottom: 24px;
     }
-    .layer-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .layer-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 24px; }
     .chip {
       font-family: var(--font-mono); font-size: 9px;
       letter-spacing: .05em; padding: 5px 11px;
-      border: 1px solid rgba(155,107,255,.25); border-radius: 5px;
+      border: 1px solid rgba(168, 85, 247, .25); border-radius: 5px;
       color: rgba(196,160,255,.8);
-      background: rgba(155,107,255,.05);
+      background: rgba(168, 85, 247, .05);
     }
-    .terminal-panel { overflow: hidden; }
+
+    /* App suite display labels — KURO[App] convention,
+       displayed without prefix per locked naming spec. */
+    .app-suite { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .app-chip {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 4px 10px; border-radius: var(--lg-radius-pill);
+      color: var(--text-primary);
+      letter-spacing: .04em;
+    }
+    .app-chip-internal {
+      font-family: var(--font-mono); font-size: 8px;
+      color: var(--text-tertiary); letter-spacing: .12em;
+      text-transform: uppercase; margin-top: 8px; display: block;
+    }
+
+    .terminal-panel { padding: 0; }
     .term-bar {
       display: flex; align-items: center; gap: 6px;
       padding: 10px 16px;
-      border-bottom: 1px solid var(--glass-border-dim);
+      border-bottom: 1px solid var(--lg-glass-border);
     }
     .tdot { width: 10px; height: 10px; border-radius: 50%; }
     .tdot:nth-child(1) { background: #FF5F57; }
@@ -695,7 +638,7 @@
     /* ─── Footer ─────────────────────────────────── */
     footer {
       position: relative; z-index: 2;
-      border-top: 1px solid var(--glass-border-dim);
+      border-top: 1px solid var(--lg-glass-border);
       padding: clamp(32px,4vw,60px) clamp(20px,5vw,80px);
     }
     .footer-inner {
@@ -722,24 +665,16 @@
     .footer-meta a:hover { color: var(--pulse-bright); }
     @media (max-width: 600px) { .footer-meta { text-align: left; } }
 
-    /* ─── Chatbot ────────────────────────────────── */
+    /* ─── Chatbot trigger (floating glass island) ────────────────── */
     #chatbot-trigger {
       position: fixed;
-      bottom: 28px; right: 28px;
+      bottom: max(28px, env(safe-area-inset-bottom));
+      right: max(28px, env(safe-area-inset-right));
       width: 56px; height: 56px;
-      border-radius: 50%;
-      background: rgba(155,107,255,0.12);
-      border: 1px solid rgba(155,107,255,0.35);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      border-radius: 50% !important;
       display: flex; align-items: center; justify-content: center;
       z-index: 1000;
       cursor: none;
-      transition: all 0.25s ease;
-    }
-    #chatbot-trigger:hover {
-      background: rgba(155,107,255,0.22);
-      box-shadow: 0 0 28px var(--pulse-glow);
     }
     #chatbot-trigger:hover .trigger-tooltip { opacity: 1; transform: translateX(0) translateY(-50%); }
     .trigger-k {
@@ -752,8 +687,9 @@
       position: absolute;
       inset: -4px;
       border-radius: 50%;
-      border: 1px solid rgba(155,107,255,0.25);
+      border: 1px solid rgba(168, 85, 247, 0.25);
       animation: triggerPulse 2s ease infinite;
+      z-index: 4;
     }
     @keyframes triggerPulse {
       0%,100% { transform: scale(1);    opacity: 0.5; }
@@ -765,8 +701,8 @@
       top: 50%;
       transform: translateX(8px) translateY(-50%);
       background: rgba(0,0,0,0.8);
-      border: 1px solid var(--glass-border);
-      border-radius: 8px;
+      border: 1px solid var(--lg-glass-border);
+      border-radius: var(--lg-radius-xs);
       padding: 6px 12px;
       font-family: var(--font-mono);
       font-size: 11px;
@@ -776,21 +712,18 @@
       transition: all 0.2s ease;
       pointer-events: none;
     }
+
     #chatbot-panel {
       position: fixed;
-      bottom: 96px; right: 28px;
+      bottom: calc(96px + env(safe-area-inset-bottom));
+      right: max(28px, env(safe-area-inset-right));
       width: 380px; height: 520px;
       display: flex; flex-direction: column;
       z-index: 1001;
-      border-radius: 20px;
-      overflow: hidden;
-      background: rgba(8,8,16,0.95);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(24px);
       opacity: 0;
       transform: translateY(16px) scale(0.96);
       pointer-events: none;
-      transition: all 0.3s cubic-bezier(0.23,1,0.32,1);
+      transition: opacity 0.3s var(--lg-ease-glass), transform 0.3s var(--lg-ease-glass);
     }
     #chatbot-panel.open {
       opacity: 1;
@@ -809,8 +742,7 @@
     .chat-header {
       display: flex; justify-content: space-between; align-items: center;
       padding: 14px 18px;
-      border-bottom: 1px solid var(--glass-border);
-      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--lg-glass-border);
       flex-shrink: 0;
     }
     .chat-header-left { display: flex; align-items: center; gap: 10px; }
@@ -822,7 +754,7 @@
     .chat-title { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); letter-spacing: .12em; text-transform: uppercase; }
     .chat-close {
       width: 28px; height: 28px;
-      background: none; border: 1px solid var(--glass-border);
+      background: none; border: 1px solid var(--lg-glass-border);
       border-radius: 50%;
       color: var(--text-secondary);
       font-size: 14px;
@@ -830,7 +762,7 @@
       display: flex; align-items: center; justify-content: center;
       transition: all 0.2s;
     }
-    .chat-close:hover { border-color: rgba(155,107,255,0.4); color: var(--text-primary); }
+    .chat-close:hover { border-color: var(--lg-accent); color: var(--text-primary); }
     .chat-messages {
       flex: 1;
       overflow-y: auto;
@@ -840,25 +772,25 @@
     }
     .chat-messages::-webkit-scrollbar { width: 4px; }
     .chat-messages::-webkit-scrollbar-track { background: transparent; }
-    .chat-messages::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--lg-glass-border); border-radius: 2px; }
     .msg {
       max-width: 90%;
       padding: 10px 14px;
-      border-radius: 12px;
+      border-radius: var(--lg-radius-sm);
       font-family: var(--font-body);
       font-size: 14px;
       line-height: 1.55;
     }
     .msg-kuro {
       background: rgba(255,255,255,0.04);
-      border: 1px solid var(--glass-border);
+      border: 1px solid var(--lg-glass-border);
       color: var(--text-primary);
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
     .msg-user {
-      background: rgba(155,107,255,0.12);
-      border: 1px solid rgba(155,107,255,0.28);
+      background: var(--lg-accent-glass);
+      border: 1px solid rgba(168, 85, 247, 0.28);
       color: var(--text-primary);
       align-self: flex-end;
       border-bottom-right-radius: 4px;
@@ -872,19 +804,20 @@
     .typing-dot:nth-child(2) { animation-delay: 0.2s; }
     .typing-dot:nth-child(3) { animation-delay: 0.4s; }
     @keyframes typingBounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+    /* H3: chat input bar — safe-area island with 8px margin */
     .chat-input-bar {
       display: flex; gap: 8px;
-      padding: 12px;
-      border-top: 1px solid var(--glass-border);
-      background: rgba(255,255,255,0.02);
+      margin: 8px;
+      padding: 8px;
+      border-radius: var(--lg-radius-md);
       flex-shrink: 0;
     }
     .chat-input {
       flex: 1;
       padding: 10px 14px;
       background: rgba(255,255,255,0.04);
-      border: 1px solid var(--glass-border);
-      border-radius: 10px;
+      border: 1px solid var(--lg-glass-border);
+      border-radius: var(--lg-radius-sm);
       color: var(--text-primary);
       font-family: var(--font-mono);
       font-size: 13px;
@@ -895,18 +828,16 @@
       transition: border-color 0.2s;
       cursor: none;
     }
-    .chat-input:focus { border-color: rgba(155,107,255,0.4); }
+    .chat-input:focus { border-color: var(--lg-accent); }
     .chat-send {
       width: 40px; height: 40px;
-      background: var(--pulse);
       border: none;
-      border-radius: 10px;
+      border-radius: var(--lg-radius-sm);
       cursor: none;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      transition: background 0.2s;
+      color: #fff;
     }
-    .chat-send:hover { background: var(--pulse-bright); }
     .chat-send svg { pointer-events: none; }
 
     /* ─── Toast ──────────────────────────────────── */
@@ -916,7 +847,7 @@
       transform: translateX(-50%) translateY(80px);
       background: rgba(255,77,77,0.15);
       border: 1px solid rgba(255,77,77,0.3);
-      border-radius: 12px;
+      border-radius: var(--lg-radius-sm);
       padding: 14px 24px;
       font-family: var(--font-mono);
       font-size: 13px;
@@ -942,11 +873,11 @@
     body::after {
       content: '';
       position: fixed; inset: 0; z-index: 9990; pointer-events: none;
-      background: radial-gradient(ellipse at center, transparent 55%, rgba(4,4,12,.65) 100%);
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65) 100%);
     }
 
     a { color: inherit; }
-    ::selection { background: rgba(155,107,255,0.25); color: var(--text-primary); }
+    ::selection { background: var(--lg-accent-glass); color: var(--text-primary); }
   </style>
 </head>
 <body>
@@ -957,19 +888,10 @@
 <canvas id="particles"></canvas>
 <div id="toast"></div>
 
-<!-- ═══ NAV ══════════════════════════════════════ -->
-<nav>
+<!-- ═══ NAV — H2 floating glass island (centered pill, lg-toolbar) ══ -->
+<nav class="lg-regular lg-toolbar">
   <a href="#" class="nav-logo">
-    <div class="cube-wrap" style="perspective:80px">
-      <div class="cube cube-nav">
-        <div class="face front"></div>
-        <div class="face back"></div>
-        <div class="face right"></div>
-        <div class="face left"></div>
-        <div class="face top"></div>
-        <div class="face bottom"></div>
-      </div>
-    </div>
+    <kuro-icon name="glasscube" size="22" motion="idle"></kuro-icon>
     <span class="logo-wordmark">KURO<span>.</span>OS</span>
   </a>
   <div class="nav-right">
@@ -988,19 +910,11 @@
 
 <!-- ═══ HERO ══════════════════════════════════════ -->
 <section id="hero">
-  <div class="hero-inner glass">
-    <div class="hero-cube-wrap">
-      <div class="hero-cube-glow">
-        <div class="cube-wrap" style="perspective:280px">
-          <div class="cube cube-hero">
-            <div class="face front"></div>
-            <div class="face back"></div>
-            <div class="face right"></div>
-            <div class="face left"></div>
-            <div class="face top"></div>
-            <div class="face bottom"></div>
-          </div>
-        </div>
+  <div class="hero-inner lg-frosted">
+    <div class="hero-icon-wrap">
+      <div class="hero-icon-glow">
+        <!-- Iconic glasscube via web component. JPEG fallback handled by component slot. -->
+        <kuro-icon name="glasscube" size="72" motion="idle"></kuro-icon>
       </div>
     </div>
     <div class="hero-eyebrow">KURO OS · Build 0.12 · Sovereign intelligence infrastructure</div>
@@ -1011,13 +925,13 @@
       NeuroKURO — the biological substrate — reconstructs circadian phase from sleep timing alone.
     </p>
     <div class="cta-group">
-      <a href="#simulator" class="btn-primary">Try the Simulator →</a>
-      <a href="#kuro-os" class="btn-ghost">Explore the OS</a>
+      <a href="#simulator" class="btn-primary lg-tinted lg-pill">Try the Simulator ❯</a>
+      <a href="#kuro-os" class="btn-ghost lg-regular lg-pill">Explore the OS</a>
     </div>
     <div class="hero-stat-pills">
-      <span class="pill">MAE 0.31h · SANDD N=368</span>
-      <span class="pill">MAE 0.29h · MMASH N=20</span>
-      <span class="pill pill-muted">Patent Pending · JSR Under Review</span>
+      <span class="lg-regular lg-pill pill-content">MAE 0.31h · SANDD N=368</span>
+      <span class="lg-regular lg-pill pill-content">MAE 0.29h · MMASH N=20</span>
+      <span class="lg-clear lg-pill pill-content pill-muted">Patent Pending · JSR Under Review</span>
     </div>
   </div>
 </section>
@@ -1032,7 +946,7 @@
 
     <div class="cards-3">
 
-      <div class="glass sci-card reveal" style="transition-delay:.1s">
+      <div class="lg-regular sci-card reveal" style="transition-delay:.1s">
         <div class="card-idx">E-01 · MEMORY STATE FUNCTION</div>
         <h3 class="card-title">Mid-Sleep Fusion</h3>
         <p class="card-body">
@@ -1050,7 +964,7 @@ C(t) = C₀ · e^(−0.08·Δt)
         </div>
       </div>
 
-      <div class="glass sci-card reveal" style="transition-delay:.2s">
+      <div class="lg-regular sci-card reveal" style="transition-delay:.2s">
         <div class="card-idx">E-02 · CLINICAL VALIDATION</div>
         <h3 class="card-title">Validated Against Real DLMO</h3>
         <p class="card-body">
@@ -1074,7 +988,7 @@ C(t) = C₀ · e^(−0.08·Δt)
         </p>
       </div>
 
-      <div class="glass sci-card reveal" style="transition-delay:.3s">
+      <div class="lg-regular sci-card reveal" style="transition-delay:.3s">
         <div class="card-idx">E-03 · TEMPORAL API</div>
         <h3 class="card-title">Five Reasoning Modes</h3>
         <p class="card-body">
@@ -1083,11 +997,11 @@ C(t) = C₀ · e^(−0.08·Δt)
           Each mode outputs phase, confidence, and predicted transition times.
         </p>
         <div class="mode-pills">
-          <span class="pill">RECALL</span>
-          <span class="pill">PRESENT</span>
-          <span class="pill">PROJECT</span>
-          <span class="pill">SIMULATE</span>
-          <span class="pill">MANUFACTURE</span>
+          <span class="lg-clear lg-pill pill-content">RECALL</span>
+          <span class="lg-clear lg-pill pill-content">PRESENT</span>
+          <span class="lg-clear lg-pill pill-content">PROJECT</span>
+          <span class="lg-clear lg-pill pill-content">SIMULATE</span>
+          <span class="lg-clear lg-pill pill-content">MANUFACTURE</span>
         </div>
         <p class="card-body" style="margin-top:16px;font-size:13px;">
           60-combination parameter sweep (τ±20%, λ±60%, K±20%).
@@ -1107,7 +1021,7 @@ C(t) = C₀ · e^(−0.08·Δt)
       <h2>Your circadian phase <em>— live</em></h2>
     </div>
 
-    <div class="glass simulator-panel reveal" style="transition-delay:.1s">
+    <div class="lg-frosted simulator-panel reveal" style="transition-delay:.1s">
       <div class="simulator-grid">
 
         <div class="sim-inputs">
@@ -1139,7 +1053,7 @@ C(t) = C₀ · e^(−0.08·Δt)
             <option value="UTC">UTC</option>
           </select>
 
-          <button class="btn-compute" id="computeBtn" onclick="computePhase()">Compute my phase</button>
+          <button class="btn-compute lg-tinted" id="computeBtn" onclick="computePhase()">Compute my phase</button>
           <p class="sim-subtext">No account required. Data never stored in demo mode.</p>
         </div>
 
@@ -1177,13 +1091,13 @@ C(t) = C₀ · e^(−0.08·Δt)
         </div>
         <div id="compoundsGrid"></div>
 
-        <a href="/signup" class="pro-cta glass">
+        <a href="/signup" class="pro-cta lg-tinted">
           <div class="pro-cta-inner">
             <div>
               <div class="pro-cta-title">Get your full 30-day phase history</div>
               <div class="section-label-static" style="margin-top:6px">Continuous tracking · Phase-aligned compound windows · Trend analysis</div>
             </div>
-            <div class="pro-cta-price">Pro · $15 AUD/month →</div>
+            <div class="pro-cta-price">Pro · $15 AUD/month ❯</div>
           </div>
         </a>
       </div>
@@ -1205,10 +1119,12 @@ C(t) = C₀ · e^(−0.08·Δt)
           on a single RTX 5090 (32GB).
         </p>
         <p class="os-body">
-          NeuroKURO sits at the biological substrate — Phase Layer 0. Every agent decision,
-          every response, every temporal query is optionally gated through the live MSF estimate.
-          Circadian-aware AI, running offline.
+          Three architectural realms compose the substrate. <strong>NeuroKURO</strong> handles
+          biological phase — every agent decision is optionally gated through the live MSF estimate.
+          <strong>FluxKURO</strong> drives temporal trading. <strong>ShadowKURO</strong> is the
+          sovereign network layer. Circadian-aware AI, running offline.
         </p>
+
         <div class="layer-chips">
           <span class="chip">Iron Dome</span>
           <span class="chip">IFF Gate</span>
@@ -1223,14 +1139,26 @@ C(t) = C₀ · e^(−0.08·Δt)
           <span class="chip">Agent Orchestrator</span>
           <span class="chip">Reactor Telemetry</span>
         </div>
+
+        <!-- KURO[App] suite — display labels strip the prefix per locked naming. -->
+        <div class="app-suite">
+          <span class="lg-tinted lg-pill app-chip">Pay</span>
+          <span class="lg-tinted lg-pill app-chip">Chat</span>
+          <span class="lg-tinted lg-pill app-chip">Sound</span>
+          <span class="lg-tinted lg-pill app-chip">Wager</span>
+          <span class="lg-tinted lg-pill app-chip">Call</span>
+          <span class="lg-tinted lg-pill app-chip">Grab</span>
+          <span class="lg-tinted lg-pill app-chip">Flix</span>
+        </div>
+        <span class="app-chip-internal">Internal: KUROPay · KUROChat · KUROSound · KUROWager · KUROCall · KUROGrab · KUROFlix</span>
       </div>
 
-      <div class="glass terminal-panel reveal" style="transition-delay:.15s">
+      <div class="lg-regular terminal-panel reveal" style="transition-delay:.15s">
         <div class="term-bar">
           <div class="tdot"></div>
           <div class="tdot"></div>
           <div class="tdot"></div>
-          <span class="term-title">kuro-core · gemma-4-abliterated:e4b</span>
+          <span class="term-title">kuro-core · local-inference</span>
         </div>
         <div class="term-body">
           <div><span class="t-prompt">❯ </span><span class="t-cmd" id="term-line"></span><span class="t-cursor"></span></div>
@@ -1252,36 +1180,36 @@ C(t) = C₀ · e^(−0.08·Δt)
 
     <div class="cards-3">
 
-      <div class="glass research-card reveal" style="transition-delay:.1s">
+      <div class="lg-regular research-card reveal" style="transition-delay:.1s">
         <svg class="research-icon" viewBox="0 0 44 44" fill="none">
-          <rect x="4" y="6" width="28" height="32" rx="3" stroke="var(--pulse-bright)" stroke-width="1.5"/>
-          <path d="M10 14h16M10 20h12M10 26h8M10 32h5" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M36 22l-8 8-4-4" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="4" y="6" width="28" height="32" rx="3" stroke="#C4A0FF" stroke-width="1.5"/>
+          <path d="M10 14h16M10 20h12M10 26h8M10 32h5" stroke="#C4A0FF" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M36 22l-8 8-4-4" stroke="#C4A0FF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <h3>NeuroKURO Preprint</h3>
         <div class="sub">Zenodo · Open Access</div>
-        <a href="https://zenodo.org/records/18869320" target="_blank" rel="noopener" class="research-link">View Publication →</a>
+        <a href="https://zenodo.org/records/18869320" target="_blank" rel="noopener" class="research-link">View Publication ❯</a>
       </div>
 
-      <div class="glass research-card reveal" style="transition-delay:.2s">
+      <div class="lg-regular research-card reveal" style="transition-delay:.2s">
         <svg class="research-icon" viewBox="0 0 44 44" fill="none">
-          <circle cx="22" cy="22" r="16" stroke="var(--signal)" stroke-width="1.5"/>
-          <circle cx="22" cy="22" r="6" stroke="var(--signal)" stroke-width="1.5"/>
-          <path d="M22 6v6M22 32v6M6 22h6M32 22h6" stroke="var(--signal)" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="22" cy="22" r="16" stroke="#00FFB2" stroke-width="1.5"/>
+          <circle cx="22" cy="22" r="6" stroke="#00FFB2" stroke-width="1.5"/>
+          <path d="M22 6v6M22 32v6M6 22h6M32 22h6" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <h3>Journal of Sleep Research</h3>
         <div class="sub">Manuscript JSR-03-26-0011</div>
-        <span class="pill pill-signal">Under Review</span>
+        <span class="lg-clear lg-pill pill-content pill-signal">Under Review</span>
       </div>
 
-      <div class="glass research-card reveal" style="transition-delay:.3s">
+      <div class="lg-regular research-card reveal" style="transition-delay:.3s">
         <svg class="research-icon" viewBox="0 0 44 44" fill="none">
-          <path d="M22 4L6 12v12c0 9.941 6.884 18.178 16 20 9.116-1.822 16-10.059 16-20V12L22 4z" stroke="var(--pulse-bright)" stroke-width="1.5" stroke-linejoin="round"/>
-          <path d="M15 22l5 5 9-9" stroke="var(--pulse-bright)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 4L6 12v12c0 9.941 6.884 18.178 16 20 9.116-1.822 16-10.059 16-20V12L22 4z" stroke="#C4A0FF" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M15 22l5 5 9-9" stroke="#C4A0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <h3>Provisional Patent</h3>
         <div class="sub">IP Australia · Filed 2 April 2026</div>
-        <span class="pill">Patent Pending</span>
+        <span class="lg-clear lg-pill pill-content">Patent Pending</span>
       </div>
 
     </div>
@@ -1292,16 +1220,7 @@ C(t) = C₀ · e^(−0.08·Δt)
 <footer>
   <div class="footer-inner">
     <div class="footer-left">
-      <div class="cube-wrap" style="perspective:60px;opacity:.6">
-        <div class="cube cube-nav">
-          <div class="face front"></div>
-          <div class="face back"></div>
-          <div class="face right"></div>
-          <div class="face left"></div>
-          <div class="face top"></div>
-          <div class="face bottom"></div>
-        </div>
-      </div>
+      <kuro-icon name="glasscube" size="28" motion="none"></kuro-icon>
       <div>
         <div class="footer-brand">KURO Technologies</div>
         <div class="footer-tagline">Melbourne, Australia · ABN 45 340 322 909</div>
@@ -1316,27 +1235,27 @@ C(t) = C₀ · e^(−0.08·Δt)
   </div>
 </footer>
 
-<!-- ═══ CHATBOT ════════════════════════════════════ -->
-<div id="chatbot-trigger" onclick="toggleChat()">
+<!-- ═══ CHATBOT — H2 floating glass island, H3 safe-area input ═══ -->
+<div id="chatbot-trigger" class="lg-tinted" onclick="toggleChat()">
   <div class="trigger-glow"></div>
   <div class="trigger-k">K</div>
   <div class="trigger-tooltip">Ask KURO</div>
 </div>
 
-<div id="chatbot-panel">
+<div id="chatbot-panel" class="lg-frosted">
   <div class="chat-header">
     <div class="chat-header-left">
       <div class="chat-status-dot"></div>
-      <span class="chat-title">KURO · Gemma 4</span>
+      <span class="chat-title">KURO · Local Inference</span>
     </div>
     <button class="chat-close" onclick="toggleChat()">✕</button>
   </div>
   <div class="chat-messages" id="chatMessages">
     <div class="msg msg-kuro">Hi. I'm KURO. Ask me about NeuroKURO, circadian science, or what we're building. What do you want to know?</div>
   </div>
-  <div class="chat-input-bar">
+  <div class="chat-input-bar lg-regular">
     <input class="chat-input" id="chatInput" type="text" placeholder="Ask KURO..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){sendChat();event.preventDefault()}">
-    <button class="chat-send" onclick="sendChat()">
+    <button class="chat-send lg-tinted" onclick="sendChat()">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8L3 3l2 5-2 5 10.5-5z" fill="#fff"/></svg>
     </button>
   </div>
@@ -1384,12 +1303,12 @@ const BLOBS = [
   { x:.5,  y:.7,  r:.50, c:'rgba(120,70,240,', a:.12 },
   { x:.85, y:.65, r:.32, c:'rgba(90,50,200,',  a:.10 },
   { x:.08, y:.8,  r:.28, c:'rgba(60,30,160,',  a:.08 },
-  { x:.55, y:.1,  r:.22, c:'rgba(150,90,255,', a:.16 },
+  { x:.55, y:.1,  r:.22, c:'rgba(168,85,247,', a:.16 },
 ];
 (function drawWallpaper() {
   const t = Date.now() * .00006;
   wCtx.clearRect(0, 0, wW, wH);
-  wCtx.fillStyle = '#04040c';
+  wCtx.fillStyle = '#000000';
   wCtx.fillRect(0, 0, wW, wH);
   BLOBS.forEach((b, i) => {
     const dx = Math.sin(t * .7 + i) * 0.025;
@@ -1407,8 +1326,8 @@ const BLOBS = [
     wCtx.fill();
   });
   const topG = wCtx.createLinearGradient(0,0,0,wH*.4);
-  topG.addColorStop(0, 'rgba(4,4,12,.55)');
-  topG.addColorStop(1, 'rgba(4,4,12,0)');
+  topG.addColorStop(0, 'rgba(0,0,0,.55)');
+  topG.addColorStop(1, 'rgba(0,0,0,0)');
   wCtx.fillStyle = topG;
   wCtx.fillRect(0, 0, wW, wH * .4);
   requestAnimationFrame(drawWallpaper);
@@ -1434,7 +1353,7 @@ const pts = Array.from({length: PARTICLE_COUNT}, () => ({
   r:  Math.random() * 1.4 + .3,
   o:  Math.random() * .22 + .04,
   ph: Math.random() * Math.PI * 2,
-  col: Math.random() < .7 ? '155,107,255' : '0,255,178'
+  col: Math.random() < .7 ? '168,85,247' : '0,255,178'
 }));
 (function drawParticles() {
   pCtx.clearRect(0, 0, pW, pH);
@@ -1490,9 +1409,9 @@ const CMDS = [
     out: ['  φ: 0.0024 rad · ACTIVATION', '  τ: 25.0h · confidence: 0.50', '  next BALANCE: in ~3.2h'] },
   { cmd: 'msf.compute(present)',
     out: ['  S_endo: φ=0.0024 · conf=0.50', '  S_pharma: PENDING_PK_MODULE', '  aggregate confidence: 0.10'] },
-  { cmd: 'kuro.flux --circadian-gate on',
+  { cmd: 'fluxkuro --circadian-gate on',
     out: ['  gate: ACTIVE · phase: ACTIVATION', '  all queries time-stamped MSF', '  flux: routed through phase layer'] },
-  { cmd: 'kuro.pay --scan-qr vietqr',
+  { cmd: 'kuropay --scan-qr vietqr',
     out: ['  QR renderer: ready', '  provider: VietQR · bank: BIDV', '  awaiting scan...'] }
 ];
 let ci = 0, chi = 0, phase = 'typing', ri = 0;
@@ -1622,7 +1541,7 @@ function drawActigraphy(curve, currentCT) {
     { start: 0,  end: 6,  color: 'rgba(26,26,64,0.30)',    label: 'RESET'      },
     { start: 6,  end: 10, color: 'rgba(255,179,71,0.16)',  label: 'ACTIVATION' },
     { start: 10, end: 16, color: 'rgba(0,255,178,0.10)',   label: 'BALANCE'    },
-    { start: 16, end: 21, color: 'rgba(155,107,255,0.18)', label: 'BRAKE'      },
+    { start: 16, end: 21, color: 'rgba(168,85,247,0.18)',  label: 'BRAKE'      },
     { start: 21, end: 24, color: 'rgba(26,26,64,0.30)',    label: 'RESET'      },
   ];
   zones.forEach(z => {
@@ -1636,7 +1555,7 @@ function drawActigraphy(curve, currentCT) {
     ctx.fillText(z.label, x0 + (x1 - x0) / 2, padT + 14);
   });
 
-  ctx.strokeStyle = 'rgba(155,107,255,0.07)';
+  ctx.strokeStyle = 'rgba(168,85,247,0.07)';
   ctx.lineWidth   = 1;
   [-1, -0.5, 0, 0.5, 1].forEach(v => {
     const y = midY - v * (plotH / 2.2);
@@ -1654,7 +1573,7 @@ function drawActigraphy(curve, currentCT) {
     const x = padL + (h / 24) * plotW;
     ctx.fillText(String(h).padStart(2,'0') + ':00', x, H - 6);
     ctx.beginPath(); ctx.moveTo(x, padT + plotH); ctx.lineTo(x, padT + plotH + 4);
-    ctx.strokeStyle = 'rgba(155,107,255,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgba(168,85,247,0.18)'; ctx.lineWidth = 1; ctx.stroke();
   }
 
   if (curve.length > 1) {
@@ -1678,7 +1597,7 @@ function drawActigraphy(curve, currentCT) {
     ctx.lineTo(padL + plotW, midY);
     ctx.lineTo(padL, midY);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(155,107,255,0.06)';
+    ctx.fillStyle = 'rgba(168,85,247,0.06)';
     ctx.fill();
   }
 
@@ -1699,7 +1618,7 @@ function drawActigraphy(curve, currentCT) {
 function renderCompounds(compounds) {
   const grid = document.getElementById('compoundsGrid');
   grid.innerHTML = compounds.map(c => `
-    <div class="compound-row glass-inner">
+    <div class="compound-row lg-clear">
       <div>
         <div class="compound-name">${escHtml(c.name)}</div>
         ${c.active ? '<span class="active-pill">Currently active</span>' : ''}
@@ -1787,7 +1706,7 @@ async function sendChat() {
     if (!content) msgEl.textContent = 'KURO is thinking — try again in a moment.';
   } catch (err) {
     typingEl.remove();
-    appendMsg('kuro', 'Connection error. KURO OS may be offline.');
+    appendMsg('kuro', '[CONNECTION ERROR] KURO OS may be offline.');
   } finally {
     chatStreaming = false;
   }

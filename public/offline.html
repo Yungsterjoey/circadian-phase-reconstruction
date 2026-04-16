@@ -4,17 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>KURO OS — Offline</title>
-  <meta name="theme-color" content="#050508">
+  <meta name="theme-color" content="#000000">
+
+  <link rel="icon" type="image/jpeg" href="/kuro-logo.jpg">
+  <link rel="apple-touch-icon" href="/kuro-logo.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/liquid-glass.css">
+  <script type="module" src="/kuro-icon/src/kuro-icon.js"></script>
+
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
-      width: 100%; height: 100%;
-      background: #050508;
-      color: #fff;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      width: 100%; min-height: 100%;
+      background: var(--lg-surface-0);
+      color: var(--lg-text-primary);
+      font-family: 'Instrument Serif', Georgia, serif;
       -webkit-font-smoothing: antialiased;
-      overflow: hidden;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     body {
@@ -22,85 +34,117 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 32px 20px;
+      padding: max(32px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+      min-height: 100vh;
+    }
+
+    /* Subtle background — matches landing's void aesthetic, simplified */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: -10%;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 30%, rgba(168,85,247,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 35% at 50% 80%, rgba(99,102,241,0.08) 0%, transparent 70%);
+      filter: blur(60px);
+      z-index: 0;
+      pointer-events: none;
     }
 
     .card {
-      max-width: 400px;
+      max-width: 420px;
       width: 100%;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      padding: 48px 40px;
-      backdrop-filter: blur(40px);
-      -webkit-backdrop-filter: blur(40px);
+      padding: 44px 36px;
+      position: relative;
+      z-index: 1;
     }
 
-    .icon {
-      font-size: 48px;
-      margin-bottom: 20px;
-      display: block;
-      opacity: 0.9;
+    .mark {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Glasscube fallback if web component fails */
+    .mark::before {
+      content: '';
+      width: 56px; height: 56px;
+      border-radius: var(--lg-radius-md);
+      background: linear-gradient(135deg, rgba(168,85,247,0.35), rgba(76,29,149,0.45));
+      border: 1px solid rgba(168,85,247,0.4);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.15),
+        0 8px 32px -8px rgba(168,85,247,0.5);
+      animation: pulse 3s ease-in-out infinite;
+    }
+    .mark kuro-icon { display: block; }
+    .mark:has(kuro-icon)::before { display: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50%      { opacity: 1;    transform: scale(1.04); }
     }
 
     h1 {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 10px;
-      color: rgba(255,255,255,0.95);
+      font-family: 'Clash Display', 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      color: var(--lg-text-primary);
     }
 
     p {
-      font-size: 14px;
-      line-height: 1.6;
-      color: rgba(255,255,255,0.45);
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--lg-text-secondary);
       margin-bottom: 8px;
+      font-style: italic;
     }
 
     .badge {
       display: inline-block;
-      margin-top: 28px;
+      margin-top: 24px;
       padding: 6px 14px;
-      background: rgba(168,85,247,0.15);
-      border: 1px solid rgba(168,85,247,0.3);
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: rgba(168,85,247,0.9);
+      color: var(--lg-text-tertiary);
     }
 
     .retry-btn {
       display: block;
       width: 100%;
-      margin-top: 16px;
-      padding: 10px 20px;
-      background: rgba(168,85,247,0.2);
-      border: 1px solid rgba(168,85,247,0.35);
-      border-radius: 10px;
-      color: rgba(255,255,255,0.85);
-      font-size: 14px;
+      margin-top: 20px;
+      padding: 14px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
       font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--lg-text-primary);
       cursor: pointer;
-      transition: background 0.15s;
+      border: none;
+      background: transparent;
+      -webkit-tap-highlight-color: transparent;
     }
-    .retry-btn:hover { background: rgba(168,85,247,0.32); }
-
-    /* Subtle animated pulse on the icon */
-    @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
-    .icon { animation: pulse 3s ease-in-out infinite; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <span class="icon">📡</span>
+  <div class="card lg-frosted lg-panel lg-materialize">
+    <div class="mark">
+      <kuro-icon size="56" pose="idle" data-fallback-text="K"></kuro-icon>
+    </div>
     <h1>You're offline</h1>
-    <p>KURO OS needs a network connection to process requests and access your files.</p>
-    <p>The app shell is cached — reconnect to resume your session.</p>
+    <p>KURO OS needs a connection to reach the inference layer and your sovereign data store.</p>
+    <p>The app shell is cached — reconnect to resume the session.</p>
     <span class="badge">KURO OS</span>
-    <button class="retry-btn" onclick="window.location.reload()">Retry connection</button>
+    <button class="retry-btn lg-tinted lg-pill" onclick="window.location.reload()">Retry connection</button>
   </div>
 </body>
 </html>

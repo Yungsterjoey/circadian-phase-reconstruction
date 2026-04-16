@@ -13,11 +13,26 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KURO OS — Sovereign Intelligence Platform">
 <meta name="twitter:description" content="AI that runs on dedicated GPUs. No model-sharing. No data harvesting. Sovereign AI infrastructure.">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%239333ea'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='system-ui' font-size='18' font-weight='600'>K</text></svg>">
+<link rel="icon" type="image/jpeg" href="/kuro-logo.jpg">
+<link rel="apple-touch-icon" href="/kuro-logo.jpg">
+
+<!-- Brand typography (matches /) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap" rel="stylesheet">
+
+<!-- Liquid Glass design system (token foundation) -->
+<link rel="stylesheet" href="/liquid-glass.css">
+<script type="module" src="/kuro-icon/src/kuro-icon.js"></script>
 <style>
+/* Legacy preview banner — informs visitors this isn't the canonical landing */
+.legacy-banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;padding:6px 14px;color:rgba(255,255,255,0.65);background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:9999px;border:1px solid rgba(255,255,255,0.08)}
+.legacy-banner a{color:rgba(168,85,247,0.95);text-decoration:none;margin-left:8px}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',system-ui,sans-serif;background:#000;color:#fff;line-height:1.6;overflow-x:clip;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:'Instrument Serif',Georgia,serif;background:var(--lg-surface-0,#000);color:var(--lg-text-primary,#fff);line-height:1.6;overflow-x:clip;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 body.scroll-locked{overflow:hidden!important;position:fixed;inset:0;width:100%}
 a,button,input,select,textarea,[role="button"]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
