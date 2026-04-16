@@ -14,6 +14,12 @@ const insightEngine   = require('./intelligence/insight_engine.cjs');
 const xmr             = require('./connectors/xmr.cjs');
 const commissionCron  = require('./scheduler/commission_payout_hourly.cjs');
 
+const worker          = require('./intelligence/worker.cjs');
+// Side-effect imports: each module calls worker.register() at load time.
+require('./intelligence/merchant_normalizer.cjs');
+require('./intelligence/anomaly_detector.cjs');
+require('./intelligence/ticket_triager.cjs');
+
 /* ------------------------------------------------------------------ */
 /*  Router assembly                                                    */
 /* ------------------------------------------------------------------ */
@@ -48,6 +54,9 @@ async function initPayModule() {
   insightEngine.start();
   console.log('[KURO::PAY] Insight engine started');
 
+  worker.start();
+  console.log('[KURO::PAY] Intelligence worker started');
+
   try {
     if (!xmr.MOCK) {
       const balance = await xmr.getBalance();
@@ -68,6 +77,7 @@ async function initPayModule() {
   return function shutdown() {
     insightEngine.stop();
     commissionCron.stop();
+    worker.stop();
     console.log('[KURO::PAY] Shutdown complete');
   };
 }
