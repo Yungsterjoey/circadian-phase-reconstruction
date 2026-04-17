@@ -1,36 +1,51 @@
 /**
- * NeuroKURO — Public landing + inline phase tool (spec §4)
+ * NeuroKURO: Public landing + inline phase tool (spec §4)
  * POST /api/neuro/phase/simulate → { ct, phaseLabel, phaseDescription, localTime,
  *   confidence, transitions[], curve[], compounds[], advisory }
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CookieBanner from '../components/CookieBanner';
+import DesktopBackground from '../components/DesktopBackground';
+import KuroToolbar from '../components/KuroToolbar';
+import LegalModal from '../components/legal/LegalModal';
+import { openLegalModal } from '../components/legal/legalBus';
+import { LEGAL_ORDER, LEGAL_LABELS } from '../components/legal/legalContent.jsx';
 import '../styles/kuroglass-tokens.css';
 
-const ADVISORY = 'Advisory only — not medical advice.';
+const ADVISORY_SHORT = 'Advisory only. Not medical advice.';
+const ADVISORY_FULL  = 'Decision support only. Not medical advice. Not a diagnostic device.';
 
 export default function NeuroPage() {
+  useEffect(() => {
+    document.documentElement.classList.add('kg-scroll-page');
+    return () => document.documentElement.classList.remove('kg-scroll-page');
+  }, []);
+
   return (
     <div className="kg-root kg-neuro">
+      <DesktopBackground />
       <CookieBanner />
+      <LegalModal />
 
-      <nav className="kg-nav">
-        <Link to="/" className="kg-brand kg-brand-back">← KURO</Link>
-        <div className="kg-nav-right">
+      <KuroToolbar showBack right={
+        <>
           <a href="/docs" className="kg-nav-link">Docs</a>
           <span className="kg-nav-dot">·</span>
           <Link to="/login" className="kg-nav-link">Sign in</Link>
-        </div>
-      </nav>
+        </>
+      } />
 
-      <div className="kg-advisory kg-advisory-top">{ADVISORY}</div>
+      <div className="kg-advisory kg-advisory-top">
+        <span className="kg-advisory-glyph" aria-hidden>◐</span>
+        {ADVISORY_SHORT}
+      </div>
 
       <section className="kg-hero kg-hero-neuro">
         <h1 className="kg-hero-title">NeuroKURO</h1>
         <p className="kg-hero-sub">
-          Circadian phase reconstruction, validated against actigraphy-derived
-          circadian phase proxies.
+          Phase reconstruction from sleep timing. Validated against
+          actigraphy-derived phase proxies on two independent cohorts.
         </p>
       </section>
 
@@ -45,17 +60,20 @@ export default function NeuroPage() {
       <section className="kg-resources">
         <h2 className="kg-section-title">Resources</h2>
         <ul className="kg-resource-list">
-          <li><span className="kg-muted">Paper</span> — Journal of Sleep Research (in review)</li>
+          <li><span className="kg-muted">Paper</span> · Journal of Sleep Research (in review)</li>
           <li>
-            <span className="kg-muted">Zenodo preprint</span> —
+            <span className="kg-muted">Zenodo preprint</span> ·
             {' '}<a href="https://doi.org/10.5281/zenodo.18869320" target="_blank" rel="noreferrer">DOI: 10.5281/zenodo.18869320</a>
           </li>
-          <li><span className="kg-muted">IP</span> — Provisional patent filed (IP Australia)</li>
+          <li><span className="kg-muted">IP</span> · Provisional patent filed (IP Australia)</li>
           <li><a href="/docs/neuro">Public API documentation</a></li>
         </ul>
       </section>
 
-      <div className="kg-advisory kg-advisory-bottom">{ADVISORY}</div>
+      <div className="kg-advisory kg-advisory-bottom">
+        <span className="kg-advisory-glyph" aria-hidden>◐</span>
+        {ADVISORY_FULL}
+      </div>
 
       <footer className="kg-footer">
         <div className="kg-footer-inner">
@@ -71,7 +89,7 @@ export default function NeuroPage() {
               <span className="kg-footer-col-label">Products</span>
               <Link to="/app">KURO OS</Link>
               <Link to="/neuro">NeuroKURO</Link>
-              <a href="https://kuropay.com">KUROPay</a>
+              <a href="/pay">KUROPay</a>
               <a href="/docs">Docs</a>
             </div>
             <div className="kg-footer-col">
@@ -88,6 +106,19 @@ export default function NeuroPage() {
               <a href="/press">Press</a>
               <a href="/careers">Careers</a>
             </div>
+            <div className="kg-footer-col">
+              <span className="kg-footer-col-label">Legal</span>
+              {LEGAL_ORDER.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="kg-footer-linkbtn"
+                  onClick={() => openLegalModal(id)}
+                >
+                  {LEGAL_LABELS[id]}
+                </button>
+              ))}
+            </div>
           </div>
           <hr className="kg-footer-rule" />
           <div className="kg-footer-meta">
@@ -100,6 +131,56 @@ export default function NeuroPage() {
       </footer>
 
       <NeuroStyles />
+    </div>
+  );
+}
+
+/* ─── 24-point alertness curve sparkline (from /phase/simulate response) ── */
+function AlertnessCurve({ curve, currentCt }) {
+  const W = 720, H = 120, PAD_X = 8, PAD_Y = 14;
+  const xs = curve.map((_, i) => PAD_X + (i / (curve.length - 1)) * (W - PAD_X * 2));
+  const ys = curve.map(p => {
+    const norm = (p.alertness + 1) / 2;          // −1..1 → 0..1
+    return H - PAD_Y - norm * (H - PAD_Y * 2);
+  });
+  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(' ');
+  const areaPath = `${path} L${xs[xs.length - 1].toFixed(1)} ${H - PAD_Y} L${xs[0].toFixed(1)} ${H - PAD_Y} Z`;
+
+  // Find nearest curve point for current CT marker
+  let nearestIdx = 0;
+  let bestDelta = Infinity;
+  curve.forEach((p, i) => {
+    const d = Math.abs(p.ct - currentCt);
+    if (d < bestDelta) { bestDelta = d; nearestIdx = i; }
+  });
+
+  return (
+    <div className="kg-curve">
+      <div className="kg-curve-header">
+        <span className="kg-curve-title">24-hour alertness curve</span>
+        <span className="kg-curve-legend">
+          <span className="kg-curve-dot" /> you · now
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="kg-curve-svg" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="kg-curve-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%"  stopColor="#00D9C5" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#00D9C5" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* Midline */}
+        <line x1={PAD_X} x2={W - PAD_X} y1={H / 2} y2={H / 2}
+              stroke="rgba(255,255,255,0.08)" strokeDasharray="2 4" />
+        <path d={areaPath} fill="url(#kg-curve-fill)" />
+        <path d={path} fill="none" stroke="#00D9C5" strokeWidth="1.5" strokeLinejoin="round" />
+        {/* Current marker */}
+        <circle cx={xs[nearestIdx]} cy={ys[nearestIdx]} r="4.5" fill="#00D9C5"
+                stroke="#000" strokeWidth="2" />
+      </svg>
+      <div className="kg-curve-axis">
+        <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+      </div>
     </div>
   );
 }
@@ -144,9 +225,10 @@ function PhaseTool() {
 
   return (
     <section className="kg-phase-tool" data-testid="phase-tool">
-      <h2 className="kg-section-title">Phase tool</h2>
+      <h2 className="kg-section-title">Try it on your sleep</h2>
       <p className="kg-phase-hint">
-        Enter your typical sleep and wake times to reconstruct your current circadian phase.
+        Your last sleep determines your current phase. Enter it to see where
+        you are on the 24-hour cycle.
       </p>
       <div className="kg-phase-inputs">
         <label className="kg-phase-field">
@@ -179,24 +261,32 @@ function PhaseTool() {
           <div className="kg-phase-ct">
             CT {Number(result.ct).toFixed(1)}
           </div>
-          <div className="kg-phase-label">{result.phaseLabel} · <span className="kg-muted">{result.phaseDescription}</span></div>
+          <div className="kg-phase-label">
+            {result.phaseLabel}
+            {result.phaseDescription && (
+              <> · <span className="kg-muted">{result.phaseDescription.replace(/^CT\d+–\d+\s+[—:]\s+/, '')}</span></>
+            )}
+          </div>
           <div className="kg-phase-meta">
-            <span>Confidence ±{((1 - (result.confidence ?? 0)) * 100).toFixed(0)}%</span>
-            <span>·</span>
-            <span>Phase type: Entrained</span>
+            {typeof result.variance === 'number' && (
+              <span>±{result.variance.toFixed(2)}h uncertainty</span>
+            )}
             {nextTransition && (
               <>
                 <span>·</span>
-                <span>Next phase: <b>{nextTransition.phaseLabel}</b> at {nextTransition.clockTime}</span>
+                <span>Next: <b>{nextTransition.phaseLabel}</b> at {nextTransition.clockTime}</span>
+              </>
+            )}
+            {typeof result.hoursAwake === 'number' && (
+              <>
+                <span>·</span>
+                <span>{result.hoursAwake.toFixed(1)}h awake</span>
               </>
             )}
           </div>
-          <button
-            className="kg-phase-curve-btn"
-            onClick={() => { console.log('[neuro] 24h phase curve', result.curve); }}
-          >
-            View 24h phase curve →
-          </button>
+          {Array.isArray(result.curve) && result.curve.length > 0 && (
+            <AlertnessCurve curve={result.curve} currentCt={Number(result.ct)} />
+          )}
         </div>
       )}
     </section>
@@ -210,16 +300,15 @@ function NeuroStyles() {
   return (
     <style>{`
 .kg-root.kg-neuro {
+  position: relative;
+  z-index: 1;
   min-height: 100vh; min-height: 100dvh;
-  background: var(--kg-bg);
-  background-image:
-    radial-gradient(ellipse 800px 500px at 30% 0%, rgba(168,121,255,0.22), transparent 60%),
-    radial-gradient(ellipse 600px 700px at 80% 40%, rgba(108,69,224,0.15), transparent 70%);
   color: var(--kg-text);
   font-family: var(--kg-font);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+.kg-root.kg-neuro > :not(.desktop-bg) { position: relative; z-index: 1; }
 
 .kg-nav {
   display: flex; align-items: center; justify-content: space-between;
@@ -229,7 +318,8 @@ function NeuroStyles() {
   background: rgba(0,0,0,0.4);
   border-bottom: 1px solid var(--kg-card-border);
 }
-.kg-brand { font-size: 15px; font-weight: 600; letter-spacing: 3px; color: var(--kg-text); text-decoration: none; }
+.kg-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: 3px; color: var(--kg-text); text-decoration: none; }
+.kg-brand-word { line-height: 1; }
 .kg-brand-back:hover { color: var(--kg-purple); }
 .kg-nav-right { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .kg-nav-link { color: var(--kg-text-muted); text-decoration: none; transition: color 150ms; }
@@ -243,6 +333,13 @@ function NeuroStyles() {
   border-bottom: 1px solid rgba(168,121,255,0.18);
   background: rgba(168,121,255,0.05);
   letter-spacing: 0.3px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.kg-advisory-glyph {
+  display: inline-block;
+  color: var(--kg-purple);
+  font-size: 13px;
+  opacity: 0.85;
 }
 .kg-advisory-top { margin-top: 0; }
 .kg-advisory-bottom { border-top: 1px solid rgba(168,121,255,0.18); border-bottom: none; margin-top: 48px; }
@@ -371,20 +468,29 @@ function NeuroStyles() {
   display: flex; gap: 10px; flex-wrap: wrap;
   font-size: 13px; color: var(--kg-text-muted);
 }
-.kg-phase-curve-btn {
-  align-self: flex-start;
-  margin-top: 12px;
-  padding: 8px 16px;
-  background: rgba(255,255,255,0.05);
+.kg-curve {
+  margin-top: 20px;
+  padding: 14px 16px 10px;
+  background: rgba(255,255,255,0.02);
   border: 1px solid var(--kg-card-border);
-  border-radius: 10px;
-  color: var(--kg-text);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 150ms;
+  border-radius: 12px;
 }
-.kg-phase-curve-btn:hover { background: rgba(255,255,255,0.1); }
+.kg-curve-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 12px; color: var(--kg-text-muted);
+  letter-spacing: 0.3px;
+}
+.kg-curve-title { text-transform: uppercase; font-size: 11px; font-weight: 600; color: var(--kg-text-dim); letter-spacing: 1.2px; }
+.kg-curve-legend { font-size: 11px; color: var(--kg-text-muted); display: inline-flex; align-items: center; gap: 6px; }
+.kg-curve-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--kg-teal); box-shadow: 0 0 6px rgba(0,217,197,0.7); }
+.kg-curve-svg { width: 100%; height: 120px; display: block; }
+.kg-curve-axis {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--kg-text-dim);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px; padding: 0 2px;
+}
 
 .kg-resources {
   max-width: 960px; margin: 0 auto;
@@ -416,10 +522,12 @@ function NeuroStyles() {
 .kg-footer-name { font-size: 15px; font-weight: 600; letter-spacing: 3px; color: var(--kg-text); }
 .kg-footer-tag { font-size: 13px; color: var(--kg-text-muted); }
 .kg-footer-rule { border: none; border-top: 1px solid var(--kg-card-border); margin: 8px 0; }
-.kg-footer-cols { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 24px; }
-.kg-footer-col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.kg-footer-cols { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 24px; }
+.kg-footer-col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; align-items: flex-start; }
 .kg-footer-col a, .kg-footer-col span { color: var(--kg-text-muted); text-decoration: none; transition: color 150ms; }
 .kg-footer-col a:hover { color: var(--kg-text); }
+.kg-footer-linkbtn { appearance: none; border: 0; padding: 0; margin: 0; background: transparent; color: var(--kg-text-muted); font: inherit; font-size: 13px; cursor: pointer; text-align: left; transition: color 150ms; }
+.kg-footer-linkbtn:hover { color: var(--kg-text); }
 .kg-footer-col-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--kg-text-dim) !important; margin-bottom: 4px; }
 .kg-footer-muted { color: var(--kg-text-dim); font-style: italic; }
 .kg-footer-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--kg-text-muted); }
@@ -439,7 +547,7 @@ function NeuroStyles() {
   .kg-validation, .kg-phase-tool, .kg-resources { padding: 24px 20px; }
   .kg-phase-inputs { grid-template-columns: 1fr; }
   .kg-val-label { min-width: unset; }
-  .kg-footer-cols { grid-template-columns: 1fr; }
+  .kg-footer-cols { grid-template-columns: 1fr 1fr; gap: 20px; }
   .kg-footer { padding: 48px 20px 32px; }
 }
     `}</style>

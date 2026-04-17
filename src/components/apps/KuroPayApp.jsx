@@ -155,7 +155,7 @@ const Header = memo(function Header() {
   const openSheet = usePayStore(s => s.openSheet);
   return (
     <div className="kp-header">
-      <span className="kp-header-title">KURO::PAY</span>
+      <span className="kp-header-title">KUROPay</span>
       <button className="kp-header-btn" onClick={() => openSheet('settings')}>
         <Settings size={18} />
       </button>

@@ -302,7 +302,12 @@ try {
     windowMs: 60 * 1000, max: parseInt(process.env.KURO_RATE_GLOBAL || '200', 10),
     standardHeaders: true, legacyHeaders: false,
     message: { error: 'Too many requests — please slow down' },
-    skip: (req) => req.path === '/health' || req.path === '/api/health',
+    skip: (req) => {
+      if (req.path === '/health' || req.path === '/api/health') return true;
+      // Skip for loopback (local dev, e2e tests). External DoS still blocked.
+      const ip = req.ip || req.connection?.remoteAddress || '';
+      return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    },
   }));
   // Strict limiter for auth endpoints: 20 req/15min per IP
   const authLimiter = rateLimit({
@@ -1679,13 +1684,23 @@ try {
 try {
   const { mountFacilitator } = require('./modules/facilitator/index.cjs');
   const { stmts: _facStmts } = require('./layers/auth/db.cjs');
+  const _facSvcKey = process.env.KURO_FACILITATOR_SECRET || '';
+  const _facRequireAuth = (req, res, next) => {
+    const svc = req.get('X-KURO-Svc-Key');
+    if (svc && _facSvcKey && svc === _facSvcKey) {
+      req.user = req.user || { userId: 'kuro-pay-svc', _internal: true };
+      return next();
+    }
+    return auth.required(req, res, next);
+  };
   const _facRequireAdmin = (req, res, next) => {
+    if (req.user && req.user._internal) return next();
     if (!req.user || req.user.userId === 'anon') return res.status(401).json({ error: 'Auth required' });
     const row = _facStmts.isAdmin.get(req.user.userId);
     if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin access required' });
     next();
   };
-  mountFacilitator(app, auth.required, _facRequireAdmin);
+  mountFacilitator(app, _facRequireAuth, _facRequireAdmin);
 } catch(e) {
   console.warn('[FACILITATOR] Not loaded:', e.message);
 }

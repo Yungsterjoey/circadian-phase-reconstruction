@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { detect, initiatePayment, initiateATMPayment, getFxRate, warmCard, fetchCards, fetchPolicy } from './api.js';
+import { usePayNav } from './nav/PayNavContext.jsx';
 
 const RAIL_LABELS = {
   vietqr:    { name: 'VietQR',   flag: '🇻🇳', currency: 'VND' },
@@ -47,12 +48,12 @@ export default function UnifiedSendScreen() {
     return () => { cancelled = true; };
   }, [nav]);
 
-  // Fetch commission policy on mount — drives the localized-minimum hint.
+  // Fetch commission policy on mount: drives the localized-minimum hint.
   useEffect(() => {
     let cancelled = false;
     fetchPolicy()
       .then(p => { if (!cancelled) setPolicy(p); })
-      .catch(() => {});  // Hint is optional — silently degrade.
+      .catch(() => {});  // Hint is optional; silently degrade.
     return () => { cancelled = true; };
   }, []);
 
@@ -71,7 +72,7 @@ export default function UnifiedSendScreen() {
           const currency = RAIL_LABELS[res.rail]?.currency || 'VND';
           // Fetch live rate in parallel; don't block render
           getFxRate(currency).then(r => setFxSpot(r)).catch(() => {});
-          // Pre-warm card for ATM QR immediately — fires in background
+          // Pre-warm card for ATM QR immediately; fires in background.
           if (res.parsed?.qrType === 'atm' && card) {
             const pmId = card.stripe_pm_id || card.id;
             warmCard({ paymentMethodId: pmId })
@@ -171,7 +172,14 @@ export default function UnifiedSendScreen() {
   const amtValid = parseFloat(amountLocal) > 0;
   const canPay   = !!rail && amtValid && !!card && !paying;
 
-  // Localized minimum hint — e.g. "3,500 VND minimum" for a Free user paying in VND.
+  usePayNav({
+    back: { label: 'Home', onClick: () => nav('/welcome') },
+    next: canPay
+      ? { label: paying ? 'Sending…' : `Pay ${railMeta?.currency || ''} ${amountLocal}`.trim(), onClick: () => onPay(), loading: paying, variant: 'primary' }
+      : { label: 'Pay', variant: 'primary' },
+  }, [canPay, paying, railMeta?.currency, amountLocal]);
+
+  // Localized minimum hint: e.g. "3,500 VND minimum" for a Free user paying in VND.
   // Only shown when the tier has a non-zero AUD minimum AND we have a live rail FX rate.
   const localizedMin = (() => {
     if (!policy || !policy.minimum_fee_aud) return null;
@@ -203,8 +211,8 @@ export default function UnifiedSendScreen() {
           lng = pos.coords.longitude;
         } catch (_) {}
 
-        if (!warmTokenId) throw new Error('Card pre-auth not ready — please wait a moment and retry');
-        if (!spotRate)    throw new Error('Exchange rate not loaded — please wait and retry');
+        if (!warmTokenId) throw new Error('Card pre-auth not ready. Please wait a moment and retry.');
+        if (!spotRate)    throw new Error('Exchange rate not loaded. Please wait and retry.');
 
         result = await initiateATMPayment({
           qr:              input.trim(),
@@ -231,7 +239,7 @@ export default function UnifiedSendScreen() {
     } catch (e) {
       setErr(
         e.status === 402 ? 'Card declined. Try another card.' :
-        e.status === 422 ? 'QR not routable — check the code and try again.' :
+        e.status === 422 ? 'QR not routable. Check the code and try again.' :
         e.message
       );
       setPaying(false);
@@ -241,7 +249,7 @@ export default function UnifiedSendScreen() {
   return (
     <div className="kp-fullscreen kp-send-root">
       <div className="kp-header">
-        <div className="kp-send-title">KURO::PAY</div>
+        <div className="kp-send-title">Send</div>
         {card && (
           <div className="kp-card-chip">
             {card.card_brand || card.brand || 'Card'} ···· {card.card_last4 || card.last4}
@@ -296,7 +304,7 @@ export default function UnifiedSendScreen() {
           )}
           {detectResult.ambiguous && (
             <div className="kp-disambiguation">
-              <div className="kp-dim kp-xs">Multiple rails detected — select one:</div>
+              <div className="kp-dim kp-xs">Multiple rails detected. Select one:</div>
               {detectResult.candidates.map(c => (
                 <button
                   key={c.rail}
@@ -353,13 +361,7 @@ export default function UnifiedSendScreen() {
 
       {err && <div className="kp-err kp-pad">{err}</div>}
 
-      <button
-        className="kp-btn kp-btn-primary kp-btn-lg kp-send-pay"
-        disabled={!canPay}
-        onClick={onPay}
-      >
-        {paying ? 'Sending…' : canPay ? `Pay ${railMeta?.currency} ${amountLocal}` : 'Pay'}
-      </button>
+      {/* Pay action lives in the persistent PayNav dock. */}
     </div>
   );
 }

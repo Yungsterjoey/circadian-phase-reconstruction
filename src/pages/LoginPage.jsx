@@ -1,5 +1,5 @@
 /**
- * KURO OS — Login Page ("/login")
+ * KURO OS: Login Page ("/login")
  * Centered glass panel on dark background. Reuses AuthGate form logic.
  * Conceptual artifact framing: build/edition placard.
  */
@@ -33,7 +33,7 @@ const LEGAL = {
       ['Accounts', 'Access is via token-based authentication. You are responsible for your token\'s confidentiality.'],
       ['AI Outputs', 'AI outputs are probabilistic and may contain errors. They do not constitute professional advice (legal, medical, financial, etc).'],
       ['Data', 'Conversations are not used to train AI models. Data processed on US inference servers. See Privacy Policy.'],
-      ['Billing', 'Paid plans billed monthly via Stripe. Cancel anytime — no partial refunds after the billing period starts.'],
+      ['Billing', 'Paid plans billed monthly via Stripe. Cancel anytime; no partial refunds after the billing period starts.'],
       ['Australian Consumer Law', 'Nothing in these Terms excludes rights under the Australian Consumer Law (CCA 2010).'],
       ['Liability', 'Aggregate liability is limited to fees paid in the preceding 12 months.'],
       ['Law', 'Governed by the laws of Victoria, Australia. Contact: hi@kuroglass.net'],
@@ -56,7 +56,7 @@ const LEGAL = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   LEGAL VIEWER — inline document viewer
+   LEGAL VIEWER: inline document viewer
    ═══════════════════════════════════════════════════════════════════════ */
 function LegalViewer({ doc, onBack, onSwitch }) {
   const d = LEGAL[doc] || LEGAL.terms;
@@ -128,7 +128,7 @@ export default function LoginPage() {
         if (r.success) { navigate(redirectTo, { replace: true }); } else setError(r.error || 'Invalid token.');
       } else if (mode === 'reset') {
         const r = await resetPassword(form.email, form.code, form.newPassword);
-        if (r.success) { setMode('login'); setError(''); setMessage('Password reset — sign in with your new password.'); }
+        if (r.success) { setMode('login'); setError(''); setMessage('Password reset. Sign in with your new password.'); }
         else setError(r.error);
       } else if (mode === 'forgot') {
         const r = await forgotPassword(form.email);
@@ -186,7 +186,7 @@ export default function LoginPage() {
           {/* OAuth error from redirect */}
           {authError && (
             <div className="lp-oauth-error">
-              {authError === 'oauth_not_configured' ? 'Social login not enabled — use email.' : `Auth failed: ${authError.replace(/_/g, ' ')}`}
+              {authError === 'oauth_not_configured' ? 'Social login not enabled. Use email.' : `Auth failed: ${authError.replace(/_/g, ' ')}`}
               <button onClick={clearAuthError}><KuroIcon name="close" size={13} /></button>
             </div>
           )}
@@ -197,7 +197,7 @@ export default function LoginPage() {
               {accessToken ? (
                 <>
                   <h3>Your access token</h3>
-                  <p className="lp-hint">Email delivery unavailable — copy your token now:</p>
+                  <p className="lp-hint">Email delivery unavailable. Copy your token now:</p>
                   <div className="lp-token-display">
                     <span className="lp-token-value">{accessToken}</span>
                     <button className="lp-token-copy" onClick={() => navigator.clipboard?.writeText(accessToken)} title="Copy"><KuroIcon name="copy" size={14} /></button>

@@ -12,7 +12,6 @@ Henry George Lowe-Sevilla
 Founder, KURO Technologies
 ORCID: 0009-0006-4864-9740 · ABN: 45 340 322 909
 Based: Da Nang, Vietnam
-DAVAS 2026 Panelist — Healthcare & Biotech Innovation Track
 
 Communication style: Direct. No preamble. No summaries of what
 you just did unless asked. Print PASS/FAIL per stage. Explain
@@ -431,13 +430,12 @@ Commands:
 
 ## 13. CURRENT PRIORITIES (April 2026)
 
-1. kuroglass.net — DAVAS showcase site + live simulator
+1. kuroglass.net — public showcase site + live simulator
 2. NeuroKURO v1 frontend — phase dashboard, actigraphy curve
 3. KURO::AFFECT deployment — affect_store.cjs pipeline
 4. KURO::PAY — WISE_API_TOKEN + KURO_SOLANA_WALLET + live VietQR test
 5. KURO::FLUX — TensorDock Singapore, paper trading first
 6. Manolo Beelke call — CNS clinical development (WhatsApp +491736189707)
-7. DAVAS prep — May 25-27, Ariyana ICC Da Nang
 
 ---
 

@@ -4,6 +4,7 @@
  * Shows if kuro_cookies not in localStorage
  */
 import { useState, useEffect } from 'react';
+import { openLegalModal } from './legal/legalBus';
 
 export default function CookieBanner() {
   const [show, setShow] = useState(false);
@@ -26,7 +27,9 @@ export default function CookieBanner() {
     <div className="ck-banner" style={{ animation: 'ckIn .3s ease both' }}>
       <p className="ck-text">
         We use essential cookies for authentication and security (Cloudflare). No advertising or tracking cookies.{' '}
-        <a href="/?modal=cookie" target="_blank" rel="noopener" className="ck-link">Cookie Policy</a>
+        <button type="button" className="ck-link ck-link-btn" onClick={() => openLegalModal('cookie')}>
+          Cookie Policy
+        </button>
       </p>
       <div className="ck-btns">
         <button className="ck-btn ck-ess" onClick={() => accept('essential')}>Essential Only</button>
@@ -39,6 +42,7 @@ export default function CookieBanner() {
 .ck-text{font-size:12px;color:rgba(255,255,255,.5);line-height:1.5;margin:0;flex:1;min-width:200px}
 .ck-link{color:rgba(147,51,234,.6);text-decoration:none}
 .ck-link:hover{color:rgba(147,51,234,.8)}
+.ck-link-btn{appearance:none;border:0;padding:0;margin:0;background:transparent;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .ck-btns{display:flex;gap:8px;flex-shrink:0}
 .ck-btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:none}
 .ck-ess{background:rgba(255,255,255,.05);color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.06)}

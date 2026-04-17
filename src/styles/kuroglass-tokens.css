@@ -24,3 +24,25 @@
   --kg-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
   --kg-font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Scroll-lock escape for kuroglass landing pages.
+   index.html locks html/body/#root to position:fixed;overflow:hidden for the
+   OS shell. Marketing pages (HomePage, NeuroPage) toggle `kg-scroll-page` on
+   <html> on mount to restore native document scrolling.
+   ─────────────────────────────────────────────────────────────────────────── */
+html.kg-scroll-page,
+html.kg-scroll-page body,
+html.kg-scroll-page #root {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 100vh;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  touch-action: auto !important;
+}
+html.kg-scroll-page body {
+  -webkit-overflow-scrolling: touch;
+}

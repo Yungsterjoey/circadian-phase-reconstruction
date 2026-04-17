@@ -2,18 +2,18 @@
  * KURO::PAY frontend API client.
  *
  * Legacy shim routes (still active for backward compat):
- *   POST /api/pay/x402/quote    — public, parses QR + previews AUD
- *   POST /api/pay/x402/create   — auth'd, loopbacks to v2 /initiate
- *   POST /api/pay/x402/confirm  — auth'd, ledger read
+ *   POST /api/pay/x402/quote    : public, parses QR + previews AUD
+ *   POST /api/pay/x402/create   : auth'd, loopbacks to v2 /initiate
+ *   POST /api/pay/x402/confirm  : auth'd, ledger read
  *
  * New unified routes (Phase A):
- *   POST /api/pay/detect        — input → { rail, confidence, parsed, disambiguation? }
- *   POST /api/pay/initiate      — { rail, destination, amountLocal, userId } → { paymentId, status }
- *   GET  /api/pay/status/:id    — { status, settledAt, receipt }
+ *   POST /api/pay/detect        : input → { rail, confidence, parsed, disambiguation? }
+ *   POST /api/pay/initiate      : { rail, destination, amountLocal, userId } → { paymentId, status }
+ *   GET  /api/pay/status/:id    : { status, settledAt, receipt }
  *
  * Card management:
- *   POST /api/pay/card/setup    — SetupIntent client_secret
- *   GET  /api/pay/card/list     — saved cards
+ *   POST /api/pay/card/setup    : SetupIntent client_secret
+ *   GET  /api/pay/card/list     : saved cards
  */
 
 async function postJSON(path, body) {

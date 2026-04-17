@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import GlassCube from '../ui/GlassCube';
 
 export default function StatusBar() {
   const [time, setTime] = useState('');
@@ -30,7 +31,10 @@ export default function StatusBar() {
       fontWeight: 600,
       pointerEvents: 'none',
     }}>
-      <span>KURO OS</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '3px' }}>
+        <GlassCube size="nav" />
+        KURO OS
+      </span>
       <span>{time}</span>
     </div>
   );

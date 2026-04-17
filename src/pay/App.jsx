@@ -1,70 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { fetchCards } from './api.js';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import GlassCube from '../components/ui/GlassCube';
+import DesktopBackground from '../components/DesktopBackground';
+import LegalModal from '../components/legal/LegalModal';
 
+import WelcomeScreen      from './WelcomeScreen.jsx';
 import LinkCardScreen     from './LinkCardScreen.jsx';
 import UnifiedSendScreen  from './UnifiedSendScreen.jsx';
 import ConfirmingScreen   from './ConfirmingScreen.jsx';
 import ReceiptScreen      from './ReceiptScreen.jsx';
 
-function Shell() {
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+import { PayNavProvider } from './nav/PayNavContext.jsx';
+import PayNav from './nav/PayNav.jsx';
+
+/**
+ * On "/" the pay app historically tried fetchCards + redirected to /send or
+ * /link-card. With WelcomeScreen now the entry point, "/" just forwards
+ * there. Welcome then decides /link-card vs /send based on saved cards.
+ */
+function RootRedirect() {
   const nav = useNavigate();
-  const loc = useLocation();
+  useEffect(() => { nav('/welcome', { replace: true }); }, [nav]);
+  return null;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { cards } = await fetchCards();
-        if (cancelled) return;
-        if (loc.pathname === '/' || loc.pathname === '') {
-          nav(cards && cards.length > 0 ? '/send' : '/link-card', { replace: true });
-        }
-      } catch (err) {
-        if (cancelled) return;
-        if (err.status === 401) {
-          window.location.href = '/?returnTo=/pay';
-          return;
-        }
-        setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading) {
-    return (
-      <div className="kp-center kp-fullscreen">
-        <div className="kp-spinner" />
-        <div className="kp-dim kp-mt16">Loading KURO::PAY…</div>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="kp-center kp-fullscreen kp-pad">
-        <div className="kp-title">Couldn't load</div>
-        <div className="kp-dim kp-mt8">{error}</div>
-        <button className="kp-btn kp-mt24" onClick={() => window.location.reload()}>Retry</button>
-      </div>
-    );
-  }
-  return <Navigate to="/send" replace />;
+function KuroBar() {
+  return (
+    <div className="kp-kuro-bar">
+      <a href="/" className="kp-kuro-brand" aria-label="Back to KURO">
+        <GlassCube size="nav" />
+        <span className="kp-kuro-word">KURO</span>
+      </a>
+      <span className="kp-kuro-tag">PAY</span>
+    </div>
+  );
 }
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/"            element={<Shell />}             />
-      <Route path="/link-card"   element={<LinkCardScreen />}    />
-      <Route path="/send"        element={<UnifiedSendScreen />} />
-      <Route path="/confirming"  element={<ConfirmingScreen />}  />
-      <Route path="/receipt"     element={<ReceiptScreen />}     />
-      <Route path="*"            element={<Navigate to="/" replace />} />
-    </Routes>
+    <PayNavProvider>
+      <div className="kp-app-shell">
+        {/* Muted shared DesktopBackground: same component the OS uses, dimmed via CSS. */}
+        <div className="kp-bg" aria-hidden="true">
+          <DesktopBackground />
+        </div>
+
+        <KuroBar />
+
+        <div className="kp-app-body">
+          <Routes>
+            <Route path="/"            element={<RootRedirect />}      />
+            <Route path="/welcome"     element={<WelcomeScreen />}     />
+            <Route path="/link-card"   element={<LinkCardScreen />}    />
+            <Route path="/send"        element={<UnifiedSendScreen />} />
+            <Route path="/scan"        element={<Navigate to="/send" replace />} />
+            <Route path="/confirming"  element={<ConfirmingScreen />}  />
+            <Route path="/receipt"     element={<ReceiptScreen />}     />
+            <Route path="*"            element={<Navigate to="/welcome" replace />} />
+          </Routes>
+        </div>
+
+        <PayNav />
+        <LegalModal />
+      </div>
+    </PayNavProvider>
   );
 }

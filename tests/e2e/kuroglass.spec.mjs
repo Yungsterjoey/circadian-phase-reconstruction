@@ -31,7 +31,7 @@ test.describe('Front page (/)', () => {
 
   test('NeuroKURO tile click navigates to /neuro', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: 'Learn →' }).click();
+    await page.getByRole('link', { name: 'Read →' }).click();
     await expect(page).toHaveURL(/\/neuro$/);
   });
 
@@ -47,11 +47,11 @@ test.describe('NeuroKURO (/neuro)', () => {
   test('renders advisory, validation, phase tool, and resources', async ({ page }) => {
     await page.goto('/neuro');
     await expect(page.getByRole('heading', { name: 'NeuroKURO', level: 1 })).toBeVisible();
-    await expect(page.getByText('Advisory only — not medical advice.').first()).toBeVisible();
+    await expect(page.getByText('Advisory only — not medical advice.')).toBeVisible();
     await expect(page.getByText('MMASH dataset')).toBeVisible();
     await expect(page.getByText('SANDD dataset')).toBeVisible();
     await expect(page.getByText('N=368 sessions · MAE 0.31h')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Phase tool' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Try it on your sleep/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /DOI: 10\.5281\/zenodo\.18869320/ })).toBeVisible();
   });
 
@@ -66,13 +66,23 @@ test.describe('NeuroKURO (/neuro)', () => {
     const text = await result.innerText();
     expect(text).toMatch(/CT\s+\d+(\.\d+)?/);
     expect(text).toMatch(/ACTIVATION|BALANCE|BRAKE|RESET/);
-    expect(text).toMatch(/Next phase/);
+    expect(text).toMatch(/Next:/);
+    expect(text).toMatch(/±\d+(\.\d+)?h/);
   });
 
-  test('advisory banner appears both top and bottom', async ({ page }) => {
+  test('advisory banners appear top and bottom with distinct strings', async ({ page }) => {
     await page.goto('/neuro');
-    const banners = page.getByText('Advisory only — not medical advice.');
-    await expect(banners).toHaveCount(2);
+    await expect(page.getByText('Advisory only — not medical advice.')).toBeVisible();
+    await expect(page.getByText('Decision support only. Not medical advice. Not a diagnostic device.')).toBeVisible();
+  });
+
+  test('phase tool renders 24h alertness curve after computation', async ({ page }) => {
+    await page.goto('/neuro');
+    await page.getByTestId('btn-compute-phase').click();
+    const curve = page.locator('.kg-curve-svg');
+    await expect(curve).toBeVisible({ timeout: 5000 });
+    const polylineCount = await page.locator('.kg-curve-svg path').count();
+    expect(polylineCount).toBeGreaterThanOrEqual(2);
   });
 });
 

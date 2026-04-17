@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getPaymentStatus } from './api.js';
+import { usePayNav } from './nav/PayNavContext.jsx';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -39,7 +40,7 @@ export default function ConfirmingScreen() {
       if (elapsedMs >= 60_000 && !timedOut.current) {
         timedOut.current = true;
         clearInterval(intervalRef.current);
-        nav('/', { replace: true, state: { toast: 'Payment submitted — settling in background.' } });
+        nav('/', { replace: true, state: { toast: 'Payment submitted. Settling in background.' } });
         return;
       }
 
@@ -87,7 +88,7 @@ export default function ConfirmingScreen() {
           });
         }
       } catch (_) {
-        // Network error — keep polling
+        // Network error; keep polling
       }
     };
 
@@ -98,6 +99,11 @@ export default function ConfirmingScreen() {
   }, [paymentId, nav, amountLocal, railMeta]);
 
   const elapsedSec = Math.floor(elapsed / 1000);
+
+  usePayNav({
+    back: { label: 'Cancel', onClick: () => nav('/send') },
+    next: { label: 'Confirming…', variant: 'primary' },
+  }, []);
 
   return (
     <div className="kp-fullscreen kp-confirming-root">

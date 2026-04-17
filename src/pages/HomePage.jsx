@@ -1,34 +1,52 @@
 /**
- * kuroglass.net — Front Page (spec §3)
- * Three product tiles: KURO OS → /app · NeuroKURO → /neuro · KUROPay → kuropay.com
+ * kuroglass.net: Front Page (spec §3)
+ * Three product tiles: KURO OS → /app · NeuroKURO → /neuro · KUROPay → /pay
  * Sovereignty positioning, ABN + x402 Foundation footer.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CookieBanner from '../components/CookieBanner';
+import DesktopBackground from '../components/DesktopBackground';
+import GlassCube from '../components/ui/GlassCube';
+import KuroToolbar from '../components/KuroToolbar';
+import LegalModal from '../components/legal/LegalModal';
+import { openLegalModal } from '../components/legal/legalBus';
+import { LEGAL_ORDER, LEGAL_LABELS } from '../components/legal/legalContent.jsx';
 import '../styles/kuroglass-tokens.css';
 
 export default function HomePage() {
+  useEffect(() => {
+    document.documentElement.classList.add('kg-scroll-page');
+    return () => document.documentElement.classList.remove('kg-scroll-page');
+  }, []);
+
   return (
     <div className="kg-root">
+      <DesktopBackground />
       <CookieBanner />
+      <LegalModal />
 
       {/* ═══ TOP NAV ═══ */}
-      <nav className="kg-nav">
-        <span className="kg-brand">KURO</span>
-        <div className="kg-nav-right">
+      <KuroToolbar right={
+        <>
           <a href="/docs" className="kg-nav-link">Docs</a>
           <span className="kg-nav-dot">·</span>
           <Link to="/login" className="kg-nav-link">Sign in</Link>
-        </div>
-      </nav>
+        </>
+      } />
 
       {/* ═══ HERO ═══ */}
       <section className="kg-hero">
-        <h1 className="kg-hero-title">Sovereign infrastructure<br />for the agentic era.</h1>
+        <div className="kg-hero-cube">
+          <GlassCube size="hero" />
+        </div>
+        <h1 className="kg-hero-title">
+          <span className="kg-hero-line">Sovereign infrastructure</span>
+          <span className="kg-hero-line">for the agentic era.</span>
+        </h1>
         <p className="kg-hero-sub">
-          Local AI, circadian intelligence, and card-native payments —
-          built in Australia and Vietnam, shipped as open protocols.
+          Local AI. Circadian science. Card-native payments.
+          Built in Melbourne and Da Nang.
         </p>
       </section>
 
@@ -38,26 +56,25 @@ export default function HomePage() {
           title="KURO OS"
           gradient="var(--kg-gradient-os)"
           tagline="Local AI with agency."
-          body="Runs on your own hardware. No frontier-API dependency. Gemma 4 natively multimodal, 128K context, circadian-aware."
-          buttonLabel="Open →"
+          body="Runs on your own hardware. Gemma 4 multimodal, 128K context, circadian-aware. No frontier-API dependency."
+          buttonLabel="Launch →"
           to="/app"
         />
         <Tile
           title="NeuroKURO"
           gradient="var(--kg-gradient-neuro)"
-          tagline="Circadian phase science."
-          body="Validated phase reconstruction on N=368 adolescent sessions. MAE 0.31h. Paper under review at Journal of Sleep Research."
-          buttonLabel="Learn →"
+          tagline="Phase reconstruction from sleep timing."
+          body="Validated on SANDD (N=368 sessions, MAE 0.31h) and MMASH (N=20, MAE 0.29h). Paper under review at Journal of Sleep Research."
+          buttonLabel="Read →"
           to="/neuro"
         />
         <Tile
           title="KUROPay"
           gradient="var(--kg-gradient-pay)"
           tagline="Card → local QR, anywhere in SEA."
-          body="Scan VietQR, PromptPay, QRIS, QR Ph, DuitNow with your home card. No wallet, no top-up, no minimum. First app on Linux Foundation's x402 protocol."
-          buttonLabel="Open →"
-          href="https://kuropay.com"
-          external
+          body="Scan VietQR, PromptPay, QRIS, QR Ph, DuitNow with your home card. No wallet. No top-up. First app on the Linux Foundation's x402 protocol."
+          buttonLabel="Visit →"
+          href="/pay"
         />
       </section>
 
@@ -76,13 +93,13 @@ export default function HomePage() {
               <span className="kg-footer-col-label">Products</span>
               <Link to="/app">KURO OS</Link>
               <Link to="/neuro">NeuroKURO</Link>
-              <a href="https://kuropay.com">KUROPay</a>
+              <a href="/pay">KUROPay</a>
               <a href="/docs">Docs</a>
             </div>
             <div className="kg-footer-col">
               <span className="kg-footer-col-label">Research</span>
               <Link to="/neuro">NeuroKURO</Link>
-              <span className="kg-footer-muted">Paper (soon)</span>
+              <a href="https://doi.org/10.5281/zenodo.18869320">Zenodo preprint</a>
               <a href="https://www.x402.org">x402 docs</a>
               <a href="https://doi.org/10.5281/zenodo.18869320">Zenodo DOI</a>
             </div>
@@ -92,6 +109,19 @@ export default function HomePage() {
               <a href="mailto:hi@kuroglass.net">Contact</a>
               <a href="/press">Press</a>
               <a href="/careers">Careers</a>
+            </div>
+            <div className="kg-footer-col">
+              <span className="kg-footer-col-label">Legal</span>
+              {LEGAL_ORDER.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="kg-footer-linkbtn"
+                  onClick={() => openLegalModal(id)}
+                >
+                  {LEGAL_LABELS[id]}
+                </button>
+              ))}
             </div>
           </div>
           <hr className="kg-footer-rule" />
@@ -134,23 +164,22 @@ function Tile({ title, gradient, tagline, body, buttonLabel, to, href, external 
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   STYLES — per §3.2/§3.4
+   STYLES per §3.2/§3.4
    ═══════════════════════════════════════════════════════════════════════════ */
 function HomeStyles() {
   return (
     <style>{`
 .kg-root {
+  position: relative;
+  z-index: 1;
   min-height: 100vh; min-height: 100dvh;
-  background: var(--kg-bg);
-  background-image:
-    radial-gradient(ellipse 800px 600px at 20% 0%, rgba(0,217,197,0.18), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 85% 30%, rgba(168,121,255,0.20), transparent 65%),
-    radial-gradient(ellipse 600px 800px at 50% 100%, rgba(168,121,255,0.08), transparent 70%);
   color: var(--kg-text);
   font-family: var(--kg-font);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+/* DesktopBackground sits at z:0 fixed; content stacks above. */
+.kg-root > :not(.desktop-bg) { position: relative; z-index: 1; }
 
 /* ── Top nav ── */
 .kg-nav {
@@ -162,9 +191,11 @@ function HomeStyles() {
   border-bottom: 1px solid var(--kg-card-border);
 }
 .kg-brand {
+  display: inline-flex; align-items: center; gap: 10px;
   font-size: 15px; font-weight: 600;
   letter-spacing: 3px; color: var(--kg-text);
 }
+.kg-brand-word { line-height: 1; }
 .kg-nav-right { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .kg-nav-link {
   color: var(--kg-text-muted); text-decoration: none;
@@ -179,6 +210,10 @@ function HomeStyles() {
   padding: 96px 32px 48px;
   text-align: left;
 }
+.kg-hero-cube {
+  margin: 0 0 36px;
+  filter: drop-shadow(0 12px 40px rgba(168, 121, 255, 0.35));
+}
 .kg-hero-title {
   font-size: clamp(40px, 6.5vw, 64px);
   font-weight: 600;
@@ -187,6 +222,7 @@ function HomeStyles() {
   margin: 0 0 24px;
   color: var(--kg-text);
 }
+.kg-hero-line { display: block; }
 .kg-hero-sub {
   font-size: clamp(17px, 1.8vw, 22px);
   font-weight: 300;
@@ -276,16 +312,26 @@ function HomeStyles() {
 .kg-footer-rule { border: none; border-top: 1px solid var(--kg-card-border); margin: 8px 0; }
 .kg-footer-cols {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
+  grid-template-columns: repeat(4, minmax(0,1fr));
   gap: 24px;
 }
-.kg-footer-col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.kg-footer-col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; align-items: flex-start; }
 .kg-footer-col a, .kg-footer-col span {
   color: var(--kg-text-muted);
   text-decoration: none;
   transition: color 150ms;
 }
 .kg-footer-col a:hover { color: var(--kg-text); }
+.kg-footer-linkbtn {
+  appearance: none; border: 0; padding: 0; margin: 0;
+  background: transparent;
+  color: var(--kg-text-muted);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: color 150ms;
+}
+.kg-footer-linkbtn:hover { color: var(--kg-text); }
 .kg-footer-col-label {
   font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
@@ -321,7 +367,7 @@ function HomeStyles() {
   .kg-hero { padding: 56px 20px 32px; }
   .kg-tiles { padding: 32px 20px 64px; }
   .kg-footer { padding: 48px 20px 32px; }
-  .kg-footer-cols { grid-template-columns: 1fr; }
+  .kg-footer-cols { grid-template-columns: 1fr 1fr; gap: 20px; }
 }
     `}</style>
   );

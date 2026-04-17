@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { usePayNav } from './nav/PayNavContext.jsx';
 
 /**
  * Receipt / success view.
@@ -10,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
  *   confirmed=false, status='failed'   → show failure
  *
  * "Show to vendor" mode turns the screen into a giant high-contrast card
- * with the reference + merchant name — held up at the counter so the
+ * with the reference + merchant name, held up at the counter so the
  * vendor sees the QR was actioned.
  */
 export default function ReceiptScreen() {
@@ -20,18 +21,27 @@ export default function ReceiptScreen() {
   const [copied, setCopied]         = useState(false);
 
   const { created, conf } = loc.state || {};
+  const status    = conf?.status;        // settled | pending | failed
+  const confirmed = !!conf?.confirmed;
+
+  // Hook must run unconditionally; place before any early return.
+  usePayNav({
+    back: { label: 'Home', onClick: () => nav('/welcome') },
+    next: confirmed
+      ? { label: 'Done', onClick: () => nav('/welcome'), variant: 'primary' }
+      : status === 'failed'
+        ? { label: 'Try again', onClick: () => nav('/send'), variant: 'primary' }
+        : { label: 'Settling…', variant: 'primary' },
+  }, [confirmed, status]);
 
   if (!created || !conf) {
     return (
       <div className="kp-fullscreen kp-center">
         <div className="kp-dim">No receipt context.</div>
-        <button className="kp-btn kp-mt16" onClick={() => nav('/scan', { replace: true })}>Back to scan</button>
       </div>
     );
   }
 
-  const status    = conf.status;        // settled | pending | failed
-  const confirmed = !!conf.confirmed;
   const receipt   = conf.receipt || {};
   const proof     = receipt.proof;
   const merchant  = receipt.merchant || created.merchant?.name || 'Merchant';
@@ -93,14 +103,14 @@ export default function ReceiptScreen() {
 
       {confirmed && proof && (
         <div className="kp-glass kp-proof" onClick={copyProof}>
-          <div className="kp-dim kp-xs">x402 proof {copied && <span className="kp-accent">— copied</span>}</div>
+          <div className="kp-dim kp-xs">x402 proof {copied && <span className="kp-accent">· copied</span>}</div>
           <div className="kp-proof-value">{proof}</div>
         </div>
       )}
 
       {!confirmed && status === 'pending' && (
         <div className="kp-notice">
-          {conf.message || 'Card charged — settlement is queued. You’ll get a push when it lands.'}
+          {conf.message || 'Card charged. Settlement is queued; you’ll get a push when it lands.'}
         </div>
       )}
 
@@ -108,16 +118,13 @@ export default function ReceiptScreen() {
         <div className="kp-err">{conf.message || 'Payment did not complete.'}</div>
       )}
 
-      <div className="kp-receipt-actions">
-        {confirmed && (
+      {confirmed && (
+        <div className="kp-receipt-actions">
           <button className="kp-btn kp-btn-ghost" onClick={() => setVendorMode(true)}>
             Show to vendor
           </button>
-        )}
-        <button className="kp-btn kp-btn-primary" onClick={() => nav('/scan', { replace: true })}>
-          Done
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
