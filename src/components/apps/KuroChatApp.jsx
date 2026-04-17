@@ -26,6 +26,7 @@ import {
 import KuroCubeSpinner from '../ui/KuroCubeSpinner';
 import { renderKuroText, isEmojiOnly } from '../ui/KuroEmoji';
 import usePreempt from '../../hooks/usePreempt';
+import { useLiveEdit, LiveEditBar } from './LiveEdit.jsx';
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -379,12 +380,18 @@ const ThoughtBlock = memo(({ content, isStreaming }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    MESSAGE
 ═══════════════════════════════════════════════════════════════════════════ */
-const Message = memo(({ msg, msgIndex, isStreaming, onCopy, onEdit, staggerDelay, onLongPress, isLastInGroup, isFirstInGroup }) => {
+const Message = memo(({ msg, msgIndex, isStreaming, onCopy, onEdit, staggerDelay, onLongPress, isLastInGroup, isFirstInGroup, onEditStateChange }) => {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [copied, setCopied] = useState(false);
   const editRef = useRef(null);
   const parsed = parseContent(msg.content);
+
+  // Notify parent of edit-open state so global UIs (e.g., live-edit pill) can coordinate
+  useEffect(() => {
+    onEditStateChange?.(editing);
+    return () => { if (editing) onEditStateChange?.(false); };
+  }, [editing, onEditStateChange]);
 
   const startEdit = () => { setEditValue(msg.content); setEditing(true); setTimeout(() => editRef.current?.focus(), 30); };
   const saveEdit = () => { const t = editValue.trim(); if (t && t !== msg.content) onEdit(msgIndex, t); setEditing(false); };
@@ -974,6 +981,15 @@ export default function KuroChat() {
               setIsLoading(false);
               clearTimeout(staleTimer);
               return;
+            } else if (d.type === 'aborted_for_correction') {
+              // Live-edit: server aborted this stream so a correction can restart with context.
+              // The useLiveEdit hook handles the restart; just clean up state here.
+              clearTimeout(staleTimer);
+              if (rafId) cancelAnimationFrame(rafId);
+              flushTokenBuffer();
+              setIsLoading(false);
+              setConnectionError(null);
+              return;
             } else if (d.type === 'error') {
               const errMsg = d.message || 'Stream error';
               updateMessages(cid, prev => {
@@ -1050,6 +1066,28 @@ export default function KuroChat() {
     sendMessage(editedMsg, { historyForPayload: [...truncated, editedMsg] });
   }, [messages, sendMessage]);
 
+  // ── Coordinate past-message-edit state so live-edit pill can suppress itself
+  const editingOpenCountRef = useRef(0);
+  const [editingActive, setEditingActive] = useState(false);
+  const onMessageEditStateChange = useCallback((open) => {
+    editingOpenCountRef.current = Math.max(0, editingOpenCountRef.current + (open ? 1 : -1));
+    setEditingActive(editingOpenCountRef.current > 0);
+  }, []);
+
+  // ── LIVE EDIT — mid-stream correction + queue
+  const liveEdit = useLiveEdit({
+    isStreaming: isLoading,
+    activeId,
+    messages,
+    input,
+    sendMessage,
+    updateMessages,
+    setInput,
+    setIsLoading,
+    authHeaders,
+    editingActive,
+  });
+
   const onFlashCard = useCallback((prompt) => {
     setInput(prompt);
     // Auto-send after a tiny delay for visual feedback
@@ -1122,6 +1160,7 @@ export default function KuroChat() {
                     onLongPress={(idx, x, y) => setMsgContextMenu({ idx, x, y })}
                     isLastInGroup={isLastInGroup}
                     isFirstInGroup={isFirstInGroup}
+                    onEditStateChange={onMessageEditStateChange}
                   />
                 </React.Fragment>
               );
@@ -1193,6 +1232,19 @@ export default function KuroChat() {
         </div>
       )}
 
+      {/* ── Live edit pill + queue chip (portal-rendered; keyboard-aware) ─── */}
+      <LiveEditBar
+        phrase={liveEdit.correctionPhrase}
+        visible={liveEdit.showBar}
+        adapting={liveEdit.adapting}
+        error={liveEdit.error}
+        queuedPhrase={liveEdit.queuedPhrase}
+        onRedirect={liveEdit.applyRedirect}
+        onQueue={liveEdit.applyQueue}
+        onDismiss={liveEdit.dismiss}
+        onCancelQueue={liveEdit.cancelQueue}
+      />
+
       {/* ── iOS Toolbar ─── */}
       <div className="k8-toolbar">
         <input type="file" ref={fileInputRef} hidden
@@ -1212,7 +1264,11 @@ export default function KuroChat() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (!isLoading) sendMessage();
+                    if (liveEdit.showBar) {
+                      liveEdit.applyRedirect();
+                    } else if (!isLoading) {
+                      sendMessage();
+                    }
                   }
                 }}
                 placeholder="Message KURO\u2026"
