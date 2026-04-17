@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "search.news",
+  "description": "Search for recent news articles. Convenience wrapper over search.web biased toward news sources and recency.",
+  "type": "object",
+  "required": ["query"],
+  "additionalProperties": false,
+  "properties": {
+    "query":   { "type": "string", "minLength": 1, "maxLength": 500 },
+    "top_k":   { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
+    "recency": { "type": "string", "enum": ["day", "week", "month"], "default": "week" },
+    "region":  { "type": "string", "pattern": "^[a-z]{2}-[a-z]{2}$" }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "tools.describe",
+  "description": "Return the full description + input schema + policy summary for a single tool.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Dot-notation tool name, e.g. 'vfs.read'." }
+  }
+}

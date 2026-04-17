@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>KURO::PAY Ad — Fear</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1080px; overflow: hidden; background: #000; }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    color: #f5f3ff;
+    position: relative;
+  }
+  .frame {
+    width: 1080px; height: 1080px;
+    background:
+      radial-gradient(ellipse 70% 50% at 70% 25%, rgba(180, 35, 40, 0.35) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 60% at 30% 80%, rgba(40, 20, 55, 0.65) 0%, transparent 60%),
+      linear-gradient(180deg, #05030d 0%, #000 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 64px 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* Scan lines subtle */
+  .frame::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(168,85,247,0.02) 2px, rgba(168,85,247,0.02) 3px);
+    pointer-events: none;
+  }
+  /* Corners */
+  .corner {
+    position: absolute;
+    width: 32px; height: 32px;
+    border: 1px solid rgba(168,85,247,0.7);
+  }
+  .tl { top: 32px; left: 32px; border-right: none; border-bottom: none; }
+  .tr { top: 32px; right: 32px; border-left: none; border-bottom: none; }
+  .bl { bottom: 32px; left: 32px; border-right: none; border-top: none; }
+  .br { bottom: 32px; right: 32px; border-left: none; border-top: none; }
+
+  /* Header */
+  .hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #8a85a8;
+    text-transform: uppercase;
+    z-index: 2;
+    position: relative;
+  }
+  .brand {
+    color: #f5f3ff;
+    font-weight: 500;
+    font-size: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .brand svg { display: block; }
+  .time {
+    color: #c74b4b;
+    font-weight: 500;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .time::before {
+    content: '';
+    width: 8px; height: 8px;
+    background: #c74b4b;
+    border-radius: 50%;
+    box-shadow: 0 0 12px #c74b4b;
+  }
+
+  /* Decline chip */
+  .decline-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    border: 1px solid #c74b4b;
+    background: rgba(120, 20, 25, 0.15);
+    color: #e85a5f;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 600;
+    width: fit-content;
+    margin-bottom: 48px;
+    z-index: 2;
+    position: relative;
+  }
+  .decline-chip .x {
+    width: 12px; height: 12px;
+    position: relative;
+  }
+  .decline-chip .x::before,
+  .decline-chip .x::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0;
+    width: 100%; height: 2px;
+    background: #e85a5f;
+    transform-origin: center;
+  }
+  .decline-chip .x::before { transform: translateY(-50%) rotate(45deg); }
+  .decline-chip .x::after  { transform: translateY(-50%) rotate(-45deg); }
+
+  /* Hero copy */
+  .hero {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: 78px;
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    color: #ffffff;
+    z-index: 2;
+    position: relative;
+    max-width: 900px;
+  }
+  .hero .drop {
+    color: #e85a5f;
+    display: block;
+  }
+  .hero .solve {
+    display: block;
+    margin-top: 36px;
+    color: #f5f3ff;
+    background: linear-gradient(135deg, #ffffff 0%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Footer */
+  .ftr {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    z-index: 2;
+    position: relative;
+  }
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cta .url {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #f5f3ff;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+  .cta .url .slash { color: #a855f7; }
+  .cta .plat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #8a85a8;
+    text-transform: uppercase;
+  }
+  .cta .plat .dot { color: #a855f7; margin: 0 8px; }
+
+  .variant-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: #4a4560;
+    text-transform: uppercase;
+    text-align: right;
+    line-height: 1.8;
+  }
+  .variant-tag .num { color: #a855f7; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <span class="corner tl"></span>
+  <span class="corner tr"></span>
+  <span class="corner bl"></span>
+  <span class="corner br"></span>
+
+  <div class="hdr">
+    <div class="brand">
+      <!-- KURO sigil SVG -->
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="15" stroke="#a855f7" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="4" fill="#a855f7"/>
+        <path d="M16 1 L16 9 M16 23 L16 31 M1 16 L9 16 M23 16 L31 16" stroke="#a855f7" stroke-width="1.5"/>
+      </svg>
+      KURO::PAY
+    </div>
+    <div class="time">11:47 PM · DA NẴNG</div>
+  </div>
+
+  <div>
+    <div class="decline-chip">
+      <span class="x"></span>
+      Transaction · Declined
+    </div>
+
+    <h1 class="hero">
+      <span class="drop">Card declined</span>
+      in Da Nang at 11pm.
+      <span class="solve">KURO::PAY is already on your phone.</span>
+    </h1>
+  </div>
+
+  <div class="ftr">
+    <div class="cta">
+      <a class="url" href="https://kuroglass.net/pay">kuroglass.net<span class="slash">/</span>pay</a>
+      <div class="plat">WEB <span class="dot">·</span> iOS COMING SOON</div>
+    </div>
+    <div class="variant-tag">
+      VARIANT · <span class="num">FEAR</span><br/>
+      KURO::PAY · 2026
+    </div>
+  </div>
+</div>
+</body>
+</html>

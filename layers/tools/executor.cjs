@@ -21,7 +21,7 @@
 const AjvModule = require('ajv');
 const Ajv       = typeof AjvModule === 'function' ? AjvModule : (AjvModule.default || AjvModule);
 
-const { REGISTRY }                                  = require('./registry.cjs');
+const { REGISTRY, lookup: registryLookup }          = require('./registry.cjs');
 const { POLICIES, PolicyError, enforcePolicy, truncateResult } = require('./policies.cjs');
 
 // ─── Feature flag ─────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ async function invoke(envelope, userId, db) {
     };
   }
 
-  const entry = REGISTRY[name];
+  const entry = registryLookup(name, userId, db);
   if (!entry) {
     return {
       kuro_tool_result: {
@@ -109,7 +109,11 @@ async function invoke(envelope, userId, db) {
   const argsObj = (args && typeof args === 'object') ? args : {};
 
   // ── Schema validation ─────────────────────────────────────────────────────
-  const validate = VALIDATORS[name];
+  // For dynamic tools, compile validator on-demand (cached by tool identity)
+  let validate = VALIDATORS[name];
+  if (!validate && entry.isDynamic && entry.schema) {
+    try { validate = ajv.compile(entry.schema); } catch (e) { /* leave undefined */ }
+  }
   if (!validate) {
     // Schema failed to compile at startup — deny rather than skip validation
     auditRecord(db, userId, name, argsObj, null, 'schema_error', 0, 'validator unavailable');

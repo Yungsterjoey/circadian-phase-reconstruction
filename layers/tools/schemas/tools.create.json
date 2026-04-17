@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "tools.create",
+  "description": "Register an ephemeral, in-memory tool scoped to this user session. The tool is NOT persisted to disk or DB and evaporates at session end (or 6h TTL). Use this when no existing tool matches the user's request — define a new one on the fly.\n\nAction types:\n  http_request — GET/POST an external URL; response body returned to caller\n  call_tool    — invoke an existing static tool with templated args\n  compose      — run a sequence of actions; each step's output available as {{steps.N.result}}\n\nTemplate syntax: {{arg_name}} interpolates from the caller's args; {{steps.0.result.field}} references a prior step.",
+  "type": "object",
+  "required": ["name", "description", "input_schema", "action"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "minLength": 3,
+      "maxLength": 64,
+      "description": "Dot-notation name. Must NOT collide with a built-in tool. Lowercase letters/digits/underscore only. Recommended prefixes: 'user.', 'session.', or domain-specific like 'weather.'."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500,
+      "description": "Plain-English description of what the tool does, visible via tools.describe."
+    },
+    "input_schema": {
+      "type": "object",
+      "description": "JSON Schema (draft-07 subset) describing the arguments this tool accepts. Must be type:object with additionalProperties:false."
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "method", "url_template"],
+          "additionalProperties": false,
+          "properties": {
+            "type":          { "const": "http_request" },
+            "method":        { "type": "string", "enum": ["GET", "POST"] },
+            "url_template":  { "type": "string", "maxLength": 2048, "description": "URL with {{arg}} placeholders. Must resolve to http(s)." },
+            "headers":       { "type": "object", "description": "Optional request headers (Authorization is stripped for safety unless explicitly whitelisted per-session)." },
+            "body_template": { "type": "string", "maxLength": 4096, "description": "For POST: body with {{arg}} placeholders. If the rendered body parses as JSON, Content-Type defaults to application/json." },
+            "response":      { "type": "string", "enum": ["text", "json"], "default": "text" },
+            "timeout_ms":    { "type": "integer", "minimum": 500, "maximum": 10000, "default": 5000 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "tool", "args_template"],
+          "additionalProperties": false,
+          "properties": {
+            "type":          { "const": "call_tool" },
+            "tool":          { "type": "string", "description": "Name of an existing STATIC tool (dynamic→dynamic chaining is not allowed)." },
+            "args_template": { "type": "object", "description": "Object whose string values may contain {{arg}} placeholders." }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "steps"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "const": "compose" },
+            "steps": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "description": "Each step is a call_tool or http_request action (no nested compose). Output is bound to {{steps.N.result}}."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400,
+      "default": 21600,
+      "description": "Time-to-live before the tool is auto-evicted. Default 6 hours. Max 24 hours."
+    }
+  }
+}

@@ -91,6 +91,60 @@ const POLICIES = {
     max_bytes_out: 524288,
     timeout_ms:    5000,
   },
+
+  // ── Search ─────────────────────────────────────────────────────────────────
+  'search.web': {
+    max_calls_per_minute: 10,
+    max_bytes_in:  4096,
+    max_bytes_out: 65536,
+    timeout_ms:    8000,
+  },
+  'search.fetch': {
+    max_calls_per_minute: 15,
+    max_bytes_in:  4096,
+    max_bytes_out: 524288,
+    timeout_ms:    12000,
+  },
+  'search.news': {
+    max_calls_per_minute: 10,
+    max_bytes_in:  4096,
+    max_bytes_out: 65536,
+    timeout_ms:    8000,
+  },
+
+  // ── Meta-tools ─────────────────────────────────────────────────────────────
+  'tools.list': {
+    max_calls_per_minute: 60,
+    max_bytes_in:  512,
+    max_bytes_out: 131072,
+    timeout_ms:    2000,
+  },
+  'tools.describe': {
+    max_calls_per_minute: 60,
+    max_bytes_in:  256,
+    max_bytes_out: 32768,
+    timeout_ms:    2000,
+  },
+  'tools.create': {
+    max_calls_per_minute: 10,
+    max_bytes_in:  16384,
+    max_bytes_out: 1024,
+    timeout_ms:    2000,
+  },
+  'tools.remove': {
+    max_calls_per_minute: 20,
+    max_bytes_in:  256,
+    max_bytes_out: 256,
+    timeout_ms:    2000,
+  },
+
+  // ── Dynamic tools default policy (any user-created tool) ──────────────────
+  '__dynamic__': {
+    max_calls_per_minute: 20,
+    max_bytes_in:  8192,
+    max_bytes_out: 262144,
+    timeout_ms:    12000,
+  },
 };
 
 // ─── In-memory rate limit state: `userId:toolName` → [timestamps] ─────────────

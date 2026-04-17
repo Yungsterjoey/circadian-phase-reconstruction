@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>KURO::PAY Ad — Expose</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1080px; overflow: hidden; background: #000; }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    color: #f5f3ff;
+    position: relative;
+  }
+  .frame {
+    width: 1080px; height: 1080px;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 20%, rgba(168, 85, 247, 0.25) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 35% at 90% 75%, rgba(99, 102, 241, 0.22) 0%, transparent 55%),
+      linear-gradient(180deg, #05030d 0%, #000 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 64px 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .frame::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(168,85,247,0.025) 2px, rgba(168,85,247,0.025) 3px);
+    pointer-events: none;
+  }
+  .corner {
+    position: absolute;
+    width: 32px; height: 32px;
+    border: 1px solid rgba(168,85,247,0.7);
+  }
+  .tl { top: 32px; left: 32px; border-right: none; border-bottom: none; }
+  .tr { top: 32px; right: 32px; border-left: none; border-bottom: none; }
+  .bl { bottom: 32px; left: 32px; border-right: none; border-top: none; }
+  .br { bottom: 32px; right: 32px; border-left: none; border-top: none; }
+
+  .hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #8a85a8;
+    text-transform: uppercase;
+    z-index: 2;
+    position: relative;
+  }
+  .brand {
+    color: #f5f3ff;
+    font-weight: 500;
+    font-size: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .section-tag {
+    color: #a855f7;
+    font-weight: 600;
+  }
+
+  /* The reveal — QR + card side by side */
+  .reveal {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    z-index: 2;
+    position: relative;
+    margin: 20px 0;
+  }
+  .reveal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .qr-viz {
+    width: 200px; height: 200px;
+    background: #f5f3ff;
+    padding: 18px;
+    border: 2px solid #a855f7;
+    box-shadow: 0 0 40px rgba(168, 85, 247, 0.35);
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 2px;
+  }
+  .qr-viz i {
+    display: block;
+    background: #000;
+  }
+  .qr-viz i.w { background: transparent; }
+
+  .card-viz {
+    width: 280px; height: 176px;
+    border: 2px solid rgba(138, 133, 168, 0.4);
+    background: linear-gradient(135deg, rgba(20, 15, 35, 0.9) 0%, rgba(5, 3, 13, 0.9) 100%);
+    position: relative;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .card-viz::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: -10%;
+    width: 120%; height: 3px;
+    background: #c74b4b;
+    transform: rotate(-18deg);
+    box-shadow: 0 0 14px #c74b4b;
+  }
+  .card-viz .chip {
+    width: 34px; height: 26px;
+    background: linear-gradient(135deg, #555 0%, #888 100%);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .card-viz .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    letter-spacing: 0.15em;
+    color: #6b6880;
+  }
+  .card-viz .brand-mark {
+    position: absolute;
+    bottom: 16px;
+    right: 18px;
+    display: flex;
+    gap: 2px;
+  }
+  .card-viz .brand-mark .c1, .card-viz .brand-mark .c2 {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    opacity: 0.5;
+  }
+  .card-viz .brand-mark .c1 { background: #eb001b; }
+  .card-viz .brand-mark .c2 { background: #f79e1b; margin-left: -12px; mix-blend-mode: multiply; }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .status-row.works { color: #7cf2c3; }
+  .status-row.nope  { color: #c74b4b; }
+  .status-row .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+  .status-row.works .dot { background: #7cf2c3; box-shadow: 0 0 10px #7cf2c3; }
+  .status-row.nope .dot  { background: #c74b4b; box-shadow: 0 0 10px #c74b4b; }
+
+  /* Hero copy */
+  .hero {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: 68px;
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    color: #ffffff;
+    z-index: 2;
+    position: relative;
+  }
+  .hero .dim { color: #8a85a8; }
+  .hero .until {
+    display: block;
+    margin-top: 24px;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 72px;
+    font-weight: 400;
+    line-height: 1.0;
+    background: linear-gradient(135deg, #ffffff 0%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .ftr {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    z-index: 2;
+    position: relative;
+  }
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cta .url {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #f5f3ff;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+  .cta .url .slash { color: #a855f7; }
+  .cta .plat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #8a85a8;
+    text-transform: uppercase;
+  }
+  .cta .plat .dot { color: #a855f7; margin: 0 8px; }
+  .variant-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: #4a4560;
+    text-transform: uppercase;
+    text-align: right;
+    line-height: 1.8;
+  }
+  .variant-tag .num { color: #a855f7; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <span class="corner tl"></span>
+  <span class="corner tr"></span>
+  <span class="corner bl"></span>
+  <span class="corner br"></span>
+
+  <div class="hdr">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="15" stroke="#a855f7" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="4" fill="#a855f7"/>
+        <path d="M16 1 L16 9 M16 23 L16 31 M1 16 L9 16 M23 16 L31 16" stroke="#a855f7" stroke-width="1.5"/>
+      </svg>
+      KURO::PAY
+    </div>
+    <div class="section-tag">// Reveal</div>
+  </div>
+
+  <div>
+    <h1 class="hero">
+      The QR works <span class="dim">everywhere.</span><br/>
+      Your card <span class="dim">doesn't.</span>
+      <span class="until">Until now.</span>
+    </h1>
+
+    <div class="reveal">
+      <div class="reveal-cell">
+        <div class="qr-viz" id="qr"></div>
+        <div class="status-row works"><span class="dot"></span> Accepted</div>
+      </div>
+      <div class="reveal-cell">
+        <div class="card-viz">
+          <div class="chip"></div>
+          <div class="num">•••• •••• •••• 4829</div>
+          <div class="brand-mark">
+            <span class="c1"></span>
+            <span class="c2"></span>
+          </div>
+        </div>
+        <div class="status-row nope"><span class="dot"></span> Declined</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ftr">
+    <div class="cta">
+      <a class="url" href="https://kuroglass.net/pay">kuroglass.net<span class="slash">/</span>pay</a>
+      <div class="plat">WEB <span class="dot">·</span> iOS COMING SOON</div>
+    </div>
+    <div class="variant-tag">
+      VARIANT · <span class="num">EXPOSE</span><br/>
+      KURO::PAY · 2026
+    </div>
+  </div>
+</div>
+
+<script>
+// Render a pseudo-QR pattern into the QR block. Deterministic, no animation —
+// runs at DOMContentLoaded so Playwright captures the rendered state.
+(function () {
+  const qr = document.getElementById('qr');
+  if (!qr) return;
+  const pattern = [
+    1,1,1,1,1,1,1,0,1,1,
+    1,0,0,0,0,0,1,0,1,1,
+    1,0,1,1,1,0,1,0,0,1,
+    1,0,1,1,1,0,1,0,1,0,
+    1,0,1,1,1,0,1,0,0,1,
+    1,0,0,0,0,0,1,0,1,0,
+    1,1,1,1,1,1,1,0,1,1,
+    0,0,0,0,0,0,0,0,0,1,
+    1,1,0,1,0,1,0,1,1,1,
+    1,0,1,0,1,1,1,0,1,0,
+  ];
+  pattern.forEach(p => {
+    const i = document.createElement('i');
+    if (!p) i.className = 'w';
+    qr.appendChild(i);
+  });
+})();
+</script>
+</body>
+</html>

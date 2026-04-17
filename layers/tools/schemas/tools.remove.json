@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "tools.remove",
+  "description": "Evict a dynamic tool from this session. Built-in tools cannot be removed.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 3, "maxLength": 64 }
+  }
+}

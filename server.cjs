@@ -1902,7 +1902,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Artifacts: ${typeof mountArtifactRoutes === 'function' ? 'wired' : 'fallback'}`);
   console.log(`  CtxReact:  ${ingestFile ? 'wired' : 'fallback'}`);
   console.log(`  CALL:      ${callRouter ? 'wired (Twilio+PersonaPlex, /phone/*)' : 'not loaded'}`);
-  console.log(`  Vectors:   Edubba(${typeof edubbaStore !== 'undefined' ? edubbaStore.count() : '-'}) Mnemosyne(${typeof mnemosyneStore !== 'undefined' ? mnemosyneStore.count() : '-'})`);
+  console.log(`  Vectors:   Edubba(${_systemEdubba.count()}) Mnemosyne(${_systemMnemosyne.count()})`);
   console.log('  ' + '═'.repeat(50) + '\n');
 
   // B5: Startup warm — pre-load router + default model into VRAM

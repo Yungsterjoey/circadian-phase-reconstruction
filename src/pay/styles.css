@@ -216,6 +216,16 @@ html, body {
   border-bottom: 1px dashed rgba(255,255,255,0.05);
 }
 .kp-rails-item:last-child { border-bottom: none; }
+.kp-rails-left {
+  display: flex; align-items: center; gap: 12px;
+  min-width: 0;
+}
+.kp-rails-logo {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.kp-rails-logo svg { display: block; }
 .kp-rails-code {
   font-weight: 600; color: var(--kp-fg-2);
   letter-spacing: 0.01em;

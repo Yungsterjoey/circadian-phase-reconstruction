@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "search.web",
+  "description": "Search the public web via KURO's web adapter (DuckDuckGo). Returns ranked results with title, url, snippet.",
+  "type": "object",
+  "required": ["query"],
+  "additionalProperties": false,
+  "properties": {
+    "query":      { "type": "string", "minLength": 1, "maxLength": 500, "description": "Free-text search query." },
+    "top_k":      { "type": "integer", "minimum": 1, "maximum": 10, "default": 5, "description": "Max number of results (hard-capped at 10)." },
+    "recency":    { "type": "string", "enum": ["any", "day", "week", "month", "year"], "default": "any", "description": "Prefer results from this window (best-effort — adapter may ignore)." },
+    "region":     { "type": "string", "pattern": "^[a-z]{2}-[a-z]{2}$", "description": "Two-locale region code, e.g. 'us-en', 'vn-vi'. Default 'wt-wt' (worldwide)." },
+    "safesearch": { "type": "string", "enum": ["off", "moderate", "strict"], "default": "off" },
+    "include_context": { "type": "boolean", "default": false, "description": "If true, also return a pre-formatted context block suitable for LLM injection." }
+  }
+}

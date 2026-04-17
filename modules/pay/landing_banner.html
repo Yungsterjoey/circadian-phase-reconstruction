@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KURO::PAY — Why KURO?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --void: #000;
+    --ink: #05030d;
+    --fg: #f5f3ff;
+    --fg-dim: #a5a0c2;
+    --fg-dimmer: #6b6880;
+    --violet: #a855f7;
+    --violet-soft: #c084fc;
+    --warn: #e8c547;
+    --live: #7cf2c3;
+    --red: #e85a5f;
+    --line: rgba(168, 85, 247, 0.14);
+    --line-strong: rgba(168, 85, 247, 0.28);
+    --surface: rgba(10, 8, 24, 0.55);
+    --auto-ms: 6500ms;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: var(--void);
+    color: var(--fg);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* =============== DESKTOP BACKGROUND (ported) =============== */
+  .desktop-bg {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .void-black {
+    position: absolute; inset: 0;
+    background: #000;
+  }
+  .lava-layer {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 85% 60% at 20% 80%, rgba(99, 102, 241, 0.14) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 80% 20%, rgba(168, 85, 247, 0.10) 0%, transparent 55%);
+    filter: blur(20px);
+  }
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    mix-blend-mode: screen;
+    opacity: 0.9;
+  }
+  .orb-1 {
+    width: 520px; height: 520px;
+    left: -10%; top: 20%;
+    background: radial-gradient(circle, rgba(147,51,234,0.85) 0%, rgba(147,51,234,0) 70%);
+    animation: f1 22s ease-in-out infinite;
+  }
+  .orb-2 {
+    width: 440px; height: 440px;
+    right: -6%; top: 10%;
+    background: radial-gradient(circle, rgba(192,132,252,0.7) 0%, rgba(192,132,252,0) 70%);
+    animation: f2 18s ease-in-out infinite;
+  }
+  .orb-3 {
+    width: 380px; height: 380px;
+    left: 40%; bottom: -10%;
+    background: radial-gradient(circle, rgba(236,130,250,0.55) 0%, rgba(236,130,250,0) 70%);
+    animation: f3 26s ease-in-out infinite;
+  }
+  .orb-4 {
+    width: 300px; height: 300px;
+    right: 35%; top: 55%;
+    background: radial-gradient(circle, rgba(99,102,241,0.5) 0%, rgba(99,102,241,0) 70%);
+    animation: f4 30s ease-in-out infinite;
+  }
+  @keyframes f1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(80px,-60px) scale(1.12); } }
+  @keyframes f2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,80px) scale(0.9); } }
+  @keyframes f3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,-70px) scale(1.15); } }
+  @keyframes f4 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,-40px) scale(1.05); } }
+  .touch-glow {
+    position: absolute;
+    width: 360px; height: 360px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(168,85,247,0.22) 0%, rgba(168,85,247,0) 60%);
+    transform: translate(-50%, -50%);
+    left: 50%; top: 50%;
+    filter: blur(18px);
+    pointer-events: none;
+    transition: left 0.2s ease-out, top 0.2s ease-out;
+  }
+  .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 140% 100% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+  }
+  .grain {
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/></svg>");
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+  .scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(168,85,247,0.025) 2px, rgba(168,85,247,0.025) 3px);
+    pointer-events: none;
+  }
+
+  /* =============== BANNER SHELL =============== */
+  .banner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .banner-head {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px 36px;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    z-index: 5;
+  }
+  .banner-head .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--fg);
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+  }
+  .banner-head .tag {
+    color: var(--violet-soft);
+    font-weight: 600;
+  }
+  .banner-head .hash {
+    color: var(--fg-dimmer);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+  }
+
+  .corner {
+    position: absolute;
+    width: 24px; height: 24px;
+    border: 1px solid var(--line-strong);
+    z-index: 4;
+    pointer-events: none;
+  }
+  .tl { top: 18px; left: 18px; border-right: none; border-bottom: none; }
+  .tr { top: 18px; right: 18px; border-left: none; border-bottom: none; }
+  .bl { bottom: 18px; left: 18px; border-right: none; border-top: none; }
+  .br { bottom: 18px; right: 18px; border-left: none; border-top: none; }
+
+  /* =============== SLIDES =============== */
+  .slides {
+    position: absolute;
+    inset: 0;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: clamp(60px, 7vh, 96px) clamp(40px, 6vw, 96px);
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: clamp(24px, 4vw, 72px);
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.7s ease;
+  }
+  .slide.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .scene {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .scene .chrono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--violet-soft);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .scene .chrono::before {
+    content: '';
+    display: inline-block;
+    width: 22px;
+    height: 1px;
+    background: var(--violet);
+  }
+  .scene h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: clamp(40px, 5.6vw, 84px);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    color: var(--fg);
+  }
+  .scene h1 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    background: linear-gradient(135deg, #ffffff 0%, var(--violet-soft) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .scene h1 .dim { color: var(--fg-dim); }
+  .scene h1 .red { color: var(--red); }
+  .scene .aside {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(12px, 1.1vw, 14px);
+    color: var(--fg-dim);
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    max-width: 46ch;
+  }
+
+  .why {
+    position: relative;
+    padding: clamp(22px, 3vh, 36px) clamp(22px, 2.5vw, 36px);
+    border: 1px solid var(--line-strong);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.09) 0%, rgba(10, 8, 24, 0.7) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .why::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 40px; height: 40px;
+    border-top: 2px solid var(--violet);
+    border-left: 2px solid var(--violet);
+  }
+  .why .pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: var(--violet-soft);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .why .hook {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(20px, 2.1vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--fg);
+  }
+  .why .because {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(22px, 2vw, 30px);
+    font-style: italic;
+    line-height: 1.25;
+    color: var(--violet-soft);
+    letter-spacing: -0.01em;
+  }
+  .why .because strong {
+    font-style: normal;
+    font-weight: 400;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.85em;
+    color: var(--fg);
+  }
+  .why .stats {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 22px;
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    color: var(--fg-dimmer);
+    text-transform: uppercase;
+  }
+  .why .stats .v {
+    color: var(--fg);
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+    display: block;
+    margin-bottom: 3px;
+    text-transform: none;
+  }
+  .why .stats .v.live { color: var(--live); }
+  .why .stats .v.warn { color: var(--warn); }
+
+  /* =============== PROGRESS + CONTROLS =============== */
+  .progress {
+    position: absolute;
+    bottom: 28px; left: 36px; right: 36px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--fg-dimmer);
+    text-transform: uppercase;
+  }
+  .pips {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+  }
+  .pip {
+    flex: 1;
+    height: 2px;
+    background: rgba(168, 85, 247, 0.12);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: height 0.2s;
+  }
+  .pip:hover { height: 4px; }
+  .pip .fill {
+    position: absolute;
+    inset: 0;
+    width: 0%;
+    background: var(--violet);
+    transform-origin: left;
+  }
+  .pip.past .fill { width: 100%; }
+  .pip.active .fill {
+    animation: pipfill var(--auto-ms) linear forwards;
+  }
+  .banner.paused .pip.active .fill { animation-play-state: paused; }
+  @keyframes pipfill { from { width: 0; } to { width: 100%; } }
+
+  .progress .idx {
+    color: var(--violet-soft);
+    min-width: 5ch;
+    text-align: right;
+    font-weight: 600;
+  }
+  .progress .state {
+    color: var(--fg-dim);
+    min-width: 8ch;
+  }
+  .progress .state .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: var(--live);
+    box-shadow: 0 0 8px var(--live);
+    vertical-align: middle;
+  }
+  .banner.paused .progress .state .dot {
+    background: var(--warn);
+    box-shadow: 0 0 8px var(--warn);
+  }
+
+  .cta-corner {
+    position: absolute;
+    bottom: clamp(60px, 8vh, 96px);
+    right: clamp(40px, 6vw, 96px);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cta-corner .url {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: clamp(16px, 1.4vw, 22px);
+    color: var(--fg);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cta-corner .url .slash { color: var(--violet); }
+  .cta-corner .note {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--fg-dimmer);
+    text-transform: uppercase;
+  }
+
+  /* =============== SCENE-SPECIFIC VISUALS =============== */
+  .viz-card {
+    position: relative;
+    margin-top: 8px;
+    padding: 18px 20px;
+    width: fit-content;
+    border: 1px solid var(--red);
+    background: rgba(120, 20, 25, 0.12);
+    color: var(--red);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-weight: 600;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .viz-card .x {
+    width: 12px; height: 12px;
+    position: relative;
+  }
+  .viz-card .x::before, .viz-card .x::after {
+    content: ''; position: absolute; top: 50%; left: 0;
+    width: 100%; height: 2px; background: var(--red);
+  }
+  .viz-card .x::before { transform: translateY(-50%) rotate(45deg); }
+  .viz-card .x::after  { transform: translateY(-50%) rotate(-45deg); }
+
+  .viz-ok {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    color: var(--live);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 10px 16px;
+    border: 1px solid var(--live);
+    background: rgba(60, 140, 100, 0.08);
+    margin-top: 8px;
+    width: fit-content;
+  }
+  .viz-ok .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--live);
+    box-shadow: 0 0 10px var(--live);
+  }
+
+  .compare-mini {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 10px;
+    max-width: 420px;
+  }
+  .compare-mini .col {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+  }
+  .compare-mini .col.them { opacity: 0.7; }
+  .compare-mini .col.us {
+    border-color: var(--violet);
+    background: rgba(168, 85, 247, 0.08);
+  }
+  .compare-mini .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+    margin-bottom: 6px;
+  }
+  .compare-mini .pct {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+  .compare-mini .them .pct {
+    color: var(--fg-dim);
+    text-decoration: line-through;
+    text-decoration-color: var(--red);
+    text-decoration-thickness: 3px;
+  }
+  .compare-mini .us .pct {
+    background: linear-gradient(180deg, #fff 0%, var(--violet-soft) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .split-tape {
+    margin-top: 10px;
+    display: flex;
+    gap: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    max-width: 460px;
+    border: 1px solid var(--line-strong);
+  }
+  .split-tape .seg {
+    flex: 1;
+    padding: 14px 12px;
+    text-align: center;
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .split-tape .seg:last-child { border-right: none; }
+  .split-tape .seg .flag {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--violet-soft);
+    text-transform: uppercase;
+  }
+  .split-tape .seg .amt {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+
+  .qr-mini {
+    width: 120px; height: 120px;
+    padding: 10px;
+    background: #f5f3ff;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 1px;
+    margin-top: 10px;
+    border: 2px solid var(--violet);
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.35);
+  }
+  .qr-mini i { background: #000; display: block; }
+  .qr-mini i.w { background: transparent; }
+
+  .receipt-strip {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line-strong);
+    background: rgba(10, 8, 24, 0.6);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--fg-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 480px;
+  }
+  .receipt-strip .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .receipt-strip .row .k { color: var(--fg-dimmer); letter-spacing: 0.24em; text-transform: uppercase; font-size: 9px; }
+  .receipt-strip .row .v { color: var(--fg); font-family: 'JetBrains Mono', monospace; }
+  .receipt-strip .row .v.h { color: var(--violet-soft); font-size: 9px; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; }
+
+  .boot-strip {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .boot-strip .a, .boot-strip .b {
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+  }
+  .boot-strip .a { color: var(--warn); border-color: var(--warn); }
+  .boot-strip .arrow { color: var(--violet); font-weight: 700; }
+  .boot-strip .b { color: var(--live); border-color: var(--live); }
+
+  /* =============== MOBILE / PORTRAIT =============== */
+  @media (max-aspect-ratio: 1/1) {
+    .slide {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+      align-items: start;
+      padding: clamp(80px, 10vh, 120px) clamp(28px, 6vw, 60px) clamp(80px, 12vh, 140px);
+      gap: 24px;
+    }
+    .scene h1 { font-size: clamp(32px, 9vw, 56px); }
+    .cta-corner { bottom: 68px; }
+  }
+  @media (max-width: 560px) {
+    .banner-head { padding: 16px 22px; }
+    .banner-head .hash { display: none; }
+    .progress { left: 22px; right: 22px; bottom: 22px; }
+  }
+
+  /* =============== REDUCED MOTION =============== */
+  @media (prefers-reduced-motion: reduce) {
+    .orb { animation: none !important; }
+    .slide { transition: none !important; }
+    .pip.active .fill { animation-duration: 0s; }
+  }
+</style>
+</head>
+<body>
+
+<!-- DESKTOP BACKGROUND -->
+<div class="desktop-bg" aria-hidden="true">
+  <div class="void-black"></div>
+  <div class="lava-layer"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="orb orb-4"></div>
+  <div class="touch-glow" id="touchGlow"></div>
+  <div class="grain"></div>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+</div>
+
+<div class="banner" id="banner">
+  <span class="corner tl"></span>
+  <span class="corner tr"></span>
+  <span class="corner bl"></span>
+  <span class="corner br"></span>
+
+  <div class="banner-head">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="15" stroke="#a855f7" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="4" fill="#a855f7"/>
+        <path d="M16 1 L16 9 M16 23 L16 31 M1 16 L9 16 M23 16 L31 16" stroke="#a855f7" stroke-width="1.5"/>
+      </svg>
+      KURO::PAY
+    </div>
+    <div class="tag">// CHOOSE KURO</div>
+    <div class="hash" id="hashTicker">0x····</div>
+  </div>
+
+  <div class="slides" id="slides">
+
+    <!-- 01: Da Nang card decline -->
+    <section class="slide is-active" data-idx="0">
+      <div class="scene">
+        <div class="chrono">23:47 · Da Nang · Tuesday</div>
+        <h1>Card declined <em>at a food cart.</em></h1>
+        <div class="viz-card"><span class="x"></span> Transaction · Declined</div>
+        <div class="aside">Your bank's fraud team is asleep in Sydney. The vendor is not. The bánh mì lady does not take IOUs.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because your card thinks you're in Vietnam.<br/>KURO knows you are.</div>
+        <div class="because">Because <strong>VietQR</strong> works where your card is frozen.<br/>One tap. One second. One dong.</div>
+        <div class="stats">
+          <div><span class="v live">&lt; 1.2s</span>settle</div>
+          <div><span class="v">0.5%</span>fee</div>
+          <div><span class="v">VND</span>direct</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- 02: 3% vs 0.5% -->
+    <section class="slide" data-idx="1">
+      <div class="scene">
+        <div class="chrono">Every tap · every corridor</div>
+        <h1>The 3% <span class="dim">isn't friction.</span><br/><em>It's margin.</em></h1>
+        <div class="compare-mini">
+          <div class="col them">
+            <div class="label">Visa · MC · Amex</div>
+            <div class="pct">3%</div>
+          </div>
+          <div class="col us">
+            <div class="label">KURO::PAY</div>
+            <div class="pct">0.5%</div>
+          </div>
+        </div>
+        <div class="aside">Foreign transaction fee + FX spread + interchange. They call it "foreign transaction". We call it a tax on being a tourist.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because 0.5% is 6× better than 3%.<br/>That math doesn't move.</div>
+        <div class="because">Because the rail costs <strong>0.1%</strong>.<br/>The rest was never about rails.</div>
+        <div class="stats">
+          <div><span class="v warn">−2.5pp</span>you keep</div>
+          <div><span class="v">mid-mkt</span>FX</div>
+          <div><span class="v">0</span>hidden</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- 03: QR works, card doesn't -->
+    <section class="slide" data-idx="2">
+      <div class="scene">
+        <div class="chrono">Chiang Mai · hostel lobby · 02:10</div>
+        <h1>The QR works <span class="dim">everywhere.</span><br/>Your card <em>doesn't.</em></h1>
+        <div class="qr-mini" id="qrMini"></div>
+        <div class="viz-ok"><span class="dot"></span> Accepted</div>
+        <div class="aside">7-Eleven. Street noodles. That homestay that only takes PromptPay. The QR is the tender. KURO funds the QR.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because the rails you need already exist.<br/>You just can't use them yet.</div>
+        <div class="because">Because <strong>VietQR · PromptPay · QRIS</strong> are open.<br/>And we already speak all three.</div>
+        <div class="stats">
+          <div><span class="v">VN · TH</span>live</div>
+          <div><span class="v">ID · PH · MY</span>next</div>
+          <div><span class="v live">0</span>new apps</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- 04: Split dinner 3-ways across currencies -->
+    <section class="slide" data-idx="3">
+      <div class="scene">
+        <div class="chrono">Hanoi · 3 of you · one bill</div>
+        <h1>You paid.<br/>They paid you back <em>in three currencies.</em></h1>
+        <div class="split-tape">
+          <div class="seg"><span class="flag">AUD</span><span class="amt">$14.20</span></div>
+          <div class="seg"><span class="flag">VND</span><span class="amt">230,000</span></div>
+          <div class="seg"><span class="flag">THB</span><span class="amt">฿ 320</span></div>
+        </div>
+        <div class="aside">Split with friends across AUD, VND, THB in one tap. KURO does the FX legs. You get exactly what you paid — no more, no less.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because splitting is the hardest part of travelling together.<br/>So we made it the easiest.</div>
+        <div class="because">Because a <strong>3-way split</strong> shouldn't need 3 apps and a calculator.</div>
+        <div class="stats">
+          <div><span class="v">1 tap</span>per friend</div>
+          <div><span class="v">mid-mkt</span>FX</div>
+          <div><span class="v live">now</span>settled</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- 05: Hash-chain receipts -->
+    <section class="slide" data-idx="4">
+      <div class="scene">
+        <div class="chrono">Dispute · six months later</div>
+        <h1>Every tap, <em>hash-chained.</em><br/><span class="dim">No argument.</span></h1>
+        <div class="receipt-strip">
+          <div class="row"><span class="k">txn</span><span class="v">kp_live_8f3a · VND 230,000</span></div>
+          <div class="row"><span class="k">rail</span><span class="v">VietQR · NAPAS</span></div>
+          <div class="row"><span class="k">prev</span><span class="v h" id="hashReceipt">0x7b44c92f·9a1e·0000</span></div>
+          <div class="row"><span class="k">status</span><span class="v" style="color: var(--live)">• SETTLED</span></div>
+        </div>
+        <div class="aside">SHA-256, chained. Your receipt links to the one before it. Tamper with any row and the whole ledger screams. No issuer needed.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because "he-said / she-said" is over.<br/>You keep the proof.</div>
+        <div class="because">Because <strong>cryptographic receipts</strong> don't need a judge.</div>
+        <div class="stats">
+          <div><span class="v">SHA-256</span>chain</div>
+          <div><span class="v">0</span>centralised</div>
+          <div><span class="v live">∀</span>verifiable</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- 06: Boot with AUD, spend VND -->
+    <section class="slide" data-idx="5">
+      <div class="scene">
+        <div class="chrono">Arrival · haven't landed yet</div>
+        <h1>Boot with <em>AUD.</em><br/>Land in <em>VND.</em></h1>
+        <div class="boot-strip">
+          <span class="a">AUD $50.00</span>
+          <span class="arrow">→</span>
+          <span class="b">VND 810,000</span>
+        </div>
+        <div class="aside">Top up before the plane. KURO routes AUD through Stripe, sits on it, dispatches VND when you tap. Mid-market FX. No counter. No queue.</div>
+      </div>
+      <aside class="why">
+        <div class="pre">Choose KURO · Why?</div>
+        <div class="hook">Because the airport FX booth is a tax on jet lag.<br/>We skip the booth.</div>
+        <div class="because">Because <strong>pre-funded wallets</strong> settle faster than cash withdrawals.</div>
+        <div class="stats">
+          <div><span class="v">Stripe</span>in</div>
+          <div><span class="v">VietQR</span>out</div>
+          <div><span class="v live">mid</span>FX</div>
+        </div>
+      </aside>
+    </section>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-corner">
+    <a class="url" href="https://kuroglass.net/pay">kuroglass.net<span class="slash">/</span>pay</a>
+    <div class="note">WEB · iOS COMING SOON</div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress">
+    <div class="pips" id="pips"></div>
+    <div class="state"><span class="dot"></span><span id="stateText">LIVE</span></div>
+    <div class="idx" id="idxText">01 / 06</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ==================== DESKTOP BG — touch glow ====================
+  const glow = document.getElementById('touchGlow');
+  const target = { x: 50, y: 50 };
+  const current = { x: 50, y: 50 };
+
+  function onMove(e) {
+    const x = e.clientX ?? e.touches?.[0]?.clientX;
+    const y = e.clientY ?? e.touches?.[0]?.clientY;
+    if (x == null) return;
+    target.x = (x / window.innerWidth) * 100;
+    target.y = (y / window.innerHeight) * 100;
+  }
+  window.addEventListener('mousemove', onMove, { passive: true });
+  window.addEventListener('touchmove', onMove, { passive: true });
+
+  (function tick() {
+    current.x += (target.x - current.x) * 0.05;
+    current.y += (target.y - current.y) * 0.05;
+    if (glow) {
+      glow.style.left = current.x + '%';
+      glow.style.top = current.y + '%';
+    }
+    requestAnimationFrame(tick);
+  })();
+
+  // ==================== QR MINI ====================
+  const qr = document.getElementById('qrMini');
+  if (qr) {
+    const pattern = [
+      1,1,1,1,1,1,1,0,1,0,
+      1,0,0,0,0,0,1,0,0,1,
+      1,0,1,1,1,0,1,0,1,1,
+      1,0,1,1,1,0,1,0,1,0,
+      1,0,1,1,1,0,1,0,0,1,
+      1,0,0,0,0,0,1,0,1,1,
+      1,1,1,1,1,1,1,0,1,0,
+      0,0,0,0,0,0,0,0,0,1,
+      1,0,1,1,0,1,0,1,1,1,
+      0,1,0,0,1,0,1,0,1,0,
+    ];
+    pattern.forEach(p => {
+      const i = document.createElement('i');
+      if (!p) i.className = 'w';
+      qr.appendChild(i);
+    });
+  }
+
+  // ==================== HASH TICKER ====================
+  const hashEl = document.getElementById('hashTicker');
+  const hashReceipt = document.getElementById('hashReceipt');
+  const hex = '0123456789abcdef';
+  function randHash(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) s += hex[Math.floor(Math.random() * 16)];
+    return s;
+  }
+  function updateHashes() {
+    if (hashEl) hashEl.textContent = '0x' + randHash(8);
+    if (hashReceipt) {
+      hashReceipt.textContent = '0x' + randHash(8) + '·' + randHash(4) + '·0000';
+    }
+  }
+  updateHashes();
+  setInterval(updateHashes, 900);
+
+  // ==================== CAROUSEL ====================
+  const slides = Array.from(document.querySelectorAll('.slide[data-idx]'));
+  const pipsWrap = document.getElementById('pips');
+  const idxText = document.getElementById('idxText');
+  const stateText = document.getElementById('stateText');
+  const banner = document.getElementById('banner');
+  const AUTO_MS = 6500;
+  let current_idx = 0;
+  let timer = null;
+  let paused = false;
+
+  // Build pips
+  slides.forEach((_, i) => {
+    const pip = document.createElement('div');
+    pip.className = 'pip' + (i === 0 ? ' active' : '');
+    pip.innerHTML = '<span class="fill"></span>';
+    pip.addEventListener('click', () => go(i));
+    pipsWrap.appendChild(pip);
+  });
+  const pips = Array.from(pipsWrap.children);
+
+  function setIdxLabel(i) {
+    idxText.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0');
+  }
+
+  function go(i) {
+    if (i === current_idx) return;
+    slides[current_idx].classList.remove('is-active');
+    pips[current_idx].classList.remove('active');
+    pips[current_idx].classList.add('past');
+    // if wrapped, clear "past" marks ahead of new current
+    if (i < current_idx) {
+      pips.forEach((p, j) => {
+        if (j >= i) p.classList.remove('past');
+      });
+    }
+    current_idx = i;
+    slides[current_idx].classList.add('is-active');
+    pips[current_idx].classList.remove('past');
+    pips[current_idx].classList.add('active');
+    // force animation restart
+    const fill = pips[current_idx].querySelector('.fill');
+    fill.style.animation = 'none';
+    void fill.offsetWidth;
+    fill.style.animation = '';
+    setIdxLabel(current_idx);
+    resetTimer();
+  }
+
+  function next() { go((current_idx + 1) % slides.length); }
+
+  function resetTimer() {
+    clearTimeout(timer);
+    if (!paused) timer = setTimeout(next, AUTO_MS);
+  }
+
+  function pause() {
+    if (paused) return;
+    paused = true;
+    banner.classList.add('paused');
+    stateText.textContent = 'PAUSED';
+    clearTimeout(timer);
+  }
+  function resume() {
+    if (!paused) return;
+    paused = false;
+    banner.classList.remove('paused');
+    stateText.textContent = 'LIVE';
+    resetTimer();
+  }
+
+  banner.addEventListener('mouseenter', pause);
+  banner.addEventListener('mouseleave', resume);
+  banner.addEventListener('focusin', pause);
+  banner.addEventListener('focusout', resume);
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { go((current_idx + 1) % slides.length); }
+    else if (e.key === 'ArrowLeft') { go((current_idx - 1 + slides.length) % slides.length); }
+    else if (e.key === ' ') { paused ? resume() : pause(); e.preventDefault(); }
+  });
+
+  // Swipe
+  let tStartX = 0;
+  banner.addEventListener('touchstart', (e) => { tStartX = e.touches[0].clientX; }, { passive: true });
+  banner.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - tStartX;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0) go((current_idx + 1) % slides.length);
+      else go((current_idx - 1 + slides.length) % slides.length);
+    }
+  });
+
+  setIdxLabel(0);
+  resetTimer();
+
+  // Visibility pause
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause(); else resume();
+  });
+})();
+</script>
+</body>
+</html>
