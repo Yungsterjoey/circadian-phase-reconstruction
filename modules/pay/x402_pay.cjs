@@ -1,60 +1,132 @@
 'use strict';
 
 /**
- * KURO::PAY — x402 Payment Protocol
+ * KURO::PAY — x402 settlement client.
  *
- * Implements x402 v2 payment required / submit / receipt cycle.
- * The facilitator (x402.org or custom) receives the payment payload,
- * converts AUD → VND, and settles to the merchant bank account.
+ * Posts to KURO's own x402 facilitator (modules/facilitator). The facilitator
+ * verifies the HMAC-signed payload, claims the nonce, then dispatches to the
+ * rail (fiat-napas247 → Ant International / x402 Foundation fiat rail operator).
  *
- * No Wise API calls here. Settlement is the facilitator's job.
- * Stripe = funding only. x402 = settlement protocol.
+ * Stripe funds the AUD leg. x402 is the settlement protocol.
  */
 
 const crypto = require('crypto');
 const axios  = require('axios');
-const { x402Version } = require('@x402/core');
 
-const FACILITATOR_URL = process.env.X402_FACILITATOR_URL || 'https://facilitator.x402.org';
+const FACILITATOR_URL = process.env.X402_FACILITATOR_URL || 'http://127.0.0.1:3000/api/facilitator';
+const SVC_KEY         = process.env.KURO_FACILITATOR_SECRET || '';
 const COMMISSION_RATE = parseFloat(process.env.KURO_PAY_COMMISSION || '0.012');
 const X402_VERSION    = 2;
 
-// ── buildPaymentRequired ──────────────────────────────────────────
-/**
- * Construct an x402 PaymentRequired object describing what the
- * facilitator must do: receive AUD from Stripe, settle VND to
- * the merchant's bank account.
- *
- * @param {object} parsedQR     — output of parseEMVQR()
- * @param {number} amountAUD    — gross AUD charge amount
- * @param {number} amountVND    — local currency amount
- * @param {string} stripeIntentId — Stripe PaymentIntent ID (proof of funding)
- * @param {string} ref          — unique payment reference
- */
+const QR_STANDARD_TO_SCHEME = {
+  vietqr:    'fiat-napas247',
+  napas:     'fiat-napas247',
+  napas247:  'fiat-napas247',
+  promptpay: 'fiat-promptpay',
+  qris:      'fiat-bifast',
+  qrph:      'fiat-instapay',
+  duitnow:   'fiat-duitnow',
+};
+
+const SCHEME_TO_NETWORK = {
+  'fiat-napas247':  'napas247',
+  'fiat-promptpay': 'promptpay',
+  'fiat-instapay':  'instapay',
+  'fiat-duitnow':   'duitnow',
+  'fiat-bifast':    'bifast',
+};
+
+function canonicalJSON(obj) {
+  const keys = Object.keys(obj).filter((k) => k !== 'signature').sort();
+  return '{' + keys.map((k) => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
+}
+
+function stableStringify(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  const keys = Object.keys(v).sort();
+  return '{' + keys.map((k) => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+}
+
+function schemeFor(parsedQR) {
+  const raw = (parsedQR.standard || '').toLowerCase();
+  return QR_STANDARD_TO_SCHEME[raw] || 'fiat-napas247';
+}
+
+function newNonce() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function signPayload(payload, scheme) {
+  const envKey = 'KURO_FACILITATOR_RAIL_SECRET_' + scheme.toUpperCase().replace(/-/g, '_');
+  const key = process.env[envKey] || '';
+  if (!key) return null;
+  return crypto.createHmac('sha256', key).update(canonicalJSON(payload)).digest('hex');
+}
+
 function buildPaymentRequired(parsedQR, amountAUD, amountVND, stripeIntentId, ref) {
+  const scheme = schemeFor(parsedQR);
+  const network = SCHEME_TO_NETWORK[scheme] || parsedQR.standard || 'napas247';
   const commission = parseFloat((amountAUD * COMMISSION_RATE).toFixed(4));
   const netAUD     = parseFloat((amountAUD - commission).toFixed(4));
 
-  return {
-    version:       X402_VERSION,
-    x402Version:   x402Version,
-    scheme:        'exact',
-    network:       parsedQR.standard || 'vietqr',
-    facilitatorUrl: FACILITATOR_URL,
-    description:   `KURO::PAY — ${parsedQR.bankName || parsedQR.bankBin} ${parsedQR.accountNumber}`,
+  const payload = {
+    scheme,
+    network,
+    payer:     stripeIntentId,
+    amount:    String(amountVND),
+    currency:  parsedQR.currency || 'VND',
+    recipient: parsedQR.accountNumber,
+    nonce:     newNonce(),
+    ts:        Math.floor(Date.now() / 1000),
+    extra: {
+      reference:     ref,
+      bankBin:       parsedQR.bankBin,
+      bankName:      parsedQR.bankName,
+      bankShortName: parsedQR.bankShortName,
+      bankSwift:     parsedQR.bankSwift,
+      merchantName:  parsedQR.merchantName || '',
+      country:       parsedQR.countryCode || 'VN',
+      standard:      parsedQR.standard,
+      source: {
+        type:           'stripe',
+        currency:       'AUD',
+        grossAmount:    amountAUD,
+        netAmount:      netAUD,
+        commission,
+        commissionRate: COMMISSION_RATE,
+        stripeIntentId,
+      },
+    },
+  };
 
-    // What to charge (funded via Stripe)
+  const sig = signPayload(payload, scheme);
+  if (sig) payload.signature = sig;
+
+  return {
+    version:        X402_VERSION,
+    x402Version:    X402_VERSION,
+    scheme,
+    network,
+    facilitatorUrl: FACILITATOR_URL,
+    description:    `KURO::PAY ${parsedQR.bankName || parsedQR.bankBin || ''} ${parsedQR.accountNumber}`.trim(),
+    paymentPayload: payload,
+    paymentRequirements: {
+      scheme,
+      network,
+      recipient: parsedQR.accountNumber,
+      currency:  parsedQR.currency || 'VND',
+      amount:    String(amountVND),
+    },
     source: {
-      type:              'stripe',
-      currency:          'AUD',
-      grossAmount:       amountAUD,
-      netAmount:         netAUD,
-      commission:        commission,
-      commissionRate:    COMMISSION_RATE,
+      type:           'stripe',
+      currency:       'AUD',
+      grossAmount:    amountAUD,
+      netAmount:      netAUD,
+      commission,
+      commissionRate: COMMISSION_RATE,
       stripeIntentId,
     },
-
-    // Where to pay out (merchant's bank account from QR)
     payTo: {
       type:          'bank_account',
       currency:      parsedQR.currency || 'VND',
@@ -68,40 +140,39 @@ function buildPaymentRequired(parsedQR, amountAUD, amountVND, stripeIntentId, re
       country:       parsedQR.countryCode || 'VN',
       standard:      parsedQR.standard,
     },
-
-    reference:  ref,
-    timestamp:  Math.floor(Date.now() / 1000),
+    reference: ref,
+    timestamp: payload.ts,
   };
 }
 
-// ── verifyPayment ─────────────────────────────────────────────────
-/**
- * Submit the payment payload to the x402 facilitator.
- * Returns the settlement confirmation.
- *
- * @param {object} paymentRequired — from buildPaymentRequired()
- * @returns {object} settlement response
- */
 async function verifyPayment(paymentRequired) {
   const startTime = Date.now();
+  const body = {
+    paymentPayload:      paymentRequired.paymentPayload,
+    paymentRequirements: paymentRequired.paymentRequirements,
+  };
+  const idempotencyKey = paymentRequired.paymentPayload?.nonce || newNonce();
+
   try {
-    const resp = await axios.post(
-      `${FACILITATOR_URL}/verify`,
-      paymentRequired,
-      {
-        headers:        { 'Content-Type': 'application/json', 'X-x402-Version': String(X402_VERSION) },
-        timeout:        15000,
-        validateStatus: null, // handle all status codes ourselves
-      }
-    );
+    const resp = await axios.post(`${FACILITATOR_URL}/settle`, body, {
+      headers: {
+        'Content-Type':     'application/json',
+        'X-x402-Version':   String(X402_VERSION),
+        'X-KURO-Svc-Key':   SVC_KEY,
+        'Idempotency-Key':  idempotencyKey,
+      },
+      timeout:        20_000,
+      validateStatus: null,
+    });
+
     const settlementLatencyMs = Date.now() - startTime;
     const data = resp.data || {};
-    const txSignature = data.txSignature || data.transaction_id || data.txHash || null;
-    const network     = data.network || paymentRequired.network || 'base';
+    const txSignature = data.transaction || data.txSignature || data.txHash || null;
+    const network     = data.network || paymentRequired.network || null;
 
-    if (resp.status === 200 || resp.status === 201) {
+    if (resp.status === 200 && data.success) {
       return {
-        success: true,
+        success:             true,
         facilitatorResponse: data,
         settlementLatencyMs,
         txSignature,
@@ -109,7 +180,6 @@ async function verifyPayment(paymentRequired) {
       };
     }
 
-    // Facilitator responded with error — store response for audit
     return {
       success:             false,
       facilitatorStatus:   resp.status,
@@ -120,45 +190,35 @@ async function verifyPayment(paymentRequired) {
       network,
     };
   } catch (err) {
-    // Network error or facilitator unreachable — record locally, flag for retry
     return {
       success:             false,
       error:               err.message,
       offline:             true,
       settlementLatencyMs: Date.now() - startTime,
       txSignature:         null,
-      network:             paymentRequired.network || 'base',
+      network:             paymentRequired.network || null,
     };
   }
 }
 
-// Alias used by new ATM flow (semantically clearer for the submit-and-await path)
 async function submitPayment(paymentRequired) {
   return verifyPayment(paymentRequired);
 }
 
-// ── generateReceipt ───────────────────────────────────────────────
-/**
- * Build an x402 audit receipt.
- * Called after verifyPayment — stores full audit trail.
- *
- * @param {string} paymentId           — internal KURO payment ID
- * @param {object} paymentRequired     — from buildPaymentRequired()
- * @param {object} settlementResponse  — from verifyPayment()
- */
 function generateReceipt(paymentId, paymentRequired, settlementResponse) {
   return {
-    receiptId:  crypto.randomUUID(),
+    receiptId:   crypto.randomUUID(),
     paymentId,
     x402Version: X402_VERSION,
-    timestamp:  new Date().toISOString(),
-    network:    paymentRequired.network,
+    timestamp:   new Date().toISOString(),
+    scheme:      paymentRequired.scheme,
+    network:     settlementResponse.network || paymentRequired.network,
 
     source: {
-      currency:      paymentRequired.source.currency,
-      grossAmount:   paymentRequired.source.grossAmount,
-      netAmount:     paymentRequired.source.netAmount,
-      commission:    paymentRequired.source.commission,
+      currency:       paymentRequired.source.currency,
+      grossAmount:    paymentRequired.source.grossAmount,
+      netAmount:      paymentRequired.source.netAmount,
+      commission:     paymentRequired.source.commission,
       stripeIntentId: paymentRequired.source.stripeIntentId,
     },
 
@@ -186,7 +246,6 @@ function generateReceipt(paymentId, paymentRequired, settlementResponse) {
 
     settlementLatencyMs: settlementResponse.settlementLatencyMs ?? null,
     txSignature:         settlementResponse.txSignature ?? null,
-    network:             settlementResponse.network || paymentRequired.network || 'base',
 
     reference: paymentRequired.reference,
     status:    settlementResponse.success ? 'settled' : 'pending_settlement',
@@ -200,4 +259,5 @@ module.exports = {
   generateReceipt,
   FACILITATOR_URL,
   X402_VERSION,
+  schemeFor,
 };
