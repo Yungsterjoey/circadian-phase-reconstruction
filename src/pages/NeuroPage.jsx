@@ -308,23 +308,11 @@ function NeuroStyles() {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
-.kg-root.kg-neuro > :not(.desktop-bg) { position: relative; z-index: 1; }
+.kg-root.kg-neuro > :not(.desktop-bg):not(.kg-nav) { position: relative; z-index: 1; }
 
-.kg-nav {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 32px;
-  position: sticky; top: 0; z-index: 10;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  background: rgba(0,0,0,0.4);
-  border-bottom: 1px solid var(--kg-card-border);
-}
-.kg-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: 3px; color: var(--kg-text); text-decoration: none; }
-.kg-brand-word { line-height: 1; }
-.kg-brand-back:hover { color: var(--kg-purple); }
-.kg-nav-right { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.kg-nav-link { color: var(--kg-text-muted); text-decoration: none; transition: color 150ms; }
-.kg-nav-link:hover { color: var(--kg-text); }
-.kg-nav-dot { color: var(--kg-text-dim); }
+/* Top-nav styling lives in KuroToolbar.jsx (self-contained <style>).
+   We just reserve space below the fixed toolbar. */
+.kg-root.kg-neuro { padding-top: 56px; }
 
 .kg-advisory {
   max-width: 960px; margin: 0 auto;
@@ -542,7 +530,6 @@ function NeuroStyles() {
   .kg-footer-cols { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px) {
-  .kg-nav { padding: 16px 20px; }
   .kg-hero.kg-hero-neuro { padding: 48px 20px 24px; }
   .kg-validation, .kg-phase-tool, .kg-resources { padding: 24px 20px; }
   .kg-phase-inputs { grid-template-columns: 1fr; }

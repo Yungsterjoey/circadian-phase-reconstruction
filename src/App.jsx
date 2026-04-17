@@ -13,10 +13,14 @@ import { useAuthStore } from './stores/authStore';
 import { PHYSICS } from './lib/gestureEngine';
 import HomeScreen from './components/os/HomeScreen';
 import OSDock from './components/os/OSDock';
-import StatusBar from './components/os/StatusBar';
 import ContextMenu from './components/os/ContextMenu';
 import CookieBanner from './components/CookieBanner';
 import DesktopBackground from './components/DesktopBackground';
+import KuroToolbar from './components/KuroToolbar';
+
+// Height consumed by the fixed KuroToolbar at the top of every surface.
+// Kept in one place so the OS shell + in-app chrome stay in sync.
+const TOOLBAR_OFFSET = 56;
 
 // ─── Lazy-loaded app components ──────────────────────────────────────────────
 const APP_COMPONENTS = {
@@ -124,9 +128,12 @@ export default function App() {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const iconCX = (fromRect.left + fromRect.right) / 2;
-    const iconCY = (fromRect.top + fromRect.bottom) / 2;
+    // App cards now start at top:TOOLBAR_OFFSET, so translate viewport-y
+    // into element-local y for transform-origin to land on the tapped icon.
+    const iconCY = (fromRect.top + fromRect.bottom) / 2 - TOOLBAR_OFFSET;
     const iconW = fromRect.right - fromRect.left;
-    const startScale = Math.max(iconW / vw, iconW / vh);
+    const elH = vh - TOOLBAR_OFFSET;
+    const startScale = Math.max(iconW / vw, iconW / elH);
 
     if (phase === 'launching') {
       // Step 1: position at icon (no transition) — all GPU-composited properties
@@ -197,10 +204,13 @@ export default function App() {
     <AppErrorBoundary>
       <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
         <DesktopBackground />
+        <KuroToolbar />
 
         {/* Home Screen */}
         <div style={{
-          position: 'absolute', inset: 0, zIndex: 1,
+          position: 'absolute',
+          top: TOOLBAR_OFFSET, left: 0, right: 0, bottom: 0,
+          zIndex: 1,
           display: showHS ? 'flex' : 'none',
           flexDirection: 'column',
           // Only opacity + transform — both GPU-composited. No filter.
@@ -229,10 +239,10 @@ export default function App() {
               data-app-id={appId}
               data-app-visible={isVisible ? 'true' : undefined}
               style={{
-                position: 'absolute', inset: 0,
+                position: 'absolute',
+                top: TOOLBAR_OFFSET, left: 0, right: 0, bottom: 0,
                 zIndex: isVisible ? 10 : 1,
                 display: 'flex', flexDirection: 'column',
-                height: '100%', width: '100%',
                 ...(isTransitioning ? {} : {
                   opacity: isVisible ? 1 : 0,
                   transform: isVisible ? 'scale(1)' : 'scale(0.92)',
@@ -250,7 +260,6 @@ export default function App() {
           );
         })}
 
-        <StatusBar />
         <OSDock />
         {contextMenu && <ContextMenu />}
         <CookieBanner />

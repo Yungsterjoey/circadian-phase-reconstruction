@@ -65,7 +65,8 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* Keep page content clear of the hovering dock (pill height + gap + breathing). */
+  /* Clear of the fixed KuroToolbar at the top (56px) and the hovering dock at the bottom. */
+  padding-top: calc(56px + env(safe-area-inset-top, 0px));
   padding-bottom: calc(var(--kp-dock-h) + var(--kp-dock-gap) + 20px);
 }
 
@@ -436,16 +437,23 @@ html, body {
   padding: 12px clamp(14px, 4vw, 20px);
   min-height: 48px;
   border-radius: 999px;
-  border: 1px solid var(--kp-hairline);
-  background: transparent;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
   color: var(--kp-fg-2);
   font: inherit;
   font-size: clamp(13.5px, 3.6vw, 14.5px);
   font-weight: 500;
   letter-spacing: -0.005em;
   cursor: pointer;
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.16) inset,
+    0 -1px 0 rgba(0,0,0,0.40) inset,
+    0 4px 12px -2px rgba(0,0,0,0.45);
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease,
-              transform 100ms ease, opacity 160ms ease;
+              transform 140ms cubic-bezier(.2,.8,.2,1),
+              box-shadow 160ms ease, opacity 160ms ease;
   position: relative;
   min-width: 0;
 }
@@ -459,7 +467,13 @@ html, body {
   flex-shrink: 0;
 }
 .kp-nav-btn svg path { stroke: currentColor; }
-.kp-nav-btn:active:not(:disabled) { transform: scale(0.97); }
+.kp-nav-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.55) inset,
+    0 -1px 0 rgba(255,255,255,0.06) inset,
+    0 1px 2px rgba(0,0,0,0.2);
+}
 .kp-nav-btn:disabled,
 .kp-nav-btn[aria-disabled="true"] {
   opacity: 0.36;
@@ -474,11 +488,16 @@ html, body {
   padding-left: 14px;
   padding-right: 18px;
   color: var(--kp-fg);
-  background: rgba(255,255,255,0.02);
+  /* Inherits the shared liquid-glass background from .kp-nav-btn */
 }
 .kp-nav-back:not(:disabled):hover {
-  background: rgba(255,255,255,0.06);
-  border-color: var(--kp-hairline-2);
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+  border-color: rgba(255,255,255,0.22);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.22) inset,
+    0 -1px 0 rgba(0,0,0,0.45) inset,
+    0 8px 18px -4px rgba(0,0,0,0.5);
 }
 
 .kp-nav-next {
@@ -486,21 +505,47 @@ html, body {
   padding-right: 18px;
   font-weight: 600;
 }
+/* Primary = teal→purple liquid-glass sheen, not a solid white brick. */
 .kp-nav-next.kp-nav-primary {
-  background: var(--kp-fg-2);
-  color: #09090b;
-  border-color: transparent;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, rgba(0,217,197,0.32), rgba(168,121,255,0.30));
+  background-blend-mode: overlay, normal;
+  color: #fff;
+  border-color: rgba(168,121,255,0.45);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.26) inset,
+    0 -1px 0 rgba(0,0,0,0.45) inset,
+    0 0 0 1px rgba(0,217,197,0.12),
+    0 10px 24px -6px rgba(168,121,255,0.38),
+    0 4px 10px -2px rgba(0,0,0,0.5);
 }
 .kp-nav-next.kp-nav-primary:disabled,
 .kp-nav-next.kp-nav-primary[aria-disabled="true"] {
-  background: rgba(255,255,255,0.09);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
   color: var(--kp-dim);
+  border-color: rgba(255,255,255,0.10);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 -1px 0 rgba(0,0,0,0.35) inset,
+    0 2px 6px rgba(0,0,0,0.25);
 }
 .kp-nav-next.kp-nav-primary:not(:disabled):hover {
-  background: #fff;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06)),
+    linear-gradient(135deg, rgba(0,217,197,0.42), rgba(168,121,255,0.40));
+  background-blend-mode: overlay, normal;
+  border-color: rgba(168,121,255,0.60);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.32) inset,
+    0 -1px 0 rgba(0,0,0,0.45) inset,
+    0 0 0 1px rgba(0,217,197,0.18),
+    0 14px 28px -6px rgba(168,121,255,0.48),
+    0 6px 14px -3px rgba(0,0,0,0.55);
 }
 .kp-nav-next.kp-nav-ghost {
-  background: rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   color: var(--kp-fg-2);
 }
 

@@ -1233,7 +1233,7 @@ export default function KuroChat() {
           </div>
         </div>
         {/* ── Model indicator (spec §5.8) ── */}
-        <div className="k8-model-indicator">Gemma 4 E4B · running locally</div>
+        <div className="k8-model-indicator">KURO-1 · running locally</div>
       </div>
 
       {/* ── Drop zone ─── */}

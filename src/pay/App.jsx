@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import GlassCube from '../components/ui/GlassCube';
 import DesktopBackground from '../components/DesktopBackground';
 import LegalModal from '../components/legal/LegalModal';
+import KuroToolbar from '../components/KuroToolbar';
 
 import WelcomeScreen      from './WelcomeScreen.jsx';
 import LinkCardScreen     from './LinkCardScreen.jsx';
@@ -24,18 +24,6 @@ function RootRedirect() {
   return null;
 }
 
-function KuroBar() {
-  return (
-    <div className="kp-kuro-bar">
-      <a href="/" className="kp-kuro-brand" aria-label="Back to KURO">
-        <GlassCube size="nav" />
-        <span className="kp-kuro-word">KURO</span>
-      </a>
-      <span className="kp-kuro-tag">PAY</span>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <PayNavProvider>
@@ -45,7 +33,7 @@ export default function App() {
           <DesktopBackground />
         </div>
 
-        <KuroBar />
+        <KuroToolbar right={<span className="kp-kuro-tag">PAY</span>} />
 
         <div className="kp-app-body">
           <Routes>

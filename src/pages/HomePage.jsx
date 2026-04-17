@@ -56,7 +56,7 @@ export default function HomePage() {
           title="KURO OS"
           gradient="var(--kg-gradient-os)"
           tagline="Local AI with agency."
-          body="Runs on your own hardware. Gemma 4 multimodal, 128K context, circadian-aware. No frontier-API dependency."
+          body="Runs on your own hardware. Flagship model, KURO-1. 128K context, multimodal, circadian-aware. No frontier-API dependency."
           buttonLabel="Launch →"
           to="/app"
         />
@@ -179,30 +179,11 @@ function HomeStyles() {
   overflow-x: hidden;
 }
 /* DesktopBackground sits at z:0 fixed; content stacks above. */
-.kg-root > :not(.desktop-bg) { position: relative; z-index: 1; }
+.kg-root > :not(.desktop-bg):not(.kg-nav) { position: relative; z-index: 1; }
 
-/* ── Top nav ── */
-.kg-nav {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 32px;
-  position: sticky; top: 0; z-index: 10;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  background: rgba(0,0,0,0.4);
-  border-bottom: 1px solid var(--kg-card-border);
-}
-.kg-brand {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-size: 15px; font-weight: 600;
-  letter-spacing: 3px; color: var(--kg-text);
-}
-.kg-brand-word { line-height: 1; }
-.kg-nav-right { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.kg-nav-link {
-  color: var(--kg-text-muted); text-decoration: none;
-  transition: color 150ms;
-}
-.kg-nav-link:hover { color: var(--kg-text); }
-.kg-nav-dot { color: var(--kg-text-dim); }
+/* Top-nav styling lives in KuroToolbar.jsx (self-contained <style>).
+   We just reserve space below the fixed toolbar. */
+.kg-root { padding-top: 56px; }
 
 /* ── Hero ── */
 .kg-hero {
@@ -363,7 +344,6 @@ function HomeStyles() {
   .kg-footer-cols { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px) {
-  .kg-nav { padding: 16px 20px; }
   .kg-hero { padding: 56px 20px 32px; }
   .kg-tiles { padding: 32px 20px 64px; }
   .kg-footer { padding: 48px 20px 32px; }
